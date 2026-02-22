@@ -60,6 +60,78 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<LoginResponse?> UserLoginAsync(LoginRequest request)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => (u.Username == request.Username || u.Email == request.Username) && u.IsActive);
+
+        if (user == null)
+        {
+            return null;
+        }
+
+        if (!VerifyPassword(request.Password, user.PasswordHash))
+        {
+            return null;
+        }
+
+        user.LastLoginAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        var token = GenerateJwtToken(user.Username);
+        var expiresAt = DateTime.UtcNow.AddMinutes(
+            int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
+
+        return new LoginResponse
+        {
+            Token = token,
+            Username = user.Username,
+            UserId = user.Id,
+            ExpiresAt = expiresAt
+        };
+    }
+
+    public async Task<RegisterResponse?> RegisterAsync(RegisterRequest request)
+    {
+        if (await _context.Users.AnyAsync(u => u.Username == request.Username))
+        {
+            throw new InvalidOperationException("Username already exists");
+        }
+
+        if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+        {
+            throw new InvalidOperationException("Email already exists");
+        }
+
+        var user = new Models.User
+        {
+            Username = request.Username.Trim(),
+            Email = request.Email.Trim().ToLower(),
+            PasswordHash = HashPassword(request.Password),
+            FirstName = string.IsNullOrWhiteSpace(request.FirstName) ? null : request.FirstName.Trim(),
+            LastName = string.IsNullOrWhiteSpace(request.LastName) ? null : request.LastName.Trim(),
+            PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim(),
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        var token = GenerateJwtToken(user.Username);
+        var expiresAt = DateTime.UtcNow.AddMinutes(
+            int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
+
+        return new RegisterResponse
+        {
+            UserId = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            Token = token,
+            ExpiresAt = expiresAt
+        };
+    }
+
     public string GenerateJwtToken(string username)
     {
         var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));

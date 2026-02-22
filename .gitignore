@@ -111,6 +111,13 @@ docker-compose.override.yml
 .vscode/
 *.code-workspace
 
+# IntelliJ/Android Studio project files
+*.iml
+**/*.iml
+
+# Android local properties
+**/local.properties
+
 # Temporary files
 *.tmp
 *.temp
