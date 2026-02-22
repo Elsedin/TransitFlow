@@ -1,0 +1,118 @@
+# .NET build outputs
+**/bin/
+**/obj/
+**/[Bb]in/
+**/[Oo]bj/
+**/[Bb]uild/
+
+# Visual Studio
+**/.vs/
+**/*.user
+**/*.suo
+**/*.userosscache
+**/*.sln.docstates
+
+# Rider
+**/.idea/
+**/*.iml
+
+# User-specific files
+**/*.rsuser
+**/*.user
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Ll]og/
+[Ll]ogs/
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# NuGet
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nupkg
+*.snupkg
+**/*.nuspec
+**/*.nuget.props
+**/*.nuget.targets
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Files built by Visual Studio
+*_i.c
+*_p.c
+*_h.h
+*.ilk
+*.meta
+*.iobj
+*.pch
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.sbr
+*.tlb
+*.tli
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Flutter
+admin-frontend/.dart_tool/
+admin-frontend/build/
+admin-frontend/.flutter-plugins
+admin-frontend/.flutter-plugins-dependencies
+admin-frontend/.packages
+admin-frontend/.pub/
+admin-frontend/pubspec.lock
+user-mobile/.dart_tool/
+user-mobile/build/
+user-mobile/.flutter-plugins
+user-mobile/.flutter-plugins-dependencies
+user-mobile/.packages
+user-mobile/.pub/
+user-mobile/pubspec.lock
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+**/appsettings.Development.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.vscode/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
