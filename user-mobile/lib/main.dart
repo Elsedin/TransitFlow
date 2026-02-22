@@ -37,7 +37,7 @@ class AuthWrapper extends StatefulWidget {
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   final _authService = AuthService();
   bool _isChecking = true;
   bool _isAuthenticated = false;
@@ -45,7 +45,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkAuth();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached || 
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _authService.logout();
+    }
   }
 
   Future<void> _checkAuth() async {
