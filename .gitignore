@@ -123,3 +123,85 @@ docker-compose.override.yml
 *.temp
 *.bak
 *~
+
+# SQL Server database files
+*.mdf
+*.ldf
+*.ndf
+
+# Flutter coverage
+**/coverage/
+**/.coverage
+
+# Flutter generated files
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/.dart_tool/
+**/build/
+**/.pub/
+
+# Android build artifacts
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+**/android/**/key.properties
+**/*.jks
+**/*.keystore
+
+# iOS build artifacts
+**/ios/**/Pods/
+**/ios/**/.symlinks/
+**/ios/**/profile
+**/ios/**/xcuserdata/
+**/ios/**/DerivedData/
+**/ios/**/Icon?
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions.json
+**/ios/Runner/GeneratedPluginRegistrant.*
+
+# Windows Flutter build artifacts
+**/windows/flutter/ephemeral/
+**/windows/flutter/generated_plugin_registrant.cc
+**/windows/flutter/generated_plugin_registrant.h
+**/windows/flutter/generated_plugins.cmake
+
+# Flutter metadata (user-specific, should not be committed)
+**/.metadata
+
+# macOS Flutter build artifacts
+**/macos/Flutter/ephemeral/
+**/macos/Flutter/GeneratedPluginRegistrant.swift
+**/xcuserdata/
+
+# Linux Flutter build artifacts
+**/linux/flutter/ephemeral/
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugin_registrant.h
+**/linux/flutter/generated_plugins.cmake
+
+# .NET user secrets
+**/secrets.json
+**/Properties/launchSettings.json.user
+
+# Connection strings and sensitive config (if not already covered)
+**/appsettings.*.json
+!**/appsettings.json
+
+# Flutter metadata (user-specific, should not be committed)
+**/.metadata
