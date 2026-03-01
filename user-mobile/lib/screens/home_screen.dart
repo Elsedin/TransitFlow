@@ -4,6 +4,8 @@ import '../services/transport_line_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
+import 'ticket_purchase_screen.dart';
+import 'route_map_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -191,7 +193,11 @@ class _HomeTabState extends State<_HomeTab> {
                       Colors.orange[700]!,
                       Colors.white,
                       () {
-                        // TODO: Navigate to ticket purchase
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TicketPurchaseScreen(),
+                          ),
+                        );
                       },
                     ),
                   ),
@@ -862,8 +868,15 @@ class _LinesTabState extends State<_LinesTab> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Show map
+                    onPressed: () async {
+                      final route = await _transportLineService.getRouteByLineId(line.id);
+                      if (route != null && mounted) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => RouteMapScreen(route: route),
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[700],

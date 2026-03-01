@@ -159,6 +159,70 @@ public class TicketService : ITicketService
         };
     }
 
+    public async Task<TicketDto> PurchaseAsync(PurchaseTicketDto dto, int userId)
+    {
+        var ticketType = await _context.TicketTypes.FindAsync(dto.TicketTypeId);
+        if (ticketType == null)
+        {
+            throw new InvalidOperationException("Ticket type not found");
+        }
+
+        var route = await _context.Routes.FindAsync(dto.RouteId);
+        if (route == null)
+        {
+            throw new InvalidOperationException("Route not found");
+        }
+
+        var zone = await _context.Zones.FindAsync(dto.ZoneId);
+        if (zone == null)
+        {
+            throw new InvalidOperationException("Zone not found");
+        }
+
+        var ticketPrice = await _context.TicketPrices
+            .Where(tp => tp.TicketTypeId == dto.TicketTypeId 
+                && tp.ZoneId == dto.ZoneId 
+                && tp.IsActive 
+                && tp.ValidFrom <= DateTime.UtcNow
+                && (tp.ValidTo == null || tp.ValidTo >= DateTime.UtcNow))
+            .OrderByDescending(tp => tp.ValidFrom)
+            .FirstOrDefaultAsync();
+
+        if (ticketPrice == null)
+        {
+            throw new InvalidOperationException("Ticket price not found for the selected ticket type and zone");
+        }
+
+        var ticketNumber = GenerateTicketNumber();
+
+        var ticket = new Ticket
+        {
+            TicketNumber = ticketNumber,
+            UserId = userId,
+            TicketTypeId = dto.TicketTypeId,
+            RouteId = dto.RouteId,
+            ZoneId = dto.ZoneId,
+            Price = ticketPrice.Price,
+            ValidFrom = dto.ValidFrom,
+            ValidTo = dto.ValidTo,
+            PurchasedAt = DateTime.UtcNow,
+            IsUsed = false
+        };
+
+        _context.Tickets.Add(ticket);
+        await _context.SaveChangesAsync();
+
+        return await GetByIdAsync(ticket.Id) ?? throw new Exception("Failed to retrieve created ticket");
+    }
+
+    private static string GenerateTicketNumber()
+    {
+        var year = DateTime.UtcNow.Year;
+        var random = new Random();
+        var number = random.Next(100000, 999999);
+        return $"TKT-{year}-{number:D6}";
+    }
+
     private static string GetTicketStatus(Ticket ticket, DateTime now)
     {
         if (ticket.IsUsed)

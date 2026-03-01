@@ -7,4 +7,6 @@ public class RouteStationDto
     public string StationName { get; set; } = string.Empty;
     public string? StationAddress { get; set; }
     public int Order { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
 }

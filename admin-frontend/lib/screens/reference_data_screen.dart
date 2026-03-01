@@ -3,6 +3,7 @@ import '../services/zone_service.dart';
 import '../services/city_service.dart';
 import '../services/ticket_type_service.dart';
 import '../services/transport_type_service.dart';
+import '../services/station_service.dart';
 import '../models/station_model.dart';
 import '../models/ticket_type_model.dart';
 import '../models/transport_type_model.dart';
@@ -75,6 +76,13 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
           Colors.red,
           'Upravljanje tipovima vozila',
         ),
+        _buildCategoryCard(
+          'Stajališta',
+          Icons.train,
+          'stations',
+          Colors.purple,
+          'Upravljanje stajalištima',
+        ),
       ],
     );
   }
@@ -143,6 +151,8 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
         return TransportTypesTable();
       case 'cities':
         return CitiesTable();
+      case 'stations':
+        return StationsTable();
       default:
         return ZonesTable();
     }
@@ -556,18 +566,20 @@ class _ZonesTableState extends State<ZonesTable> {
 
 class _TableHeaderCell extends StatelessWidget {
   final String text;
+  final double? fontSize;
 
-  const _TableHeaderCell(this.text);
+  const _TableHeaderCell(this.text, {this.fontSize});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(8.0),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.bold,
+          fontSize: fontSize ?? 14,
         ),
       ),
     );
@@ -577,17 +589,20 @@ class _TableHeaderCell extends StatelessWidget {
 class _TableCell extends StatelessWidget {
   final String text;
   final Widget? child;
+  final double? fontSize;
 
-  const _TableCell(this.text, {this.child});
+  const _TableCell(this.text, {this.child, this.fontSize});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(12.0),
+      padding: const EdgeInsets.all(8.0),
       child: child ?? Text(
         text,
+        style: TextStyle(fontSize: fontSize ?? 14),
         softWrap: true,
-        overflow: TextOverflow.visible,
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
       ),
     );
   }
@@ -1819,6 +1834,551 @@ class _CitiesTableState extends State<CitiesTable> {
 
   Widget _buildPagination() {
     final totalPages = (_filteredCities.length / _itemsPerPage).ceil();
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: _currentPage > 0
+              ? () => setState(() => _currentPage--)
+              : null,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Text('Stranica ${_currentPage + 1} od $totalPages'),
+        IconButton(
+          onPressed: _currentPage < totalPages - 1
+              ? () => setState(() => _currentPage++)
+              : null,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
+    );
+  }
+}
+
+class StationsTable extends StatefulWidget {
+  @override
+  State<StationsTable> createState() => _StationsTableState();
+}
+
+class _StationsTableState extends State<StationsTable> {
+  final _stationService = StationService();
+  final _cityService = CityService();
+  final _zoneService = ZoneService();
+  List<Station> _stations = [];
+  List<Station> _filteredStations = [];
+  List<City> _cities = [];
+  List<Zone> _zones = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  final _searchController = TextEditingController();
+  bool? _statusFilter;
+  int _currentPage = 0;
+  final int _itemsPerPage = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final stations = await _stationService.getAll(
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
+      final cities = await _cityService.getAll(isActive: true);
+      final zones = await _zoneService.getAll();
+      setState(() {
+        _stations = stations;
+        _filteredStations = stations;
+        _cities = cities;
+        _zones = zones;
+        _isLoading = false;
+      });
+      _applyFilters();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Greška: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _applyFilters() {
+    List<Station> filtered = List.from(_stations);
+
+    if (_searchController.text.isNotEmpty) {
+      final search = _searchController.text.toLowerCase();
+      filtered = filtered.where((station) {
+        return station.name.toLowerCase().contains(search) ||
+            (station.address != null && station.address!.toLowerCase().contains(search)) ||
+            station.cityName.toLowerCase().contains(search) ||
+            station.zoneName.toLowerCase().contains(search);
+      }).toList();
+    }
+
+    if (_statusFilter != null) {
+      filtered = filtered.where((station) => station.isActive == _statusFilter).toList();
+    }
+
+    setState(() {
+      _filteredStations = filtered;
+      _currentPage = 0;
+    });
+  }
+
+  List<Station> get _paginatedStations {
+    final start = _currentPage * _itemsPerPage;
+    final end = (start + _itemsPerPage).clamp(0, _filteredStations.length);
+    return _filteredStations.sublist(start, end);
+  }
+
+  Future<void> _showAddEditDialog({Station? station}) async {
+    final nameController = TextEditingController(text: station?.name ?? '');
+    final addressController = TextEditingController(text: station?.address ?? '');
+    final latitudeController = TextEditingController(text: station?.latitude?.toString() ?? '');
+    final longitudeController = TextEditingController(text: station?.longitude?.toString() ?? '');
+    int? selectedCityId = station?.cityId ?? (_cities.isNotEmpty ? _cities.first.id : null);
+    int? selectedZoneId = station?.zoneId ?? (_zones.isNotEmpty ? _zones.first.id : null);
+    bool isActive = station?.isActive ?? true;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(station == null ? 'Dodaj stajalište' : 'Uredi stajalište'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Naziv *',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: addressController,
+                  decoration: const InputDecoration(
+                    labelText: 'Adresa',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: latitudeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Latitude',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: longitudeController,
+                        decoration: const InputDecoration(
+                          labelText: 'Longitude',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  value: selectedCityId,
+                  decoration: const InputDecoration(
+                    labelText: 'Grad *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _cities.map((city) {
+                    return DropdownMenuItem<int>(
+                      value: city.id,
+                      child: Text(city.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedCityId = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  value: selectedZoneId,
+                  decoration: const InputDecoration(
+                    labelText: 'Zona *',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _zones.map((zone) {
+                    return DropdownMenuItem<int>(
+                      value: zone.id,
+                      child: Text(zone.name),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedZoneId = value;
+                    });
+                  },
+                ),
+                if (station != null) ...[
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('Aktivna'),
+                    value: isActive,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        isActive = value ?? true;
+                      });
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Otkaži'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Naziv je obavezan')),
+                  );
+                  return;
+                }
+
+                if (selectedCityId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Grad je obavezan')),
+                  );
+                  return;
+                }
+
+                if (selectedZoneId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Zona je obavezna')),
+                  );
+                  return;
+                }
+
+                double? latitude;
+                if (latitudeController.text.trim().isNotEmpty) {
+                  latitude = double.tryParse(latitudeController.text.trim());
+                  if (latitude == null || latitude < -90 || latitude > 90) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Latitude mora biti između -90 i 90')),
+                    );
+                    return;
+                  }
+                }
+
+                double? longitude;
+                if (longitudeController.text.trim().isNotEmpty) {
+                  longitude = double.tryParse(longitudeController.text.trim());
+                  if (longitude == null || longitude < -180 || longitude > 180) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Longitude mora biti između -180 i 180')),
+                    );
+                    return;
+                  }
+                }
+
+                try {
+                  if (station == null) {
+                    await _stationService.create(CreateStationRequest(
+                      name: nameController.text.trim(),
+                      address: addressController.text.trim().isEmpty
+                          ? null
+                          : addressController.text.trim(),
+                      latitude: latitude,
+                      longitude: longitude,
+                      cityId: selectedCityId!,
+                      zoneId: selectedZoneId!,
+                    ));
+                  } else {
+                    await _stationService.update(station.id, UpdateStationRequest(
+                      name: nameController.text.trim(),
+                      address: addressController.text.trim().isEmpty
+                          ? null
+                          : addressController.text.trim(),
+                      latitude: latitude,
+                      longitude: longitude,
+                      cityId: selectedCityId!,
+                      zoneId: selectedZoneId!,
+                      isActive: isActive,
+                    ));
+                  }
+                  if (mounted) {
+                    Navigator.pop(context);
+                    _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(station == null ? 'Stajalište je uspješno dodano' : 'Stajalište je uspješno ažurirano'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Greška: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sačuvaj'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteStation(Station station) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda brisanja'),
+        content: Text('Da li ste sigurni da želite obrisati stajalište "${station.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Otkaži'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Obriši'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _stationService.delete(station.id);
+        if (mounted) {
+          _loadData();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Stajalište je uspješno obrisano')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Greška: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Stajališta',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Row(
+              children: [
+                SizedBox(
+                  width: 300,
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Pretraži stajališta...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onChanged: (_) => _loadData(),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white,
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<bool?>(
+                      value: _statusFilter,
+                      hint: const Text('Svi statusi'),
+                      icon: const Icon(Icons.filter_list),
+                      items: const [
+                        DropdownMenuItem<bool?>(value: null, child: Text('Svi statusi')),
+                        DropdownMenuItem<bool?>(value: true, child: Text('Aktivna')),
+                        DropdownMenuItem<bool?>(value: false, child: Text('Neaktivna')),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _statusFilter = value;
+                        });
+                        _loadData();
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  onPressed: () => _showAddEditDialog(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Dodaj stajalište'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[700],
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(child: Text(_errorMessage!))
+                : Column(
+                    children: [
+                      _buildTable(),
+                      const SizedBox(height: 20),
+                      _buildPagination(),
+                    ],
+                  ),
+      ],
+    );
+  }
+
+  Widget _buildTable() {
+    if (_paginatedStations.isEmpty) {
+      return const Center(child: Text('Nema pronađenih stajališta'));
+    }
+
+    return Table(
+      columnWidths: const {
+        0: FixedColumnWidth(50),
+        1: FixedColumnWidth(120),
+        2: FixedColumnWidth(150),
+        3: FixedColumnWidth(90),
+        4: FixedColumnWidth(90),
+        5: FixedColumnWidth(100),
+        6: FixedColumnWidth(100),
+        7: FixedColumnWidth(80),
+        8: FixedColumnWidth(100),
+      },
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: Colors.orange[700],
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
+          ),
+          children: const [
+            _TableHeaderCell('ID', fontSize: 12),
+            _TableHeaderCell('Naziv', fontSize: 12),
+            _TableHeaderCell('Adresa', fontSize: 12),
+            _TableHeaderCell('Lat', fontSize: 12),
+            _TableHeaderCell('Lng', fontSize: 12),
+            _TableHeaderCell('Grad', fontSize: 12),
+            _TableHeaderCell('Zona', fontSize: 12),
+            _TableHeaderCell('Status', fontSize: 12),
+            _TableHeaderCell('Akcije', fontSize: 12),
+          ],
+        ),
+        ..._paginatedStations.map((station) => TableRow(
+              children: [
+                _TableCell(station.id.toString(), fontSize: 12),
+                _TableCell(station.name, fontSize: 12),
+                _TableCell(station.address ?? '', fontSize: 12),
+                _TableCell(station.latitude != null ? station.latitude!.toStringAsFixed(4) : '', fontSize: 12),
+                _TableCell(station.longitude != null ? station.longitude!.toStringAsFixed(4) : '', fontSize: 12),
+                _TableCell(station.cityName, fontSize: 12),
+                _TableCell(station.zoneName, fontSize: 12),
+                _TableCell(station.isActive ? 'Aktivna' : 'Neaktivna', fontSize: 12),
+                _TableCell(
+                  '',
+                  fontSize: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () => _showAddEditDialog(station: station),
+                        icon: const Icon(Icons.edit, size: 18),
+                        color: Colors.blue,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Uredi',
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () => _deleteStation(station),
+                        icon: const Icon(Icons.delete, size: 18),
+                        color: Colors.red,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Obriši',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )),
+      ],
+    );
+  }
+
+  Widget _buildPagination() {
+    final totalPages = (_filteredStations.length / _itemsPerPage).ceil();
     if (totalPages <= 1) return const SizedBox.shrink();
 
     return Row(

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class TicketsController : ControllerBase
 {
     private readonly ITicketService _ticketService;
+    private readonly IUserService _userService;
 
-    public TicketsController(ITicketService ticketService)
+    public TicketsController(ITicketService ticketService, IUserService userService)
     {
         _ticketService = ticketService;
+        _userService = userService;
     }
 
     [HttpGet("metrics")]
@@ -47,5 +50,37 @@ public class TicketsController : ControllerBase
         }
 
         return Ok(ticket);
+    }
+
+    [HttpPost("purchase")]
+    public async Task<ActionResult<TicketDto>> Purchase([FromBody] PurchaseTicketDto dto)
+    {
+        var username = User.FindFirst(ClaimTypes.Name)?.Value;
+        if (string.IsNullOrEmpty(username))
+        {
+            return Unauthorized();
+        }
+
+        var users = await _userService.GetAllAsync(search: username);
+        var user = users.FirstOrDefault(u => u.Username == username);
+        
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            var ticket = await _ticketService.PurchaseAsync(dto, user.Id);
+            return Ok(ticket);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "An error occurred while purchasing the ticket", error = ex.Message });
+        }
     }
 }
