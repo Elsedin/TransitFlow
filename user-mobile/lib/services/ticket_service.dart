@@ -150,6 +150,7 @@ class TicketService {
     required int zoneId,
     required DateTime validFrom,
     required DateTime validTo,
+    int? transactionId,
   }) async {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
@@ -160,6 +161,7 @@ class TicketService {
       'zoneId': zoneId,
       'validFrom': validFrom.toIso8601String(),
       'validTo': validTo.toIso8601String(),
+      if (transactionId != null) 'transactionId': transactionId,
     };
 
     final response = await http.post(

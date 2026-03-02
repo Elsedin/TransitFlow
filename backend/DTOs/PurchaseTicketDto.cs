@@ -18,4 +18,6 @@ public class PurchaseTicketDto
     
     [Required]
     public DateTime ValidTo { get; set; }
+    
+    public int? TransactionId { get; set; }
 }

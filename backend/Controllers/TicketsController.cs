@@ -55,23 +55,15 @@ public class TicketsController : ControllerBase
     [HttpPost("purchase")]
     public async Task<ActionResult<TicketDto>> Purchase([FromBody] PurchaseTicketDto dto)
     {
-        var username = User.FindFirst(ClaimTypes.Name)?.Value;
-        if (string.IsNullOrEmpty(username))
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
         {
-            return Unauthorized();
-        }
-
-        var users = await _userService.GetAllAsync(search: username);
-        var user = users.FirstOrDefault(u => u.Username == username);
-        
-        if (user == null)
-        {
-            return Unauthorized();
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
         }
 
         try
         {
-            var ticket = await _ticketService.PurchaseAsync(dto, user.Id);
+            var ticket = await _ticketService.PurchaseAsync(dto, userId);
             return Ok(ticket);
         }
         catch (InvalidOperationException ex)

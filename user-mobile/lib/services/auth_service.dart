@@ -78,29 +78,36 @@ class AuthService {
   }
 
   Future<bool> isAuthenticated() async {
-    final token = await getToken();
-    if (token == null || token.isEmpty) {
-      return false;
-    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString(_tokenKey);
+      
+      if (token == null || token.isEmpty) {
+        return false;
+      }
 
-    final prefs = await SharedPreferences.getInstance();
-    final expiresAtString = prefs.getString(_expiresAtKey);
-    
-    if (expiresAtString != null) {
-      try {
-        final expiresAt = DateTime.parse(expiresAtString);
-        final now = DateTime.now().toUtc();
-        
-        if (now.isAfter(expiresAt)) {
+      final expiresAtString = prefs.getString(_expiresAtKey);
+      
+      if (expiresAtString != null) {
+        try {
+          final expiresAt = DateTime.parse(expiresAtString);
+          final now = DateTime.now().toUtc();
+          
+          if (now.isAfter(expiresAt)) {
+            await logout();
+            return false;
+          }
+        } catch (e) {
           await logout();
           return false;
         }
-      } catch (e) {
-        return false;
       }
-    }
 
-    return true;
+      return true;
+    } catch (e) {
+      print('isAuthenticated error: $e');
+      return false;
+    }
   }
 
   Future<void> logout() async {

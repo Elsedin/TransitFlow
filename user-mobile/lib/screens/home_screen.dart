@@ -173,7 +173,6 @@ class _HomeTabState extends State<_HomeTab> {
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
             onPressed: () {
-              // TODO: Navigate to notifications
             },
           ),
         ],
@@ -209,7 +208,6 @@ class _HomeTabState extends State<_HomeTab> {
                       Colors.white,
                       Colors.orange[700]!,
                       () {
-                        // TODO: Navigate to tickets
                       },
                       borderColor: Colors.orange[700],
                     ),
@@ -654,7 +652,6 @@ class _LinesTabState extends State<_LinesTab> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              // Search functionality is in the body
             },
           ),
         ],

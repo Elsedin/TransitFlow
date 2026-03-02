@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
 import '../services/ticket_service.dart';
 import '../services/transport_line_service.dart';
+import '../services/payment_service.dart';
+import '../services/auth_service.dart';
 import '../models/ticket_model.dart';
 import '../models/transport_line_model.dart' as models;
 import 'ticket_success_screen.dart';
+import 'paypal_payment_screen.dart';
 
 class TicketPurchaseScreen extends StatefulWidget {
   final int? lineId;
@@ -23,6 +27,7 @@ class TicketPurchaseScreen extends StatefulWidget {
 class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   final _ticketService = TicketService();
   final _transportLineService = TransportLineService();
+  final _paymentService = PaymentService();
 
   models.TransportLine? _selectedLine;
   models.Route? _selectedRoute;
@@ -30,7 +35,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   TicketPrice? _selectedTicketPrice;
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _paymentMethod = 'card';
+  String? _paymentMethod;
   List<TicketType> _ticketTypes = [];
   List<TicketPrice> _ticketPrices = [];
   bool _isLoading = true;
@@ -71,10 +76,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       final ticketTypes = await _ticketService.getTicketTypes(isActive: true);
       setState(() {
         _ticketTypes = ticketTypes;
-        if (ticketTypes.isNotEmpty) {
-          _selectedTicketType = ticketTypes.first;
-          _loadTicketPrices();
-        }
         _isLoading = false;
       });
     } catch (e) {
@@ -100,7 +101,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         }
       });
     } catch (e) {
-      // Ignore error
     }
   }
 
@@ -154,7 +154,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   }
 
   Future<void> _purchaseTicket() async {
-    if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null) {
+    if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null || _paymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Molimo odaberite sve potrebne podatke')),
       );
@@ -166,6 +166,119 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       _errorMessage = null;
     });
 
+    try {
+      if (_paymentMethod == 'card') {
+        await _processStripePayment();
+      } else if (_paymentMethod == 'paypal') {
+        await _processPayPalPayment();
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isPurchasing = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage ?? 'Greška pri kupovini karte')),
+        );
+      }
+    }
+  }
+
+  Future<void> _processStripePayment() async {
+    try {
+      final totalPrice = _getTotalPrice();
+
+      final paymentIntent = await _paymentService.createStripePaymentIntent(totalPrice);
+
+      await stripe.Stripe.instance.initPaymentSheet(
+        paymentSheetParameters: stripe.SetupPaymentSheetParameters(
+          paymentIntentClientSecret: paymentIntent.clientSecret,
+          merchantDisplayName: 'TransitFlow',
+        ),
+      );
+
+      await stripe.Stripe.instance.presentPaymentSheet();
+
+      final authService = AuthService();
+      final isAuth = await authService.isAuthenticated();
+      if (!isAuth) {
+        throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
+      }
+
+      final result = await _paymentService.confirmStripePayment(paymentIntent.paymentIntentId);
+
+      if (result.success) {
+        await _createTicketAfterPayment(result.transactionId);
+      } else {
+        throw Exception(result.message ?? 'Plaćanje nije uspješno');
+      }
+    } on stripe.StripeException catch (e) {
+      if (e.error.code == stripe.FailureCode.Canceled) {
+        setState(() {
+          _isPurchasing = false;
+        });
+      } else {
+        throw Exception('Stripe greška: ${e.error.message}');
+      }
+    } catch (e) {
+      throw Exception('Greška pri plaćanju: $e');
+    }
+  }
+
+  Future<void> _processPayPalPayment() async {
+    try {
+      final totalPrice = _getTotalPrice();
+
+      final paypalOrder = await _paymentService.createPayPalOrder(totalPrice);
+
+      if (!mounted) return;
+      
+      setState(() {
+        _errorMessage = null;
+      });
+      
+      final returnedOrderId = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (context) => PayPalPaymentScreen(
+            approvalUrl: paypalOrder.approvalUrl,
+            orderId: paypalOrder.orderId,
+            onPaymentComplete: (String orderId) {
+            },
+            onPaymentCancel: () {
+            },
+          ),
+        ),
+      );
+
+      if (returnedOrderId != null && returnedOrderId.isNotEmpty) {
+        final authService = AuthService();
+        final isAuth = await authService.isAuthenticated();
+        if (!isAuth) {
+          throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
+        }
+
+        final paymentResult = await _paymentService.capturePayPalOrder(paypalOrder.orderId);
+
+        if (paymentResult.success) {
+          await _createTicketAfterPayment(paymentResult.transactionId);
+        } else {
+          throw Exception(paymentResult.message ?? 'Plaćanje nije uspješno');
+        }
+      } else {
+        setState(() {
+          _isPurchasing = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _isPurchasing = false;
+      });
+      throw Exception('Greška pri PayPal plaćanju: $e');
+    }
+  }
+
+  Future<void> _createTicketAfterPayment(int transactionId) async {
     try {
       final selectedDateTime = DateTime(
         _selectedDate.year,
@@ -183,6 +296,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         zoneId: _selectedTicketPrice!.zoneId,
         validFrom: selectedDateTime,
         validTo: validTo,
+        transactionId: transactionId,
       );
 
       if (mounted) {
@@ -193,15 +307,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         );
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isPurchasing = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_errorMessage ?? 'Greška pri kupovini karte')),
-        );
-      }
+      throw Exception('Greška pri kreiranju karte: $e');
     }
   }
 
@@ -235,6 +341,13 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
             _buildDateAndTimeSection(),
             const SizedBox(height: 16),
             _buildTicketTypeSection(),
+            if (_selectedTicketType != null) ...[
+              const SizedBox(height: 16),
+              if (_ticketPrices.isNotEmpty)
+                _buildTicketPriceSection()
+              else
+                _buildNoTicketPriceMessage(),
+            ],
             const SizedBox(height: 16),
             _buildPaymentMethodSection(),
             const SizedBox(height: 16),
@@ -465,6 +578,111 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     );
   }
 
+  Widget _buildTicketPriceSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cijena karte',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ..._ticketPrices.map((price) {
+              final isSelected = _selectedTicketPrice?.id == price.id;
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    _selectedTicketPrice = price;
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: isSelected ? Colors.orange[700]! : Colors.grey[300]!,
+                      width: isSelected ? 2 : 1,
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                    color: isSelected ? Colors.orange[50] : Colors.white,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              price.zoneName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected ? Colors.orange[700] : Colors.black87,
+                              ),
+                            ),
+                            if (price.validityDescription.isNotEmpty)
+                              Text(
+                                price.validityDescription,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '${price.price.toStringAsFixed(2)} KM',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.orange[700] : Colors.black87,
+                        ),
+                      ),
+                      if (isSelected)
+                        const SizedBox(width: 8),
+                      if (isSelected)
+                        Icon(Icons.check_circle, color: Colors.orange[700]),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoTicketPriceMessage() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange[700]),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Cijena za ${_selectedTicketType?.name ?? "ovaj tip karte"} trenutno nije dostupna. Molimo kontaktirajte administratora.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPaymentMethodSection() {
     return Card(
       child: Padding(
@@ -559,7 +777,12 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
             _buildSummaryRow('Tip karte:', _selectedTicketType?.name ?? 'Nije odabrano'),
             if (_selectedRoute != null)
               _buildSummaryRow('Linija:', _selectedRoute!.transportLineNumber),
-            _buildSummaryRow('Ukupno:', '${_getTotalPrice().toStringAsFixed(2)} KM'),
+            _buildSummaryRow(
+              'Ukupno:', 
+              _selectedTicketPrice != null 
+                ? '${_getTotalPrice().toStringAsFixed(2)} KM'
+                : 'Nije dostupno'
+            ),
           ],
         ),
       ),

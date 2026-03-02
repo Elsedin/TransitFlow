@@ -206,7 +206,8 @@ public class TicketService : ITicketService
             ValidFrom = dto.ValidFrom,
             ValidTo = dto.ValidTo,
             PurchasedAt = DateTime.UtcNow,
-            IsUsed = false
+            IsUsed = false,
+            TransactionId = dto.TransactionId
         };
 
         _context.Tickets.Add(ticket);

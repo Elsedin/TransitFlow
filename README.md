@@ -1,24 +1,14 @@
-# TransitFlow
+# TransitFlow - Aplikacija za javni prevoz
 
 Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj softvera II. Ova aplikacija omogućava upravljanje sistemom javnog prevoza i pruža funkcionalnosti za administratore (desktop aplikacija) i korisnike (mobilna aplikacija).
 
 ## Tehnologije
 
 - Backend: C#, .NET 8.0
-- Desktop aplikacija: Flutter
-- Mobilna aplikacija: Flutter
+- Desktop aplikacija (Administratori): Flutter
+- Mobilna aplikacija (Korisnici): Flutter
 - Baza podataka: SQL Server
 - Message Queue: RabbitMQ
-
-## Struktura Projekta
-
-```
-TransitFlow/
-├── backend/              # Backend API (zajednički za admin i mobile)
-├── worker/               # Worker servis za asinhrone zadatke
-├── admin-frontend/       # Flutter desktop aplikacija
-└── user-mobile/         # Flutter mobilna aplikacija
-```
 
 ## Upute za instalaciju
 
@@ -29,13 +19,11 @@ TransitFlow/
     cd TransitFlow
     ```
 
-2. Pokretanje baze podataka i RabbitMQ (opciono)
+2. Pokretanje baze podataka i RabbitMQ
 
     ```
-    docker-compose up -d
+    docker-compose up --build
     ```
-
-    Ovo će pokrenuti SQL Server i RabbitMQ u Docker kontejnerima.
 
 3. Pokretanje backend API-ja
 
@@ -97,33 +85,25 @@ TransitFlow/
     Lozinka: test
     ```
 
-**Napomena**: Mobilna aplikacija će biti implementirana u narednim fazama projekta.
+## Testiranje Plaćanja
 
-## Funkcionalnosti
+### Stripe Test Kartica
 
-### Desktop aplikacija (Admin)
+```
+Broj kartice: 4242 4242 4242 4242
+Datum isteka: bilo koji budući datum (npr. 12/25)
+CVC: bilo koji 3-cifreni broj (npr. 123)
+ZIP kod: bilo koji 5-cifreni broj (npr. 12345)
+```
 
-- Dashboard sa metrikama i grafikama
-- Upravljanje korisnicima (CRUD operacije)
-- Pregled transakcija i uplata
-- Upravljanje pretplatama
-- Upravljanje notifikacijama
-- Generisanje izvještaja (Excel, CSV, PDF)
-- Upravljanje referentnim podacima (gradovi, zone, tipovi karata, tipovi prevoza)
-- Upravljanje transportnim linijama, rutama, vozilima i rasporedima
-- Upravljanje cijenama karata
-- Pregled karata
+### PayPal Test Račun
 
-### Mobilna aplikacija (User)
+PayPal credentials su već konfigurisani u `backend/appsettings.json` sa Sandbox podacima.
 
-- Pregled linija i ruta
-- Kupovina karata
-- Pregled historije karata
-- Profil korisnika
-- Notifikacije
+Za testiranje PayPal plaćanja, koristite PayPal Sandbox test račun. Možete kreirati novi na [PayPal Developer Dashboard](https://developer.paypal.com/) pod "Sandbox" -> "Accounts". Koristite email i lozinku tog test računa za prijavu na PayPal stranici.
 
-## NAPOMENA
+### Napomena
 
-Ako ne koristite Docker, aplikacija će raditi normalno, ali RabbitMQ funkcionalnosti neće biti dostupne. Notifikacije će se kreirati u bazi podataka, ali poruke neće biti poslane na RabbitMQ queue.
-
-Za testiranje mikroservisne arhitekture (RabbitMQ i Worker servis), potrebno je pokrenuti Docker kontejnere.
+- Aplikacija koristi Stripe i PayPal test ključeve (već konfigurisano)
+- Nema potrebe za unosom API ključeva
+- Sve transakcije su test transakcije i ne naplaćuju se
