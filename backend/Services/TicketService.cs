@@ -197,6 +197,13 @@ public class TicketService : ITicketService
             throw new InvalidOperationException("Ticket price not found for the selected ticket type and zone");
         }
 
+        var now = DateTime.UtcNow;
+        var hasActiveSubscription = await _context.Subscriptions
+            .AnyAsync(s => s.UserId == userId 
+                && s.Status.ToLower() == "active" 
+                && s.StartDate <= now 
+                && s.EndDate >= now);
+
         var ticketNumber = GenerateTicketNumber();
 
         var ticket = new Ticket
@@ -206,12 +213,12 @@ public class TicketService : ITicketService
             TicketTypeId = dto.TicketTypeId,
             RouteId = dto.RouteId,
             ZoneId = dto.ZoneId,
-            Price = ticketPrice.Price,
+            Price = hasActiveSubscription ? 0 : ticketPrice.Price,
             ValidFrom = dto.ValidFrom,
             ValidTo = dto.ValidTo,
             PurchasedAt = DateTime.UtcNow,
             IsUsed = false,
-            TransactionId = dto.TransactionId
+            TransactionId = hasActiveSubscription ? null : dto.TransactionId
         };
 
         _context.Tickets.Add(ticket);

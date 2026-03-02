@@ -15,5 +15,6 @@ public interface ISubscriptionService
     Task<SubscriptionDto?> GetByIdAsync(int id);
     Task<SubscriptionDto> CreateAsync(CreateSubscriptionDto dto);
     Task<SubscriptionDto?> UpdateAsync(int id, UpdateSubscriptionDto dto);
+    Task<SubscriptionDto?> CancelAsync(int id);
     Task<bool> DeleteAsync(int id);
 }
