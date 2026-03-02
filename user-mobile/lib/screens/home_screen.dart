@@ -6,6 +6,7 @@ import 'profile_screen.dart';
 import 'line_details_screen.dart';
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
+import 'tickets_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,8 +19,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _authService = AuthService();
 
-  final List<Widget> _screens = [
-    const _HomeTab(),
+  List<Widget> get _screens => [
+    _HomeTab(onNavigateToLines: () {
+      setState(() {
+        _currentIndex = 1;
+      });
+    }),
     const _LinesTab(),
     const _TicketsTab(),
     const _ProfileTab(),
@@ -63,7 +68,9 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _HomeTab extends StatefulWidget {
-  const _HomeTab();
+  final VoidCallback? onNavigateToLines;
+  
+  const _HomeTab({this.onNavigateToLines});
 
   @override
   State<_HomeTab> createState() => _HomeTabState();
@@ -192,11 +199,7 @@ class _HomeTabState extends State<_HomeTab> {
                       Colors.orange[700]!,
                       Colors.white,
                       () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const TicketPurchaseScreen(),
-                          ),
-                        );
+                        widget.onNavigateToLines?.call();
                       },
                     ),
                   ),
@@ -208,6 +211,11 @@ class _HomeTabState extends State<_HomeTab> {
                       Colors.white,
                       Colors.orange[700]!,
                       () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TicketsListScreen(),
+                          ),
+                        );
                       },
                       borderColor: Colors.orange[700],
                     ),
@@ -900,15 +908,7 @@ class _TicketsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Moje karte'),
-        automaticallyImplyLeading: false,
-      ),
-      body: const Center(
-        child: Text('Karte - U izradi'),
-      ),
-    );
+    return const TicketsListScreen();
   }
 }
 

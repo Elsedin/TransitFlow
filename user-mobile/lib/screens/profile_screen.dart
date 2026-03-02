@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
+import '../services/ticket_service.dart';
 import '../models/user_model.dart';
+import '../models/ticket_model.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -15,12 +17,19 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _userService = UserService();
   final _authService = AuthService();
+  final _ticketService = TicketService();
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
   bool _isEditing = false;
+  int _totalTickets = 0;
+  int _totalTrips = 0;
+  int _favoriteLines = 0;
+  double _totalSpent = 0.0;
 
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
+  final _editSectionKey = GlobalKey();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _firstNameController = TextEditingController();
@@ -35,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
     _firstNameController.dispose();
@@ -51,6 +61,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final user = await _userService.getCurrentUser();
+      final tickets = await _ticketService.getAll();
+      
+      final totalTickets = tickets.length;
+      final totalTrips = tickets.where((t) => t.isUsed).length;
+      final favoriteLines = tickets
+          .where((t) => t.routeId != null)
+          .map((t) => t.routeId)
+          .toSet()
+          .length;
+      final totalSpent = tickets.fold<double>(0.0, (sum, ticket) => sum + ticket.price);
+
       setState(() {
         _user = user;
         _usernameController.text = user.username;
@@ -58,6 +79,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _firstNameController.text = user.firstName ?? '';
         _lastNameController.text = user.lastName ?? '';
         _phoneNumberController.text = user.phoneNumber ?? '';
+        _totalTickets = totalTickets;
+        _totalTrips = totalTrips;
+        _favoriteLines = favoriteLines;
+        _totalSpent = totalSpent;
         _isLoading = false;
       });
     } catch (e) {
@@ -137,6 +162,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('O aplikaciji'),
+        content: const Text(
+          'TransitFlow\n\nAplikacija za javni prevoz koja omogućava jednostavnu kupovinu karata i upravljanje putovanjima.\n\nVerzija: 1.0.0',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Zatvori'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pomoć'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Kako koristiti aplikaciju:\n\n'
+            '• Kupovina karata: Odaberite liniju, datum, vrijeme i tip karte\n'
+            '• Moje karte: Pregledajte sve kupljene karte sa QR kodovima\n'
+            '• Profil: Uredite lične podatke i pregledajte statistiku\n'
+            '• Linije: Pretražite i odaberite linije javnog prevoza\n\n'
+            'Za dodatnu pomoć kontaktirajte podršku.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Zatvori'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -146,26 +214,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.orange[700],
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              if (_isEditing) {
-                setState(() {
-                  _isEditing = false;
-                  if (_user != null) {
-                    _usernameController.text = _user!.username;
-                    _emailController.text = _user!.email;
-                    _firstNameController.text = _user!.firstName ?? '';
-                    _lastNameController.text = _user!.lastName ?? '';
-                    _phoneNumberController.text = _user!.phoneNumber ?? '';
-                  }
-                });
-              } else {
-                setState(() {
-                  _isEditing = true;
-                });
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'logout') {
+                _handleLogout();
+              } else if (value == 'about') {
+                _showAboutDialog();
+              } else if (value == 'help') {
+                _showHelpDialog();
               }
             },
+            itemBuilder: (BuildContext context) => [
+              const PopupMenuItem<String>(
+                value: 'about',
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 20),
+                    SizedBox(width: 8),
+                    Text('O aplikaciji'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'help',
+                child: Row(
+                  children: [
+                    Icon(Icons.help_outline, size: 20),
+                    SizedBox(width: 8),
+                    Text('Pomoć'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem<String>(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Odjavi se', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -190,6 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 )
               : SingleChildScrollView(
+                  controller: _scrollController,
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -243,6 +336,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   setState(() {
                                     _isEditing = !_isEditing;
                                   });
+                                  if (_isEditing) {
+                                    Future.delayed(const Duration(milliseconds: 300), () {
+                                      if (_editSectionKey.currentContext != null) {
+                                        Scrollable.ensureVisible(
+                                          _editSectionKey.currentContext!,
+                                          duration: const Duration(milliseconds: 500),
+                                          curve: Curves.easeInOut,
+                                          alignment: 0.1,
+                                        );
+                                      }
+                                    });
+                                  }
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.white,
@@ -262,17 +367,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: _buildStatCard('47', 'Kupljenih karata'),
+                                child: _buildStatCard(_totalTickets.toString(), 'Kupljenih karata'),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildStatCard('234', 'Putovanja'),
+                                child: _buildStatCard(_totalTrips.toString(), 'Putovanja'),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: _buildStatCard('3', 'Omiljene linije'),
+                                child: _buildStatCard(_favoriteLines.toString(), 'Omiljene linije'),
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Statistika',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  _buildPersonalDataRow('Ukupno potrošeno', '${_totalSpent.toStringAsFixed(2)} KM'),
+                                  const Divider(),
+                                  _buildPersonalDataRow('Prosječna cijena karte', _totalTickets > 0 ? '${(_totalSpent / _totalTickets).toStringAsFixed(2)} KM' : '0.00 KM'),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -299,7 +432,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   const Divider(),
                                   _buildPersonalDataRow('Email', _user?.email ?? ''),
                                   const Divider(),
-                                  _buildPersonalDataRow('Telefon', _user?.phoneNumber ?? '+387 61 123 456'),
+                                  _buildPersonalDataRow('Telefon', _user?.phoneNumber ?? 'Nije uneseno'),
                                 ],
                               ),
                             ),
@@ -308,6 +441,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         if (_isEditing) ...[
                           const SizedBox(height: 24),
                           Padding(
+                            key: _editSectionKey,
                             padding: const EdgeInsets.symmetric(horizontal: 16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -397,23 +531,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: 24),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: ElevatedButton.icon(
-                            onPressed: _handleLogout,
-                            icon: const Icon(Icons.logout),
-                            label: const Text('Odjavi se'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red[600],
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ),
                         const SizedBox(height: 24),
                         if (_errorMessage != null && _isEditing) ...[
                           const SizedBox(height: 16),

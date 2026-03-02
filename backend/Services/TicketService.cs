@@ -28,6 +28,7 @@ public class TicketService : ITicketService
             .Include(t => t.Route)
                 .ThenInclude(r => r!.TransportLine)
             .Include(t => t.Zone)
+            .Include(t => t.Transaction)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -91,7 +92,8 @@ public class TicketService : ITicketService
             IsUsed = t.IsUsed,
             UsedAt = t.UsedAt,
             Status = GetTicketStatus(t, now),
-            IsActive = !t.IsUsed && t.ValidTo >= now
+            IsActive = !t.IsUsed && t.ValidTo >= now,
+            PaymentMethod = t.Transaction?.PaymentMethod
         }).ToList();
     }
 
@@ -103,6 +105,7 @@ public class TicketService : ITicketService
             .Include(t => t.Route)
                 .ThenInclude(r => r!.TransportLine)
             .Include(t => t.Zone)
+            .Include(t => t.Transaction)
             .FirstOrDefaultAsync(t => t.Id == id);
 
         if (ticket == null)
@@ -132,7 +135,8 @@ public class TicketService : ITicketService
             IsUsed = ticket.IsUsed,
             UsedAt = ticket.UsedAt,
             Status = GetTicketStatus(ticket, now),
-            IsActive = !ticket.IsUsed && ticket.ValidTo >= now
+            IsActive = !ticket.IsUsed && ticket.ValidTo >= now,
+            PaymentMethod = ticket.Transaction?.PaymentMethod
         };
     }
 
