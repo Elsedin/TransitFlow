@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'config/app_config.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    Stripe.publishableKey = AppConfig.stripePublishableKey;
+    await Stripe.instance.applySettings();
+  } catch (e) {
+    print('Stripe initialization error: $e');
+  }
   runApp(const MyApp());
 }
 
@@ -47,6 +56,15 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkAuth();
+    
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted && _isChecking) {
+        setState(() {
+          _isChecking = false;
+          _isAuthenticated = false;
+        });
+      }
+    });
   }
 
   @override
@@ -65,11 +83,29 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
   }
 
   Future<void> _checkAuth() async {
-    final authenticated = await _authService.isAuthenticated();
-    setState(() {
-      _isAuthenticated = authenticated;
-      _isChecking = false;
-    });
+    try {
+      final authenticated = await _authService.isAuthenticated().timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('Auth check timeout');
+          return false;
+        },
+      );
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = authenticated;
+          _isChecking = false;
+        });
+      }
+    } catch (e) {
+      print('Auth check error: $e');
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = false;
+          _isChecking = false;
+        });
+      }
+    }
   }
 
   @override

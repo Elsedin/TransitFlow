@@ -78,7 +78,7 @@ public class AuthService : IAuthService
         user.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        var token = GenerateJwtToken(user.Username);
+        var token = GenerateJwtToken(user.Username, user.Id);
         var expiresAt = DateTime.UtcNow.AddMinutes(
             int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
 
@@ -118,7 +118,7 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        var token = GenerateJwtToken(user.Username);
+        var token = GenerateJwtToken(user.Username, user.Id);
         var expiresAt = DateTime.UtcNow.AddMinutes(
             int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
 
@@ -132,19 +132,27 @@ public class AuthService : IAuthService
         };
     }
 
-    public string GenerateJwtToken(string username)
+    public string GenerateJwtToken(string username, int? userId = null)
     {
         var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
         var issuer = _configuration["Jwt:Issuer"] ?? "TransitFlowAPI";
         var audience = _configuration["Jwt:Audience"] ?? "TransitFlowUsers";
         var expirationMinutes = int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60");
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
             new Claim(ClaimTypes.Name, username),
-            new Claim(ClaimTypes.NameIdentifier, username),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        if (userId.HasValue)
+        {
+            claims.Add(new Claim(ClaimTypes.NameIdentifier, userId.Value.ToString()));
+        }
+        else
+        {
+            claims.Add(new Claim(ClaimTypes.NameIdentifier, username));
+        }
 
         var tokenDescriptor = new SecurityTokenDescriptor
         {

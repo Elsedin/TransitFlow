@@ -62,7 +62,9 @@ public class RouteService : IRouteService
                     StationId = rs.StationId,
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
-                    Order = rs.Order
+                    Order = rs.Order,
+                    Latitude = rs.Station.Latitude,
+                    Longitude = rs.Station.Longitude
                 })
                 .ToList()
         }).ToList();
@@ -99,7 +101,9 @@ public class RouteService : IRouteService
                     StationId = rs.StationId,
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
-                    Order = rs.Order
+                    Order = rs.Order,
+                    Latitude = rs.Station.Latitude,
+                    Longitude = rs.Station.Longitude
                 })
                 .ToList()
         };

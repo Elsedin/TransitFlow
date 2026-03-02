@@ -82,6 +82,8 @@ class RouteStation {
   final String stationName;
   final String? stationAddress;
   final int order;
+  final double? latitude;
+  final double? longitude;
 
   RouteStation({
     required this.id,
@@ -89,6 +91,8 @@ class RouteStation {
     required this.stationName,
     this.stationAddress,
     required this.order,
+    this.latitude,
+    this.longitude,
   });
 
   factory RouteStation.fromJson(Map<String, dynamic> json) {
@@ -98,6 +102,8 @@ class RouteStation {
       stationName: json['stationName'] as String,
       stationAddress: json['stationAddress'] as String?,
       order: json['order'] as int,
+      latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
+      longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
     );
   }
 }

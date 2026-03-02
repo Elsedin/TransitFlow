@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transport_line_service.dart';
 import '../models/transport_line_model.dart' as models;
+import 'ticket_purchase_screen.dart';
+import 'route_map_screen.dart';
 
 class LineDetailsScreen extends StatefulWidget {
   final int lineId;
@@ -444,7 +446,14 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: () {
-                                    // TODO: Navigate to ticket purchase
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => TicketPurchaseScreen(
+                                          lineId: _line?.id,
+                                          routeId: _route?.id,
+                                        ),
+                                      ),
+                                    );
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.orange[700],
@@ -460,9 +469,15 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: () {
-                                    // TODO: Show ticket
-                                  },
+                                  onPressed: _route != null
+                                      ? () {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => RouteMapScreen(route: _route!),
+                                            ),
+                                          );
+                                        }
+                                      : null,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.grey[700],
                                     foregroundColor: Colors.white,
