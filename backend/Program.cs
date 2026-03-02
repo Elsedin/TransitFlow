@@ -88,6 +88,7 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddSingleton<IRabbitMQService, RabbitMQService>();
 
 builder.Services.AddCors(options =>

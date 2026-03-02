@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transport_line_service.dart';
+import '../services/favorite_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
@@ -16,12 +17,14 @@ class LineDetailsScreen extends StatefulWidget {
 
 class _LineDetailsScreenState extends State<LineDetailsScreen> {
   final _transportLineService = TransportLineService();
+  final _favoriteService = FavoriteService();
   models.TransportLine? _line;
   models.Route? _route;
   List<models.Schedule> _schedules = [];
   bool _isLoading = true;
   String? _errorMessage;
   bool _isFavorite = false;
+  bool _isTogglingFavorite = false;
 
   @override
   void initState() {
@@ -52,10 +55,13 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
 
       final todaySchedules = _filterTodaySchedules(schedules);
 
+      final isFavorite = await _favoriteService.isFavorite(line.id);
+
       setState(() {
         _line = line;
         _route = route;
         _schedules = todaySchedules;
+        _isFavorite = isFavorite;
         _isLoading = false;
       });
     } catch (e) {
@@ -137,6 +143,60 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
     return '${arrival.hour.toString().padLeft(2, '0')}:${arrival.minute.toString().padLeft(2, '0')}';
   }
 
+  Future<void> _toggleFavorite() async {
+    if (_line == null) return;
+
+    setState(() {
+      _isTogglingFavorite = true;
+    });
+
+    try {
+      if (_isFavorite) {
+        await _favoriteService.removeFavorite(_line!.id);
+        setState(() {
+          _isFavorite = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Linija je uklonjena iz omiljenih'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        await _favoriteService.addFavorite(_line!.id);
+        setState(() {
+          _isFavorite = true;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Linija je dodata u omiljene'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isTogglingFavorite = false;
+        });
+      }
+    }
+  }
+
   IconData _getTransportIcon(String transportType) {
     switch (transportType.toLowerCase()) {
       case 'autobus':
@@ -159,17 +219,26 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
         backgroundColor: Colors.orange[700],
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: Icon(
-              _isFavorite ? Icons.star : Icons.star_border,
-              color: _isFavorite ? Colors.yellow : Colors.white,
-            ),
-            onPressed: () {
-              setState(() {
-                _isFavorite = !_isFavorite;
-              });
-            },
-          ),
+          _isTogglingFavorite
+              ? const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                )
+              : IconButton(
+                  icon: Icon(
+                    _isFavorite ? Icons.star : Icons.star_border,
+                    color: _isFavorite ? Colors.yellow : Colors.white,
+                  ),
+                  onPressed: _toggleFavorite,
+                  tooltip: _isFavorite ? 'Ukloni iz omiljenih' : 'Dodaj u omiljene',
+                ),
         ],
       ),
       body: _isLoading

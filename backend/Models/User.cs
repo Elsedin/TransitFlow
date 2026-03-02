@@ -39,4 +39,6 @@ public class User
     public virtual ICollection<Subscription> Subscriptions { get; set; } = new List<Subscription>();
     
     public virtual ICollection<Transaction> Transactions { get; set; } = new List<Transaction>();
+    
+    public virtual ICollection<FavoriteLine> FavoriteLines { get; set; } = new List<FavoriteLine>();
 }
