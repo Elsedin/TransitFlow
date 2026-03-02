@@ -28,6 +28,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<City> Cities { get; set; }
     public DbSet<Country> Countries { get; set; }
     public DbSet<TransportType> TransportTypes { get; set; }
+    public DbSet<FavoriteLine> FavoriteLines { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -190,6 +191,21 @@ public class ApplicationDbContext : DbContext
                 .WithMany(c => c.Cities)
                 .HasForeignKey(e => e.CountryId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<FavoriteLine>(entity =>
+        {
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(e => e.TransportLine)
+                .WithMany()
+                .HasForeignKey(e => e.TransportLineId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasIndex(e => new { e.UserId, e.TransportLineId }).IsUnique();
         });
     }
 }

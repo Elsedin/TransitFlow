@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/transport_line_service.dart';
+import '../services/favorite_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
 import 'tickets_list_screen.dart';
+import 'favorite_lines_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -78,6 +80,7 @@ class _HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<_HomeTab> {
   final _transportLineService = TransportLineService();
+  final _favoriteService = FavoriteService();
   List<models.TransportLine> _allLines = [];
   List<models.TransportLine> _recommendedLines = [];
   List<models.TransportLine> _favoriteLines = [];
@@ -92,10 +95,19 @@ class _HomeTabState extends State<_HomeTab> {
   Future<void> _loadLines() async {
     try {
       final lines = await _transportLineService.getAll(isActive: true);
+      
+      List<models.TransportLine> favoriteLinesList = [];
+      try {
+        final favorites = await _favoriteService.getAll();
+        final favoriteLineIds = favorites.map((f) => f.transportLineId).toSet();
+        favoriteLinesList = lines.where((line) => favoriteLineIds.contains(line.id)).toList();
+      } catch (e) {
+      }
+
       setState(() {
         _allLines = lines;
         _recommendedLines = lines.take(3).toList();
-        _favoriteLines = lines.take(2).toList();
+        _favoriteLines = favoriteLinesList;
         _isLoading = false;
       });
     } catch (e) {
@@ -303,7 +315,14 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const FavoriteLinesScreen(),
+                        ),
+                      );
+                      _loadLines();
+                    },
                     child: const Text('Vidi sve'),
                   ),
                 ],
@@ -536,7 +555,35 @@ class _HomeTabState extends State<_HomeTab> {
               ),
               IconButton(
                 icon: Icon(Icons.star, color: Colors.orange[700]),
-                onPressed: () {},
+                tooltip: 'Ukloni iz omiljenih',
+                onPressed: () async {
+                  try {
+                    await _favoriteService.removeFavorite(lineId);
+                    if (!mounted) {
+                      return;
+                    }
+                    setState(() {
+                      _favoriteLines.removeWhere((line) => line.id == lineId);
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Linija je uklonjena iz omiljenih'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!mounted) {
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(e.toString().replaceAll('Exception: ', '')),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                },
               ),
             ],
           ),
@@ -544,12 +591,13 @@ class _HomeTabState extends State<_HomeTab> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
+              onPressed: () async {
+                await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => LineDetailsScreen(lineId: lineId),
                   ),
                 );
+                _loadLines();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange[700],
