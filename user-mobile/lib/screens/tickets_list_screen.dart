@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
 import '../services/ticket_service.dart';
 import 'ticket_details_screen.dart';
+import 'purchase_history_screen.dart';
 
 class TicketsListScreen extends StatefulWidget {
   const TicketsListScreen({super.key});
@@ -82,6 +83,19 @@ class _TicketsListScreenState extends State<TicketsListScreen>
         title: const Text('Karte'),
         backgroundColor: Colors.orange[700],
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const PurchaseHistoryScreen(),
+                ),
+              );
+            },
+            tooltip: 'Historija kupovina',
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
