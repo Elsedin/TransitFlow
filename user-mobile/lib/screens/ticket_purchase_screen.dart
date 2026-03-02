@@ -5,7 +5,9 @@ import '../services/ticket_service.dart';
 import '../services/transport_line_service.dart';
 import '../services/payment_service.dart';
 import '../services/auth_service.dart';
+import '../services/subscription_service.dart';
 import '../models/ticket_model.dart';
+import '../models/subscription_model.dart';
 import '../models/transport_line_model.dart' as models;
 import 'ticket_success_screen.dart';
 import 'paypal_payment_screen.dart';
@@ -28,6 +30,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   final _ticketService = TicketService();
   final _transportLineService = TransportLineService();
   final _paymentService = PaymentService();
+  final _subscriptionService = SubscriptionService();
 
   models.TransportLine? _selectedLine;
   models.Route? _selectedRoute;
@@ -41,6 +44,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   bool _isLoading = true;
   bool _isPurchasing = false;
   String? _errorMessage;
+  Subscription? _activeSubscription;
 
   @override
   void initState() {
@@ -55,6 +59,8 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     });
 
     try {
+      _activeSubscription = await _subscriptionService.getActiveSubscription();
+
       if (widget.lineId != null) {
         final line = await _transportLineService.getById(widget.lineId!);
         if (line != null) {
@@ -154,9 +160,21 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   }
 
   Future<void> _purchaseTicket() async {
-    if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null || _paymentMethod == null) {
+    if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Molimo odaberite sve potrebne podatke')),
+      );
+      return;
+    }
+
+    if (_activeSubscription != null) {
+      await _createTicketWithoutPayment();
+      return;
+    }
+
+    if (_paymentMethod == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Molimo odaberite način plaćanja')),
       );
       return;
     }
@@ -180,6 +198,52 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_errorMessage ?? 'Greška pri kupovini karte')),
+        );
+      }
+    }
+  }
+
+  Future<void> _createTicketWithoutPayment() async {
+    setState(() {
+      _isPurchasing = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final selectedDateTime = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      );
+
+      final validTo = selectedDateTime.add(Duration(days: _selectedTicketType!.validityDays));
+
+      final ticket = await _ticketService.purchaseTicket(
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: selectedDateTime,
+        validTo: validTo,
+        transactionId: null,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => TicketSuccessScreen(ticket: ticket),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isPurchasing = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_errorMessage ?? 'Greška pri kreiranju karte')),
         );
       }
     }
@@ -348,8 +412,13 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
               else
                 _buildNoTicketPriceMessage(),
             ],
-            const SizedBox(height: 16),
-            _buildPaymentMethodSection(),
+            if (_activeSubscription == null) ...[
+              const SizedBox(height: 16),
+              _buildPaymentMethodSection(),
+            ] else ...[
+              const SizedBox(height: 16),
+              _buildSubscriptionInfoCard(),
+            ],
             const SizedBox(height: 16),
             _buildSummaryCard(),
             const SizedBox(height: 24),
@@ -707,6 +776,44 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     );
   }
 
+  Widget _buildSubscriptionInfoCard() {
+    return Card(
+      color: Colors.green[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green[700], size: 32),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Vaša pretplata pokriva ovu kartu',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green[700],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Karta je besplatna zbog vaše aktivne pretplate (${_activeSubscription?.packageName ?? "pretplata"}).',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPaymentOption(String value, String label, String subtitle, IconData icon) {
     final isSelected = _paymentMethod == value;
     return InkWell(
@@ -779,9 +886,11 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
               _buildSummaryRow('Linija:', _selectedRoute!.transportLineNumber),
             _buildSummaryRow(
               'Ukupno:', 
-              _selectedTicketPrice != null 
-                ? '${_getTotalPrice().toStringAsFixed(2)} KM'
-                : 'Nije dostupno'
+              _activeSubscription != null
+                ? 'Besplatno (pokriva pretplata)'
+                : (_selectedTicketPrice != null 
+                    ? '${_getTotalPrice().toStringAsFixed(2)} KM'
+                    : 'Nije dostupno')
             ),
           ],
         ),
@@ -815,10 +924,15 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   }
 
   Widget _buildPurchaseButton() {
+    final bool canPurchase = _selectedTicketType != null && 
+                             _selectedRoute != null && 
+                             _selectedTicketPrice != null && 
+                             !_isPurchasing;
+    
     return ElevatedButton(
-      onPressed: _isPurchasing ? null : _purchaseTicket,
+      onPressed: canPurchase ? _purchaseTicket : null,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.orange[700],
+        backgroundColor: _activeSubscription != null ? Colors.green[700] : Colors.orange[700],
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
@@ -834,9 +948,9 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
             )
-          : const Text(
-              'Kupi kartu',
-              style: TextStyle(
+          : Text(
+              _activeSubscription != null ? 'Kreiraj besplatnu kartu' : 'Kupi kartu',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),

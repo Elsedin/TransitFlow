@@ -205,6 +205,26 @@ public class SubscriptionService : ISubscriptionService
         return await GetByIdAsync(id);
     }
 
+    public async Task<SubscriptionDto?> CancelAsync(int id)
+    {
+        var subscription = await _context.Subscriptions.FindAsync(id);
+        if (subscription == null)
+            return null;
+
+        var now = DateTime.UtcNow;
+        if (subscription.Status.ToLower() != "active" || subscription.EndDate < now)
+        {
+            throw new InvalidOperationException("Only active subscriptions can be cancelled");
+        }
+
+        subscription.Status = "cancelled";
+        subscription.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     public async Task<bool> DeleteAsync(int id)
     {
         var subscription = await _context.Subscriptions.FindAsync(id);

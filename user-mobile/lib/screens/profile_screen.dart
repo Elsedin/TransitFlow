@@ -6,6 +6,7 @@ import '../services/ticket_service.dart';
 import '../models/user_model.dart';
 import '../models/ticket_model.dart';
 import 'login_screen.dart';
+import 'subscriptions_list_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -404,6 +405,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   const Divider(),
                                   _buildPersonalDataRow('Prosječna cijena karte', _totalTickets > 0 ? '${(_totalSpent / _totalTickets).toStringAsFixed(2)} KM' : '0.00 KM'),
                                 ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Card(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => const SubscriptionsListScreen(),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.card_membership, color: Colors.orange[700], size: 32),
+                                    const SizedBox(width: 16),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Pretplate',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          SizedBox(height: 4),
+                                          Text(
+                                            'Kupite ili obnovite pretplatu',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.arrow_forward_ios, color: Colors.grey[400], size: 20),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

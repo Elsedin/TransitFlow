@@ -4,7 +4,6 @@ namespace TransitFlow.API.DTOs;
 
 public class CreateSubscriptionDto
 {
-    [Required]
     public int UserId { get; set; }
     
     [Required]
