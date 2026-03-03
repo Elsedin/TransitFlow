@@ -22,7 +22,7 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
 2. Pokretanje baze podataka i RabbitMQ
 
     ```
-    docker-compose up --build
+    docker compose up -d rabbitmq sqlserver
     ```
 
 3. Pokretanje backend API-ja
@@ -33,10 +33,18 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     dotnet ef database update
     dotnet run
     ```
-
+    
     API će biti dostupan na `http://localhost:5178`
 
-4. Pokretanje desktop aplikacije
+4. Pokretanje Worker servisa (za notifikacije)
+
+    ```
+    cd worker
+    dotnet restore
+    dotnet run
+    ```
+
+5. Pokretanje desktop aplikacije (Admin)
 
     ```
     cd admin-frontend
@@ -44,20 +52,12 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     flutter run -d windows
     ```
 
-5. Pokretanje mobilne aplikacije
+6. Pokretanje mobilne aplikacije (User)
 
     ```
     cd user-mobile
     flutter pub get
     flutter run
-    ```
-
-6. Pokretanje Worker servisa (opciono)
-
-    ```
-    cd worker
-    dotnet restore
-    dotnet run
     ```
 
 ## Kredencijali za prijavu
@@ -71,11 +71,6 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     Lozinka: test
     ```
 
-    ```
-    Korisničko ime: admin
-    Lozinka: admin123
-    ```
-
 ### Mobilna aplikacija
 
 - Korisnik
@@ -85,7 +80,7 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     Lozinka: test
     ```
 
-## Testiranje Plaćanja
+## KARTICA ZA PLAĆANJE
 
 ### Stripe Test Kartica
 
@@ -102,8 +97,6 @@ PayPal credentials su već konfigurisani u `backend/appsettings.json` sa Sandbox
 
 Za testiranje PayPal plaćanja, koristite PayPal Sandbox test račun. Možete kreirati novi na [PayPal Developer Dashboard](https://developer.paypal.com/) pod "Sandbox" -> "Accounts". Koristite email i lozinku tog test računa za prijavu na PayPal stranici.
 
-### Napomena
+## NAPOMENA
 
-- Aplikacija koristi Stripe i PayPal test ključeve (već konfigurisano)
-- Nema potrebe za unosom API ključeva
-- Sve transakcije su test transakcije i ne naplaćuju se
+`DbSeeder` će se automatski pokrenuti prilikom prvog pokretanja backend API-ja i popuniti bazu test podacima.

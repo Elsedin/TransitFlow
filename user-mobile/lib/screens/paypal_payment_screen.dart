@@ -22,7 +22,6 @@ class PayPalPaymentScreen extends StatefulWidget {
 class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  bool _showCompleteButton = false;
   bool _paymentCompleted = false;
 
   @override
@@ -54,12 +53,6 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
               _isLoading = false;
             });
             _handleUrlChange(url);
-            
-            if (url.contains('checkoutnow') || url.contains('payment/confirm') || url.contains('review')) {
-              setState(() {
-                _showCompleteButton = true;
-              });
-            }
             
             if (!_paymentCompleted) {
               try {
@@ -124,15 +117,6 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
     }
   }
 
-  void _handleCompletePayment() {
-    if (_paymentCompleted) return;
-    
-    _paymentCompleted = true;
-    if (mounted) {
-      Navigator.of(context).pop(widget.orderId);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,42 +131,6 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
           if (_isLoading)
             const Center(
               child: CircularProgressIndicator(),
-            ),
-          if (_showCompleteButton && !_isLoading)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
-                child: SafeArea(
-                  child: ElevatedButton(
-                    onPressed: _handleCompletePayment,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange[700],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Završi plaćanje',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-              ),
             ),
         ],
       ),

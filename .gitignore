@@ -84,14 +84,12 @@ admin-frontend/.flutter-plugins
 admin-frontend/.flutter-plugins-dependencies
 admin-frontend/.packages
 admin-frontend/.pub/
-admin-frontend/pubspec.lock
 user-mobile/.dart_tool/
 user-mobile/build/
 user-mobile/.flutter-plugins
 user-mobile/.flutter-plugins-dependencies
 user-mobile/.packages
 user-mobile/.pub/
-user-mobile/pubspec.lock
 
 # Environment files
 **/.env
