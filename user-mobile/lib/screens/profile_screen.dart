@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/ticket_service.dart';
+import '../services/favorite_service.dart';
 import '../models/user_model.dart';
 import '../models/ticket_model.dart';
 import 'login_screen.dart';
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _userService = UserService();
   final _authService = AuthService();
   final _ticketService = TicketService();
+  final _favoriteService = FavoriteService();
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
@@ -63,14 +65,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final user = await _userService.getCurrentUser();
       final tickets = await _ticketService.getAll();
+      final favorites = await _favoriteService.getAll();
       
       final totalTickets = tickets.length;
       final totalTrips = tickets.where((t) => t.isUsed).length;
-      final favoriteLines = tickets
-          .where((t) => t.routeId != null)
-          .map((t) => t.routeId)
-          .toSet()
-          .length;
+      final favoriteLines = favorites.length;
       final totalSpent = tickets.fold<double>(0.0, (sum, ticket) => sum + ticket.price);
 
       setState(() {

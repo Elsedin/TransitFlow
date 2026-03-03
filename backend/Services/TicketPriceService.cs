@@ -37,7 +37,8 @@ public class TicketPriceService : ITicketPriceService
         }
 
         var ticketPrices = await query
-            .OrderBy(tp => tp.TicketType!.Name)
+            .OrderByDescending(tp => tp.ValidFrom)
+            .ThenBy(tp => tp.TicketType!.Name)
             .ThenBy(tp => tp.Zone!.Name)
             .ToListAsync();
 

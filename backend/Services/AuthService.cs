@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -48,7 +49,7 @@ public class AuthService : IAuthService
         admin.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        var token = GenerateJwtToken(admin.Username);
+        var token = GenerateJwtToken(admin.Username, role: "Administrator");
         var expiresAt = DateTime.UtcNow.AddMinutes(
             int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
 
@@ -132,7 +133,7 @@ public class AuthService : IAuthService
         };
     }
 
-    public string GenerateJwtToken(string username, int? userId = null)
+    public string GenerateJwtToken(string username, int? userId = null, string? role = null)
     {
         var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
         var issuer = _configuration["Jwt:Issuer"] ?? "TransitFlowAPI";
@@ -154,9 +155,14 @@ public class AuthService : IAuthService
             claims.Add(new Claim(ClaimTypes.NameIdentifier, username));
         }
 
+        if (!string.IsNullOrEmpty(role))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(claims),
+            Subject = new ClaimsIdentity(claims, JwtBearerDefaults.AuthenticationScheme),
             Expires = DateTime.UtcNow.AddMinutes(expirationMinutes),
             Issuer = issuer,
             Audience = audience,

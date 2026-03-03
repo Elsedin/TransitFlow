@@ -75,10 +75,8 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.detached || 
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      _authService.logout();
+    if (state == AppLifecycleState.resumed) {
+      _checkAuth();
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/transport_line_service.dart';
 import '../services/favorite_service.dart';
+import '../services/recommendation_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
@@ -18,6 +19,7 @@ class LineDetailsScreen extends StatefulWidget {
 class _LineDetailsScreenState extends State<LineDetailsScreen> {
   final _transportLineService = TransportLineService();
   final _favoriteService = FavoriteService();
+  final _recommendationService = RecommendationService();
   models.TransportLine? _line;
   models.Route? _route;
   List<models.Schedule> _schedules = [];
@@ -25,6 +27,8 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
   String? _errorMessage;
   bool _isFavorite = false;
   bool _isTogglingFavorite = false;
+  bool? _recommendationFeedback;
+  bool _isSendingFeedback = false;
 
   @override
   void initState() {
@@ -56,12 +60,14 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       final todaySchedules = _filterTodaySchedules(schedules);
 
       final isFavorite = await _favoriteService.isFavorite(line.id);
+      final feedbackStatus = await _recommendationService.getFeedbackStatus(line.id);
 
       setState(() {
         _line = line;
         _route = route;
         _schedules = todaySchedules;
         _isFavorite = isFavorite;
+        _recommendationFeedback = feedbackStatus;
         _isLoading = false;
       });
     } catch (e) {
@@ -192,6 +198,48 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       if (mounted) {
         setState(() {
           _isTogglingFavorite = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendFeedback(bool isUseful) async {
+    if (_line == null) return;
+
+    final wasAlreadyActive = _recommendationFeedback == isUseful;
+
+    setState(() {
+      _isSendingFeedback = true;
+    });
+
+    try {
+      await _recommendationService.sendFeedback(_line!.id, isUseful);
+      final updatedFeedbackStatus = await _recommendationService.getFeedbackStatus(_line!.id);
+      setState(() {
+        _recommendationFeedback = updatedFeedbackStatus;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(wasAlreadyActive ? 'Ocjena je uklonjena.' : 'Hvala! Vaša ocjena je sačuvana.'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingFeedback = false;
         });
       }
     }
@@ -505,6 +553,86 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Ocijenite ovu liniju',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSendingFeedback
+                                              ? null
+                                              : () => _sendFeedback(true),
+                                          icon: Icon(
+                                            _recommendationFeedback == true
+                                                ? Icons.thumb_up
+                                                : Icons.thumb_up_outlined,
+                                            color: _recommendationFeedback == true
+                                                ? Colors.green
+                                                : Colors.grey,
+                                          ),
+                                          label: const Text('Korisno'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: _recommendationFeedback == true
+                                                ? Colors.green
+                                                : Colors.grey,
+                                            side: BorderSide(
+                                              color: _recommendationFeedback == true
+                                                  ? Colors.green
+                                                  : Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: OutlinedButton.icon(
+                                          onPressed: _isSendingFeedback
+                                              ? null
+                                              : () => _sendFeedback(false),
+                                          icon: Icon(
+                                            _recommendationFeedback == false
+                                                ? Icons.thumb_down
+                                                : Icons.thumb_down_outlined,
+                                            color: _recommendationFeedback == false
+                                                ? Colors.red
+                                                : Colors.grey,
+                                          ),
+                                          label: const Text('Nekorisno'),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: _recommendationFeedback == false
+                                                ? Colors.red
+                                                : Colors.grey,
+                                            side: BorderSide(
+                                              color: _recommendationFeedback == false
+                                                  ? Colors.red
+                                                  : Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 24),

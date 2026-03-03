@@ -224,8 +224,8 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         ticketTypeId: _selectedTicketType!.id,
         routeId: _selectedRoute!.id,
         zoneId: _selectedTicketPrice!.zoneId,
-        validFrom: selectedDateTime,
-        validTo: validTo,
+        validFrom: selectedDateTime.toUtc(),
+        validTo: validTo.toUtc(),
         transactionId: null,
       );
 
@@ -358,8 +358,8 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         ticketTypeId: _selectedTicketType!.id,
         routeId: _selectedRoute!.id,
         zoneId: _selectedTicketPrice!.zoneId,
-        validFrom: selectedDateTime,
-        validTo: validTo,
+        validFrom: selectedDateTime.toUtc(),
+        validTo: validTo.toUtc(),
         transactionId: transactionId,
       );
 

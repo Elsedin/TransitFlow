@@ -128,5 +128,100 @@ public static class DbSeeder
             context.TicketTypes.AddRange(ticketTypes);
             await context.SaveChangesAsync();
         }
+
+        if (!context.Stations.Any())
+        {
+            var city = await context.Cities.FirstAsync();
+            var zone1 = await context.Zones.FirstAsync(z => z.Name == "Zona 1");
+            var zone2 = await context.Zones.FirstAsync(z => z.Name == "Zona 2");
+            var zone3 = await context.Zones.FirstAsync(z => z.Name == "Zona 3");
+
+            var stations = new[]
+            {
+                new Station { Name = "Baščaršija", Address = "Baščaršija, Sarajevo", Latitude = 43.860075073069034m, Longitude = 18.431344420671195m, CityId = city.Id, ZoneId = zone1.Id, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Station { Name = "Skenderija", Address = "Skenderija, Sarajevo", Latitude = 43.856433221373464m, Longitude = 18.413750840407392m, CityId = city.Id, ZoneId = zone1.Id, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Station { Name = "Otoka", Address = "Otoka, Sarajevo", Latitude = 43.84924945595444m, Longitude = 18.36742307757195m, CityId = city.Id, ZoneId = zone2.Id, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Station { Name = "Ilidža", Address = "Ilidža, Sarajevo", Latitude = 43.836110566046635m, Longitude = 18.300459863067246m, CityId = city.Id, ZoneId = zone3.Id, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Station { Name = "Dobrinja", Address = "Dobrinja, Sarajevo", Latitude = 43.82806631216855m, Longitude = 18.350504738228672m, CityId = city.Id, ZoneId = zone3.Id, IsActive = true, CreatedAt = DateTime.UtcNow }
+            };
+
+            context.Stations.AddRange(stations);
+            await context.SaveChangesAsync();
+        }
+
+        if (!context.TransportLines.Any())
+        {
+            var busType = await context.TransportTypes.FirstAsync(t => t.Name == "Autobus");
+            
+            var transportLine = new TransportLine
+            {
+                LineNumber = "1",
+                Name = "Baščaršija - Ilidža",
+                TransportTypeId = busType.Id,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.TransportLines.Add(transportLine);
+            await context.SaveChangesAsync();
+        }
+
+        if (!context.Routes.Any())
+        {
+            var transportLine = await context.TransportLines.FirstAsync();
+            
+            var routes = new[]
+            {
+                new Models.Route
+                {
+                    TransportLineId = transportLine.Id,
+                    Origin = "Baščaršija",
+                    Destination = "Ilidža",
+                    Distance = 12.5m,
+                    EstimatedDurationMinutes = 40,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Models.Route
+                {
+                    TransportLineId = transportLine.Id,
+                    Origin = "Ilidža",
+                    Destination = "Baščaršija",
+                    Distance = 12.5m,
+                    EstimatedDurationMinutes = 40,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
+            };
+
+            context.Routes.AddRange(routes);
+            await context.SaveChangesAsync();
+        }
+
+        if (!context.RouteStations.Any())
+        {
+            var route1 = await context.Routes.FirstAsync(r => r.Origin == "Baščaršija");
+            var route2 = await context.Routes.FirstAsync(r => r.Origin == "Ilidža");
+            
+            var bascarsija = await context.Stations.FirstAsync(s => s.Name == "Baščaršija");
+            var skenderija = await context.Stations.FirstAsync(s => s.Name == "Skenderija");
+            var otoka = await context.Stations.FirstAsync(s => s.Name == "Otoka");
+            var ilidza = await context.Stations.FirstAsync(s => s.Name == "Ilidža");
+
+            var routeStations = new[]
+            {
+                new RouteStation { RouteId = route1.Id, StationId = bascarsija.Id, Order = 1, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route1.Id, StationId = skenderija.Id, Order = 2, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route1.Id, StationId = otoka.Id, Order = 3, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route1.Id, StationId = ilidza.Id, Order = 4, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route2.Id, StationId = ilidza.Id, Order = 1, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route2.Id, StationId = otoka.Id, Order = 2, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route2.Id, StationId = skenderija.Id, Order = 3, CreatedAt = DateTime.UtcNow },
+                new RouteStation { RouteId = route2.Id, StationId = bascarsija.Id, Order = 4, CreatedAt = DateTime.UtcNow }
+            };
+
+            context.RouteStations.AddRange(routeStations);
+            await context.SaveChangesAsync();
+        }
     }
 }

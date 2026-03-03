@@ -30,6 +30,62 @@ class TransportLine {
   }
 }
 
+class RecommendedLine {
+  final int id;
+  final String lineNumber;
+  final String name;
+  final String origin;
+  final String destination;
+  final String transportTypeName;
+  final bool isActive;
+  final double score;
+  final String? scoreExplanation;
+  final bool? hasPositiveFeedback;
+  final bool? hasNegativeFeedback;
+
+  RecommendedLine({
+    required this.id,
+    required this.lineNumber,
+    required this.name,
+    required this.origin,
+    required this.destination,
+    required this.transportTypeName,
+    required this.isActive,
+    required this.score,
+    this.scoreExplanation,
+    this.hasPositiveFeedback,
+    this.hasNegativeFeedback,
+  });
+
+  factory RecommendedLine.fromJson(Map<String, dynamic> json) {
+    return RecommendedLine(
+      id: json['id'] as int,
+      lineNumber: json['lineNumber'] as String,
+      name: json['name'] as String,
+      origin: json['origin'] as String,
+      destination: json['destination'] as String,
+      transportTypeName: json['transportTypeName'] as String,
+      isActive: json['isActive'] as bool,
+      score: (json['score'] as num).toDouble(),
+      scoreExplanation: json['scoreExplanation'] as String?,
+      hasPositiveFeedback: json['hasPositiveFeedback'] as bool?,
+      hasNegativeFeedback: json['hasNegativeFeedback'] as bool?,
+    );
+  }
+
+  TransportLine toTransportLine() {
+    return TransportLine(
+      id: id,
+      lineNumber: lineNumber,
+      name: name,
+      origin: origin,
+      destination: destination,
+      transportTypeName: transportTypeName,
+      isActive: isActive,
+    );
+  }
+}
+
 class Route {
   final int id;
   final String name;
