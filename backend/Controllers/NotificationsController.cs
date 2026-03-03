@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -110,5 +111,38 @@ public class NotificationsController : ControllerBase
         }
 
         return Ok(new { message = "Notification marked as read" });
+    }
+
+    [HttpGet("my")]
+    public async Task<ActionResult<List<NotificationDto>>> GetMyNotifications(
+        [FromQuery] bool? isRead = null)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var notifications = await _notificationService.GetAllAsync(
+            userId: userId,
+            isRead: isRead,
+            isActive: true);
+        return Ok(notifications);
+    }
+
+    [HttpGet("my/unread-count")]
+    public async Task<ActionResult<int>> GetMyUnreadCount()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var notifications = await _notificationService.GetAllAsync(
+            userId: userId,
+            isRead: false,
+            isActive: true);
+        return Ok(notifications.Count);
     }
 }

@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/transport_line_service.dart';
 import '../services/favorite_service.dart';
 import '../services/recommendation_service.dart';
+import '../services/notification_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
@@ -11,6 +13,7 @@ import 'route_map_screen.dart';
 import 'tickets_list_screen.dart';
 import 'favorite_lines_screen.dart';
 import 'recommended_lines_screen.dart';
+import 'notifications_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -112,21 +115,27 @@ class _HomeTabState extends State<_HomeTab> {
   final _transportLineService = TransportLineService();
   final _favoriteService = FavoriteService();
   final _recommendationService = RecommendationService();
+  final _notificationService = NotificationService();
   List<models.TransportLine> _allLines = [];
   List<models.RecommendedLine> _recommendedLines = [];
   List<models.TransportLine> _favoriteLines = [];
   bool _isLoading = true;
   final Map<int, bool?> _feedbackStatus = {};
+  int _unreadNotificationCount = 0;
+  Timer? _notificationTimer;
 
   @override
   void initState() {
     super.initState();
     _instance = this;
     _loadLines();
+    _loadUnreadNotificationCount();
+    _startNotificationTimer();
   }
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     if (_instance == this) {
       _instance = null;
     }
@@ -247,6 +256,26 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
+  Future<void> _loadUnreadNotificationCount() async {
+    try {
+      final count = await _notificationService.getUnreadCount();
+      if (mounted) {
+        setState(() {
+          _unreadNotificationCount = count;
+        });
+      }
+    } catch (e) {
+    }
+  }
+
+  void _startNotificationTimer() {
+    _notificationTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (mounted) {
+        _loadUnreadNotificationCount();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -263,10 +292,45 @@ class _HomeTabState extends State<_HomeTab> {
         backgroundColor: Colors.orange[700],
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {
-            },
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const NotificationsScreen(),
+                    ),
+                  );
+                  _loadUnreadNotificationCount();
+                },
+              ),
+              if (_unreadNotificationCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 16,
+                      minHeight: 16,
+                    ),
+                    child: Text(
+                      _unreadNotificationCount > 99 ? '99+' : '$_unreadNotificationCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),
