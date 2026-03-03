@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/transport_line_service.dart';
 import '../services/favorite_service.dart';
+import '../services/recommendation_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
@@ -9,6 +10,7 @@ import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
 import 'tickets_list_screen.dart';
 import 'favorite_lines_screen.dart';
+import 'recommended_lines_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,12 +23,22 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final _authService = AuthService();
 
+  int _previousIndex = 0;
+
   List<Widget> get _screens => [
-    _HomeTab(onNavigateToLines: () {
-      setState(() {
-        _currentIndex = 1;
-      });
-    }),
+    _HomeTab(
+      onNavigateToLines: () {
+        setState(() {
+          _currentIndex = 1;
+        });
+      },
+      onRefresh: () {
+        if (_currentIndex == 0) {
+          final homeTab = _screens[0] as _HomeTab;
+          homeTab.refresh();
+        }
+      },
+    ),
     const _LinesTab(),
     const _TicketsTab(),
     const _ProfileTab(),
@@ -42,7 +54,12 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedItemColor: Colors.orange[700],
         unselectedItemColor: Colors.grey,
         onTap: (index) {
+          if (_previousIndex != index && index == 0) {
+            final homeTab = _screens[0] as _HomeTab;
+            homeTab.refresh();
+          }
           setState(() {
+            _previousIndex = _currentIndex;
             _currentIndex = index;
           });
         },
@@ -71,26 +88,51 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _HomeTab extends StatefulWidget {
   final VoidCallback? onNavigateToLines;
+  final VoidCallback? onRefresh;
   
-  const _HomeTab({this.onNavigateToLines});
+  const _HomeTab({this.onNavigateToLines, this.onRefresh});
+
+  void refresh() {
+    if (_HomeTabState._instance != null) {
+      _HomeTabState._instance!._loadLines();
+    }
+  }
 
   @override
-  State<_HomeTab> createState() => _HomeTabState();
+  State<_HomeTab> createState() {
+    final state = _HomeTabState();
+    _HomeTabState._instance = state;
+    return state;
+  }
 }
 
 class _HomeTabState extends State<_HomeTab> {
+  static _HomeTabState? _instance;
+  
   final _transportLineService = TransportLineService();
   final _favoriteService = FavoriteService();
+  final _recommendationService = RecommendationService();
   List<models.TransportLine> _allLines = [];
-  List<models.TransportLine> _recommendedLines = [];
+  List<models.RecommendedLine> _recommendedLines = [];
   List<models.TransportLine> _favoriteLines = [];
   bool _isLoading = true;
+  final Map<int, bool?> _feedbackStatus = {};
 
   @override
   void initState() {
     super.initState();
+    _instance = this;
     _loadLines();
   }
+
+  @override
+  void dispose() {
+    if (_instance == this) {
+      _instance = null;
+    }
+    super.dispose();
+  }
+
 
   Future<void> _loadLines() async {
     try {
@@ -104,10 +146,42 @@ class _HomeTabState extends State<_HomeTab> {
       } catch (e) {
       }
 
+      List<models.RecommendedLine> recommendedLinesList = [];
+      try {
+        recommendedLinesList = await _recommendationService.getRecommendedLines(count: 3);
+      } catch (e) {
+        recommendedLinesList = lines.take(3).map((l) {
+          return models.RecommendedLine(
+            id: l.id,
+            lineNumber: l.lineNumber,
+            name: l.name,
+            origin: l.origin,
+            destination: l.destination,
+            transportTypeName: l.transportTypeName,
+            isActive: l.isActive,
+            score: 0.0,
+            scoreExplanation: 'Početna preporuka - još nema dovoljno podataka',
+          );
+        }).toList();
+      }
+
+      final feedbackMap = <int, bool?>{};
+      for (final recommendedLine in recommendedLinesList) {
+        if (recommendedLine.hasPositiveFeedback == true) {
+          feedbackMap[recommendedLine.id] = true;
+        } else if (recommendedLine.hasNegativeFeedback == true) {
+          feedbackMap[recommendedLine.id] = false;
+        } else {
+          feedbackMap[recommendedLine.id] = null;
+        }
+      }
+
       setState(() {
         _allLines = lines;
-        _recommendedLines = lines.take(3).toList();
+        _recommendedLines = recommendedLinesList;
         _favoriteLines = favoriteLinesList;
+        _feedbackStatus.clear();
+        _feedbackStatus.addAll(feedbackMap);
         _isLoading = false;
       });
     } catch (e) {
@@ -264,7 +338,13 @@ class _HomeTabState extends State<_HomeTab> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RecommendedLinesScreen(),
+                        ),
+                      );
+                    },
                     child: const Text('Vidi sve'),
                   ),
                 ],
@@ -282,7 +362,8 @@ class _HomeTabState extends State<_HomeTab> {
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           itemCount: _recommendedLines.length,
                           itemBuilder: (context, index) {
-                            final line = _recommendedLines[index];
+                            final recommendedLine = _recommendedLines[index];
+                            final line = recommendedLine.toTransportLine();
                             return FutureBuilder<String?>(
                               future: _getNextDeparture(line),
                               builder: (context, snapshot) {
@@ -290,10 +371,14 @@ class _HomeTabState extends State<_HomeTab> {
                                 return Padding(
                                   padding: EdgeInsets.only(right: index < _recommendedLines.length - 1 ? 12 : 0),
                                   child: _buildRecommendedLineCard(
-                                    line.lineNumber,
-                                    '${line.origin} → ${line.destination}',
+                                    recommendedLine.lineNumber,
+                                    '${recommendedLine.origin} → ${recommendedLine.destination}',
                                     nextDeparture,
-                                    line.id,
+                                    recommendedLine.id,
+                                    line,
+                                    recommendedLine.score,
+                                    recommendedLine.scoreExplanation,
+                                    index + 1,
                                   ),
                                 );
                               },
@@ -398,9 +483,10 @@ class _HomeTabState extends State<_HomeTab> {
     );
   }
 
-  Widget _buildRecommendedLineCard(String lineNumber, String route, String nextDeparture, int lineId) {
+  Widget _buildRecommendedLineCard(String lineNumber, String route, String nextDeparture, int lineId, models.TransportLine line, double score, String? scoreExplanation, int position) {
     return Container(
       width: 280,
+      constraints: const BoxConstraints(maxHeight: 200),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -416,18 +502,46 @@ class _HomeTabState extends State<_HomeTab> {
         ],
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                lineNumber,
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange[700],
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: position == 1 
+                          ? Colors.amber[700]
+                          : position == 2
+                              ? Colors.grey[400]
+                              : Colors.brown[300],
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '$position',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    lineNumber,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange[700],
+                    ),
+                  ),
+                ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -436,7 +550,7 @@ class _HomeTabState extends State<_HomeTab> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Preporučeno',
+                  'Skor: ${score.toStringAsFixed(1)}',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -446,15 +560,34 @@ class _HomeTabState extends State<_HomeTab> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            route,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
+          const SizedBox(height: 6),
+          Flexible(
+            child: Text(
+              route,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(height: 8),
+          if (scoreExplanation != null) ...[
+            const SizedBox(height: 3),
+            Flexible(
+              child: Text(
+                scoreExplanation,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
           Text(
             'Sljedeći polazak: $nextDeparture',
             style: TextStyle(
@@ -462,26 +595,123 @@ class _HomeTabState extends State<_HomeTab> {
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => LineDetailsScreen(lineId: lineId),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: IconButton(
+                  icon: Icon(
+                    _feedbackStatus[lineId] == true 
+                        ? Icons.thumb_up 
+                        : Icons.thumb_up_outlined, 
+                    size: 20
                   ),
-                );
-              },
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.orange[700],
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  color: _feedbackStatus[lineId] == true 
+                      ? Colors.green 
+                      : Colors.grey[600],
+                  onPressed: () async {
+                    final currentStatus = _feedbackStatus[lineId];
+                    final wasAlreadyActive = currentStatus == true;
+                    
+                    try {
+                      await _recommendationService.sendFeedback(lineId, true);
+                      final updatedFeedbackStatus = await _recommendationService.getFeedbackStatus(lineId);
+                      if (mounted) {
+                        setState(() {
+                          _feedbackStatus[lineId] = updatedFeedbackStatus;
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(wasAlreadyActive 
+                                ? 'Ocjena je uklonjena.' 
+                                : 'Hvala! Preporuka je sačuvana.'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        _loadLines();
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(e.toString().replaceAll('Exception: ', '')),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  },
                 ),
               ),
-              child: const Text('Prikaži detalje'),
-            ),
+              Expanded(
+                child: IconButton(
+                  icon: Icon(
+                    _feedbackStatus[lineId] == false 
+                        ? Icons.thumb_down 
+                        : Icons.thumb_down_outlined, 
+                    size: 20
+                  ),
+                  color: _feedbackStatus[lineId] == false 
+                      ? Colors.red 
+                      : Colors.grey[600],
+                  onPressed: () async {
+                    final currentStatus = _feedbackStatus[lineId];
+                    final wasAlreadyActive = currentStatus == false;
+                    
+                    try {
+                      await _recommendationService.sendFeedback(lineId, false);
+                      final updatedFeedbackStatus = await _recommendationService.getFeedbackStatus(lineId);
+                      if (mounted) {
+                        setState(() {
+                          _feedbackStatus[lineId] = updatedFeedbackStatus;
+                        });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(wasAlreadyActive 
+                                ? 'Ocjena je uklonjena.' 
+                                : 'Preporuka je uklonjena.'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        _loadLines();
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(e.toString().replaceAll('Exception: ', '')),
+                            backgroundColor: Colors.red,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: TextButton(
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LineDetailsScreen(lineId: lineId),
+                      ),
+                    );
+                    _loadLines();
+                  },
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.orange[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text('Detalji'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

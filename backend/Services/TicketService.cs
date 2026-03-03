@@ -19,7 +19,8 @@ public class TicketService : ITicketService
         string? status = null,
         int? ticketTypeId = null,
         DateTime? dateFrom = null,
-        DateTime? dateTo = null)
+        DateTime? dateTo = null,
+        int? userId = null)
     {
         var now = DateTime.UtcNow;
         var query = _context.Tickets
@@ -30,6 +31,11 @@ public class TicketService : ITicketService
             .Include(t => t.Zone)
             .Include(t => t.Transaction)
             .AsQueryable();
+
+        if (userId.HasValue)
+        {
+            query = query.Where(t => t.UserId == userId.Value);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -183,18 +189,62 @@ public class TicketService : ITicketService
             throw new InvalidOperationException("Zone not found");
         }
 
-        var ticketPrice = await _context.TicketPrices
+        var ticketValidFrom = dto.ValidFrom.ToUniversalTime();
+        var ticketValidFromDate = ticketValidFrom.Date;
+        
+        var allPrices = await _context.TicketPrices
             .Where(tp => tp.TicketTypeId == dto.TicketTypeId 
                 && tp.ZoneId == dto.ZoneId 
-                && tp.IsActive 
-                && tp.ValidFrom <= DateTime.UtcNow
-                && (tp.ValidTo == null || tp.ValidTo >= DateTime.UtcNow))
+                && tp.IsActive)
+            .ToListAsync();
+        
+        var ticketPrice = allPrices
+            .Where(tp => 
+            {
+                var priceValidFrom = tp.ValidFrom.Kind == DateTimeKind.Unspecified 
+                    ? DateTime.SpecifyKind(tp.ValidFrom, DateTimeKind.Utc) 
+                    : tp.ValidFrom.ToUniversalTime();
+                var priceValidFromDate = priceValidFrom.Date;
+                
+                if (priceValidFromDate > ticketValidFromDate)
+                    return false;
+                
+                if (tp.ValidTo.HasValue)
+                {
+                    var priceValidTo = tp.ValidTo.Value.Kind == DateTimeKind.Unspecified 
+                        ? DateTime.SpecifyKind(tp.ValidTo.Value, DateTimeKind.Utc) 
+                        : tp.ValidTo.Value.ToUniversalTime();
+                    var priceValidToDate = priceValidTo.Date;
+                    
+                    if (priceValidToDate < ticketValidFromDate)
+                        return false;
+                }
+                
+                return true;
+            })
             .OrderByDescending(tp => tp.ValidFrom)
-            .FirstOrDefaultAsync();
+            .FirstOrDefault();
 
         if (ticketPrice == null)
         {
-            throw new InvalidOperationException("Ticket price not found for the selected ticket type and zone");
+            var allPricesForCombination = await _context.TicketPrices
+                .Where(tp => tp.TicketTypeId == dto.TicketTypeId && tp.ZoneId == dto.ZoneId)
+                .Select(tp => new { 
+                    tp.Id, 
+                    tp.IsActive, 
+                    tp.ValidFrom, 
+                    tp.ValidTo,
+                    tp.Price 
+                })
+                .ToListAsync();
+            
+            var errorDetails = $"TicketTypeId: {dto.TicketTypeId}, ZoneId: {dto.ZoneId}, " +
+                              $"ValidFrom: {ticketValidFrom:yyyy-MM-dd HH:mm:ss} UTC. " +
+                              $"Found {allPricesForCombination.Count} price(s) for this combination. " +
+                              $"Active: {allPricesForCombination.Count(p => p.IsActive)}. " +
+                              $"Details: {string.Join("; ", allPricesForCombination.Select(p => $"Id={p.Id}, Active={p.IsActive}, ValidFrom={p.ValidFrom:yyyy-MM-dd}, ValidTo={p.ValidTo?.ToString("yyyy-MM-dd") ?? "null"}"))}";
+            
+            throw new InvalidOperationException($"Ticket price not found for the selected ticket type and zone. {errorDetails}");
         }
 
         var now = DateTime.UtcNow;

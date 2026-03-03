@@ -35,7 +35,19 @@ public class TicketsController : ControllerBase
         [FromQuery] DateTime? dateFrom = null,
         [FromQuery] DateTime? dateTo = null)
     {
-        var tickets = await _ticketService.GetAllAsync(search, status, ticketTypeId, dateFrom, dateTo);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        int? userId = null;
+        
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+        {
+            var isAdmin = User.IsInRole("Administrator");
+            if (!isAdmin)
+            {
+                userId = parsedUserId;
+            }
+        }
+
+        var tickets = await _ticketService.GetAllAsync(search, status, ticketTypeId, dateFrom, dateTo, userId);
         return Ok(tickets);
     }
 

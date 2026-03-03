@@ -60,15 +60,33 @@ public class SubscriptionsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<SubscriptionDto>> Create([FromBody] CreateSubscriptionDto dto)
     {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        var isAdmin = User.IsInRole("Administrator");
+        
+        if (!isAdmin)
         {
-            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+            {
+                return Unauthorized(new { message = "User not authenticated or user ID not found." });
+            }
+            
+            dto.UserId = authenticatedUserId;
+        }
+        else
+        {
+            if (dto.UserId <= 0)
+            {
+                return BadRequest(new { message = "User ID must be provided and valid when creating subscription for another user." });
+            }
+        }
+        
+        if (dto.UserId <= 0)
+        {
+            return BadRequest(new { message = "User ID must be provided and valid." });
         }
 
         try
         {
-            dto.UserId = userId;
             var subscription = await _subscriptionService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = subscription.Id }, subscription);
         }

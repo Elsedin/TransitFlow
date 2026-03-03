@@ -138,7 +138,19 @@ class TicketService {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => TicketPrice.fromJson(json)).toList();
+      final allPrices = data.map((json) => TicketPrice.fromJson(json)).toList();
+      
+      final groupedPrices = <String, TicketPrice>{};
+      for (final price in allPrices) {
+        if (!price.isActive) continue;
+        final key = '${price.ticketTypeId}_${price.zoneId}';
+        if (!groupedPrices.containsKey(key) || 
+            price.validFrom.isAfter(groupedPrices[key]!.validFrom)) {
+          groupedPrices[key] = price;
+        }
+      }
+      
+      return groupedPrices.values.toList();
     } else {
       throw Exception('Failed to load ticket prices: ${response.statusCode}');
     }

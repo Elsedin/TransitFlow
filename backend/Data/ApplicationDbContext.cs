@@ -29,6 +29,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Country> Countries { get; set; }
     public DbSet<TransportType> TransportTypes { get; set; }
     public DbSet<FavoriteLine> FavoriteLines { get; set; }
+    public DbSet<RecommendationFeedback> RecommendationFeedbacks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -194,6 +195,21 @@ public class ApplicationDbContext : DbContext
         });
 
         modelBuilder.Entity<FavoriteLine>(entity =>
+        {
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.FavoriteLines)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasOne(e => e.TransportLine)
+                .WithMany()
+                .HasForeignKey(e => e.TransportLineId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            entity.HasIndex(e => new { e.UserId, e.TransportLineId }).IsUnique();
+        });
+
+        modelBuilder.Entity<RecommendationFeedback>(entity =>
         {
             entity.HasOne(e => e.User)
                 .WithMany()
