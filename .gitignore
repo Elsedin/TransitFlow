@@ -200,6 +200,3 @@ docker-compose.override.yml
 # Connection strings and sensitive config (if not already covered)
 **/appsettings.*.json
 !**/appsettings.json
-
-# Flutter metadata (user-specific, should not be committed)
-**/.metadata

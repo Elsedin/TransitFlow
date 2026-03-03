@@ -33,8 +33,6 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     dotnet ef database update
     dotnet run
     ```
-    
-    API će biti dostupan na `http://localhost:5178`
 
 4. Pokretanje Worker servisa (za notifikacije)
 
