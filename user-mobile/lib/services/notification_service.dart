@@ -20,7 +20,7 @@ class NotificationService {
       queryParams['isRead'] = isRead.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/notifications/my')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/my')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -44,7 +44,7 @@ class NotificationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/notifications/my/unread-count'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/my/unread-count'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ class NotificationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/notifications/$id/mark-read'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/$id/mark-read'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

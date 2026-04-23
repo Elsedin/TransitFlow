@@ -19,43 +19,40 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     cd TransitFlow
     ```
 
-2. Pokretanje baze podataka i RabbitMQ
+2. Konfiguracija (2026 upute)
+
+Konfiguracijske vrijednosti i tajne se ne drže u kodu niti u `appsettings.json`, već u `.env` fajlu.
+
+- Kopirajte `.env.example` u `.env` i popunite vrijednosti (Stripe/PayPal/JWT/DB).
+- `.env` se ne commit-uje. Za predaju se `.env` zipuje (šifra `fit`) prema uputama.
+
+3. Pokretanje servisa (Docker)
 
     ```
-    docker compose up -d rabbitmq sqlserver
+    docker compose up --build
     ```
 
-3. Pokretanje backend API-ja
+API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:5000/swagger`).
 
-    ```
-    cd backend
-    dotnet restore
-    dotnet ef database update
-    dotnet run
-    ```
-
-4. Pokretanje Worker servisa (za notifikacije)
-
-    ```
-    cd worker
-    dotnet restore
-    dotnet run
-    ```
-
-5. Pokretanje desktop aplikacije (Admin)
+4. Pokretanje desktop aplikacije (Admin)
 
     ```
     cd admin-frontend
     flutter pub get
-    flutter run -d windows
+    flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5000/api
     ```
 
-6. Pokretanje mobilne aplikacije (User)
+5. Pokretanje mobilne aplikacije (User)
 
     ```
     cd user-mobile
     flutter pub get
-    flutter run
+
+    # Android emulator (AVD):
+    flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+    # Fizički Android uređaj (LAN):
+    flutter run --dart-define=API_BASE_URL=http://<IP-PC>:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
     ```
 
 ## Kredencijali za prijavu
@@ -91,7 +88,7 @@ ZIP kod: bilo koji 5-cifreni broj (npr. 12345)
 
 ### PayPal Test Račun
 
-PayPal credentials su već konfigurisani u `backend/appsettings.json` sa Sandbox podacima.
+PayPal credentials se konfigurišu kroz `.env` (PAYPAL__CLIENTID / PAYPAL__CLIENTSECRET).
 
 Za testiranje PayPal plaćanja, koristite PayPal Sandbox test račun. Možete kreirati novi na [PayPal Developer Dashboard](https://developer.paypal.com/) pod "Sandbox" -> "Accounts". Koristite email i lozinku tog test računa za prijavu na PayPal stranici.
 

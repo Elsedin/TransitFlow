@@ -26,7 +26,7 @@ class TransportLineService {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/transportlines')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/transportlines')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -50,7 +50,7 @@ class TransportLineService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/transportlines/$id'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/transportlines/$id'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -71,7 +71,7 @@ class TransportLineService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/routes?isActive=true'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/routes?isActive=true'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ class TransportLineService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/routes/$routeId'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/routes/$routeId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -116,7 +116,7 @@ class TransportLineService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/schedules?routeId=$routeId&isActive=true'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/schedules?routeId=$routeId&isActive=true'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

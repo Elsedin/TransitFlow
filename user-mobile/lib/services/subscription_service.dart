@@ -30,7 +30,7 @@ class SubscriptionService {
       queryParams['dateTo'] = dateTo.toIso8601String();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/subscriptions')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -54,7 +54,7 @@ class SubscriptionService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/subscriptions/$id'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/$id'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ class SubscriptionService {
     };
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/subscriptions'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ class SubscriptionService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/subscriptions/$id/cancel'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/$id/cancel'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

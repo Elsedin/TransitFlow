@@ -16,7 +16,7 @@ class FavoriteService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/favorites/lines'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -36,7 +36,7 @@ class FavoriteService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/favorites/lines/check/$transportLineId'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines/check/$transportLineId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ class FavoriteService {
     };
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/favorites/lines'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ class FavoriteService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.delete(
-      Uri.parse('${AppConfig.apiBaseUrl}/favorites/lines/$transportLineId'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines/$transportLineId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

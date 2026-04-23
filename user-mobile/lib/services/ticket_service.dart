@@ -38,7 +38,7 @@ class TicketService {
       queryParams['dateTo'] = dateTo.toIso8601String();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/tickets')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -62,7 +62,7 @@ class TicketService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/tickets/$id'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets/$id'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -87,7 +87,7 @@ class TicketService {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/tickettypes')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickettypes')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -125,7 +125,7 @@ class TicketService {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/ticketprices')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/ticketprices')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -177,7 +177,7 @@ class TicketService {
     };
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/tickets/purchase'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets/purchase'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

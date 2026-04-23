@@ -8,7 +8,15 @@ import 'config/app_config.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
-    Stripe.publishableKey = AppConfig.stripePublishableKey;
+    final pk = AppConfig.stripePublishableKey.trim();
+    if (pk.isEmpty) {
+      throw Exception(
+        'Stripe publishable key nije konfigurisan. Pokreni aplikaciju sa '
+        '--dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...'
+      );
+    }
+
+    Stripe.publishableKey = pk;
     await Stripe.instance.applySettings();
   } catch (e) {
     print('Stripe initialization error: $e');
