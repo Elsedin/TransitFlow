@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,10 +13,12 @@ namespace TransitFlow.API.Controllers;
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
+    private readonly ILogger<NotificationsController> _logger;
 
-    public NotificationsController(INotificationService notificationService)
+    public NotificationsController(INotificationService notificationService, ILogger<NotificationsController> logger)
     {
         _notificationService = notificationService;
+        _logger = logger;
     }
 
     [Authorize(Policy = "Administrator")]
@@ -65,9 +68,14 @@ public class NotificationsController : ControllerBase
             var notification = await _notificationService.CreateAsync(dto);
             return CreatedAtAction(nameof(GetById), new { id = notification.Id }, notification);
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            _logger.LogError(ex, "Failed creating notification");
+            return StatusCode(500, new { message = "An error occurred while creating the notification", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -86,9 +94,14 @@ public class NotificationsController : ControllerBase
 
             return Ok(notification);
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            return BadRequest(new { error = ex.Message });
+            _logger.LogError(ex, "Failed updating notification {NotificationId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the notification", traceId = HttpContext.TraceIdentifier });
         }
     }
 

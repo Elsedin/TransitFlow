@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
 namespace TransitFlow.API.Services;
@@ -10,13 +11,15 @@ public class RabbitMQService : IRabbitMQService, IDisposable
     private IConnection? _connection;
     private IModel? _channel;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<RabbitMQService> _logger;
     private readonly object _lock = new object();
     private const string ExchangeName = "transitflow_notifications";
     private const string QueueName = "notification_queue";
 
-    public RabbitMQService(IConfiguration configuration)
+    public RabbitMQService(IConfiguration configuration, ILogger<RabbitMQService> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
     private void EnsureConnection()
@@ -60,7 +63,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RabbitMQService] Failed to connect to RabbitMQ: {ex.Message}");
+                _logger.LogError(ex, "Failed to connect to RabbitMQ");
                 throw;
             }
         }
@@ -95,7 +98,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RabbitMQService] Failed to publish notification: {ex.Message}");
+            _logger.LogError(ex, "Failed to publish notification");
         }
     }
 
@@ -128,7 +131,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RabbitMQService] Failed to publish broadcast notification: {ex.Message}");
+            _logger.LogError(ex, "Failed to publish broadcast notification");
         }
     }
 

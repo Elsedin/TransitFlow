@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
+    private readonly ILogger<ReportsController> _logger;
 
-    public ReportsController(IReportService reportService)
+    public ReportsController(IReportService reportService, ILogger<ReportsController> logger)
     {
         _reportService = reportService;
+        _logger = logger;
     }
 
     [HttpPost("generate")]
@@ -37,7 +40,8 @@ public class ReportsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while generating the report", error = ex.Message });
+            _logger.LogError(ex, "Report generation failed ({ReportType})", request.ReportType);
+            return StatusCode(500, new { message = "An error occurred while generating the report", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

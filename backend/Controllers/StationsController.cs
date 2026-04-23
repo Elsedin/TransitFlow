@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Station = TransitFlow.API.Models.Station;
@@ -13,10 +14,12 @@ namespace TransitFlow.API.Controllers;
 public class StationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<StationsController> _logger;
 
-    public StationsController(ApplicationDbContext context)
+    public StationsController(ApplicationDbContext context, ILogger<StationsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -158,7 +161,8 @@ public class StationsController : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    return BadRequest(new { message = $"Invalid latitude format: {ex.Message}" });
+                    _logger.LogWarning(ex, "Invalid latitude value");
+                    return BadRequest(new { message = "Invalid latitude value" });
                 }
             }
 
@@ -175,7 +179,8 @@ public class StationsController : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    return BadRequest(new { message = $"Invalid longitude format: {ex.Message}" });
+                    _logger.LogWarning(ex, "Invalid longitude value");
+                    return BadRequest(new { message = "Invalid longitude value" });
                 }
             }
 
@@ -225,8 +230,7 @@ public class StationsController : ControllerBase
         catch (DbUpdateException dbEx)
         {
             var errorMessage = dbEx.InnerException?.Message ?? dbEx.Message;
-            Console.WriteLine($"[StationsController] Database error: {errorMessage}");
-            Console.WriteLine($"[StationsController] Stack trace: {dbEx.StackTrace}");
+            _logger.LogError(dbEx, "Database error while creating station");
             
             if (errorMessage.Contains("FK_Stations_Cities") || errorMessage.Contains("CityId"))
             {
@@ -238,13 +242,12 @@ public class StationsController : ControllerBase
                 return BadRequest(new { message = "Invalid Zone ID. The zone does not exist or is inactive." });
             }
             
-            return StatusCode(500, new { message = "Database error occurred while creating the station", error = errorMessage });
+            return StatusCode(500, new { message = "Database error occurred while creating the station", traceId = HttpContext.TraceIdentifier });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[StationsController] Error: {ex.Message}");
-            Console.WriteLine($"[StationsController] Stack trace: {ex.StackTrace}");
-            return StatusCode(500, new { message = "An error occurred while creating the station", error = ex.Message });
+            _logger.LogError(ex, "Unexpected error while creating station");
+            return StatusCode(500, new { message = "An error occurred while creating the station", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -304,7 +307,8 @@ public class StationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the station", error = ex.Message });
+            _logger.LogError(ex, "Unexpected error while updating station {StationId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the station", traceId = HttpContext.TraceIdentifier });
         }
     }
 

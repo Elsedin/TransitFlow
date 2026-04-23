@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -14,11 +15,13 @@ public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration)
+    public AuthService(ApplicationDbContext context, IConfiguration configuration, ILogger<AuthService> logger)
     {
         _context = context;
         _configuration = configuration;
+        _logger = logger;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
@@ -28,21 +31,13 @@ public class AuthService : IAuthService
 
         if (admin == null)
         {
-            Console.WriteLine($"[AuthService] Admin not found: {request.Username}");
+            _logger.LogWarning("Admin login failed: user not found ({Username})", request.Username);
             return null;
         }
 
-        Console.WriteLine($"[AuthService] Admin found: {admin.Username}");
-        Console.WriteLine($"[AuthService] Stored hash: {admin.PasswordHash}");
-        Console.WriteLine($"[AuthService] Password length: {request.Password.Length}");
-        
-        var computedHash = HashPassword(request.Password);
-        Console.WriteLine($"[AuthService] Computed hash: {computedHash}");
-        Console.WriteLine($"[AuthService] Hashes match: {computedHash == admin.PasswordHash}");
-
         if (!VerifyPassword(request.Password, admin.PasswordHash))
         {
-            Console.WriteLine($"[AuthService] Password verification failed");
+            _logger.LogWarning("Admin login failed: bad password ({Username})", request.Username);
             return null;
         }
 

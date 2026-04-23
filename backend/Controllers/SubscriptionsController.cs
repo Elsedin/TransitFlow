@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,10 +13,12 @@ namespace TransitFlow.API.Controllers;
 public class SubscriptionsController : ControllerBase
 {
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ILogger<SubscriptionsController> _logger;
 
-    public SubscriptionsController(ISubscriptionService subscriptionService)
+    public SubscriptionsController(ISubscriptionService subscriptionService, ILogger<SubscriptionsController> logger)
     {
         _subscriptionService = subscriptionService;
+        _logger = logger;
     }
 
     [HttpGet("metrics")]
@@ -96,7 +99,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed creating subscription for user {UserId}", dto.UserId);
+            return StatusCode(500, new { message = "An error occurred while creating the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -120,7 +124,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed updating subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -144,7 +149,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while cancelling the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed cancelling subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while cancelling the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -164,7 +170,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

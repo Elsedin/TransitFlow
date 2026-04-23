@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class VehiclesController : ControllerBase
 {
     private readonly IVehicleService _vehicleService;
+    private readonly ILogger<VehiclesController> _logger;
 
-    public VehiclesController(IVehicleService vehicleService)
+    public VehiclesController(IVehicleService vehicleService, ILogger<VehiclesController> logger)
     {
         _vehicleService = vehicleService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -53,7 +56,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed creating vehicle");
+            return StatusCode(500, new { message = "An error occurred while creating the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -73,7 +77,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed updating vehicle {VehicleId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -97,7 +102,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting vehicle {VehicleId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

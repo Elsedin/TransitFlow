@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using System.Text;
 using TransitFlow.API.Data;
+using TransitFlow.API.Middleware;
 using TransitFlow.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -42,6 +44,25 @@ builder.Services.AddAuthorization(options =>
 });
 
 builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var traceId = context.HttpContext.TraceIdentifier;
+            return new BadRequestObjectResult(new
+            {
+                type = "about:blank",
+                title = "Validation failed",
+                status = StatusCodes.Status400BadRequest,
+                errors = context.ModelState
+                    .Where(kvp => kvp.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray()),
+                traceId
+            });
+        };
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
@@ -121,6 +142,9 @@ if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
 app.UseCors("AllowFlutterApp");
 app.UseAuthentication();
 app.UseAuthorization();
@@ -129,8 +153,10 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
+    var seederLogger = loggerFactory.CreateLogger("DbSeeder");
     await context.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(context);
+    await DbSeeder.SeedAsync(context, seederLogger);
 }
 
 app.Run();

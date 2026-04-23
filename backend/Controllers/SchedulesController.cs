@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class SchedulesController : ControllerBase
 {
     private readonly IScheduleService _scheduleService;
+    private readonly ILogger<SchedulesController> _logger;
 
-    public SchedulesController(IScheduleService scheduleService)
+    public SchedulesController(IScheduleService scheduleService, ILogger<SchedulesController> logger)
     {
         _scheduleService = scheduleService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -59,7 +62,8 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed creating schedule");
+            return StatusCode(500, new { message = "An error occurred while creating the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -87,7 +91,8 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed updating schedule {ScheduleId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -107,7 +112,8 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting schedule {ScheduleId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

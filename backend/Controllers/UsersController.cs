@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ILogger<UsersController> _logger;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, ILogger<UsersController> logger)
     {
         _userService = userService;
+        _logger = logger;
     }
 
     [HttpGet("metrics")]
@@ -61,7 +64,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the user", error = ex.Message });
+            _logger.LogError(ex, "Failed creating user");
+            return StatusCode(500, new { message = "An error occurred while creating the user", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -85,7 +89,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the user", error = ex.Message });
+            _logger.LogError(ex, "Failed updating user {UserId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the user", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -105,7 +110,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating user status", error = ex.Message });
+            _logger.LogError(ex, "Failed toggling active status for user {UserId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating user status", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

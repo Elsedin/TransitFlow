@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class TicketPricesController : ControllerBase
 {
     private readonly ITicketPriceService _ticketPriceService;
+    private readonly ILogger<TicketPricesController> _logger;
 
-    public TicketPricesController(ITicketPriceService ticketPriceService)
+    public TicketPricesController(ITicketPriceService ticketPriceService, ILogger<TicketPricesController> logger)
     {
         _ticketPriceService = ticketPriceService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -54,7 +57,8 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed creating ticket price");
+            return StatusCode(500, new { message = "An error occurred while creating the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -78,7 +82,8 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed updating ticket price {TicketPriceId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -98,7 +103,8 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting ticket price {TicketPriceId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -10,14 +11,16 @@ namespace TransitFlow.Worker;
 public class NotificationWorker : BackgroundService
 {
     private readonly IConfiguration _configuration;
+    private readonly ILogger<NotificationWorker> _logger;
     private IConnection? _connection;
     private IModel? _channel;
     private const string ExchangeName = "transitflow_notifications";
     private const string QueueName = "notification_queue";
 
-    public NotificationWorker(IConfiguration configuration)
+    public NotificationWorker(IConfiguration configuration, ILogger<NotificationWorker> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -61,14 +64,14 @@ public class NotificationWorker : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[NotificationWorker] Error processing message: {ex.Message}");
+                    _logger.LogError(ex, "Error processing RabbitMQ message");
                     _channel?.BasicNack(deliveryTag: ea.DeliveryTag, multiple: false, requeue: true);
                 }
             };
 
             _channel.BasicConsume(queue: QueueName, autoAck: false, consumer: consumer);
 
-            Console.WriteLine("[NotificationWorker] Started and waiting for messages...");
+            _logger.LogInformation("Notification worker started and waiting for messages");
 
             while (!stoppingToken.IsCancellationRequested)
             {
@@ -77,7 +80,7 @@ public class NotificationWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NotificationWorker] Connection error: {ex.Message}");
+            _logger.LogError(ex, "RabbitMQ connection error");
         }
     }
 
@@ -89,20 +92,23 @@ public class NotificationWorker : BackgroundService
             
             if (notificationEvent == null)
             {
-                Console.WriteLine("[NotificationWorker] Failed to deserialize notification event");
+                _logger.LogWarning("Failed to deserialize notification event");
                 return;
             }
 
-            Console.WriteLine($"[NotificationWorker] Processing notification: ID={notificationEvent.NotificationId}, Title={notificationEvent.Title}");
+            _logger.LogInformation(
+                "Processing notification {NotificationId} ({Title})",
+                notificationEvent.NotificationId,
+                notificationEvent.Title);
 
             await SendEmailNotificationAsync(notificationEvent);
             await LogNotificationAsync(notificationEvent);
 
-            Console.WriteLine($"[NotificationWorker] Successfully processed notification ID={notificationEvent.NotificationId}");
+            _logger.LogInformation("Processed notification {NotificationId}", notificationEvent.NotificationId);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[NotificationWorker] Error processing notification: {ex.Message}");
+            _logger.LogError(ex, "Error processing notification");
             throw;
         }
     }
@@ -111,20 +117,19 @@ public class NotificationWorker : BackgroundService
     {
         await Task.Delay(100);
 
-        Console.WriteLine($"[NotificationWorker] Email notification sent for notification ID={notificationEvent.NotificationId}");
+        _logger.LogInformation("Email notification sent for notification {NotificationId}", notificationEvent.NotificationId);
     }
 
     private async Task LogNotificationAsync(NotificationEvent notificationEvent)
     {
         await Task.Delay(50);
 
-        var logMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Notification Created - " +
-                         $"ID: {notificationEvent.NotificationId}, " +
-                         $"Title: {notificationEvent.Title}, " +
-                         $"Type: {notificationEvent.Type}, " +
-                         $"UserId: {notificationEvent.UserId?.ToString() ?? "Broadcast"}";
-
-        Console.WriteLine(logMessage);
+        _logger.LogInformation(
+            "Notification created: {NotificationId} ({Title}) Type={Type} UserId={UserId}",
+            notificationEvent.NotificationId,
+            notificationEvent.Title,
+            notificationEvent.Type,
+            notificationEvent.UserId?.ToString() ?? "Broadcast");
     }
 
     public override void Dispose()

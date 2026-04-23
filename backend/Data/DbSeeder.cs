@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.Models;
 using TransitFlow.API.Services;
 
@@ -6,7 +7,7 @@ namespace TransitFlow.API.Data;
 
 public static class DbSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context)
+    public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
     {
         var existingAdmin = await context.Administrators
             .FirstOrDefaultAsync(a => a.Username == "admin");
@@ -14,7 +15,7 @@ public static class DbSeeder
         if (existingAdmin == null)
         {
             var passwordHash = AuthService.HashPassword("admin123");
-            Console.WriteLine($"[DbSeeder] Creating admin user with password hash: {passwordHash}");
+            logger.LogInformation("Creating default admin user");
             
             var admin = new Administrator
             {
@@ -29,11 +30,11 @@ public static class DbSeeder
 
             context.Administrators.Add(admin);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Admin user created successfully!");
+            logger.LogInformation("Default admin user created");
         }
         else
         {
-            Console.WriteLine($"[DbSeeder] Admin user already exists. Password hash: {existingAdmin.PasswordHash}");
+            logger.LogInformation("Default admin user already exists");
         }
 
         var existingDesktop = await context.Administrators
@@ -56,7 +57,7 @@ public static class DbSeeder
 
             context.Administrators.Add(desktop);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Desktop user created successfully!");
+            logger.LogInformation("Desktop admin user created");
         }
 
         var existingMobile = await context.Users
@@ -80,7 +81,7 @@ public static class DbSeeder
 
             context.Users.Add(mobile);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Mobile user created successfully!");
+            logger.LogInformation("Mobile demo user created");
         }
 
         if (context.Users.Count() < 3)
@@ -116,7 +117,7 @@ public static class DbSeeder
 
             context.Users.AddRange(testUsers);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Test users created successfully!");
+            logger.LogInformation("Test users created");
         }
 
         if (!context.Countries.Any())
@@ -748,7 +749,7 @@ public static class DbSeeder
 
             context.Tickets.AddRange(tickets);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[DbSeeder] {tickets.Count} test tickets created successfully!");
+            logger.LogInformation("Test tickets created ({Count})", tickets.Count);
         }
 
         if (!context.Notifications.Any())
@@ -770,7 +771,7 @@ public static class DbSeeder
 
             context.Notifications.AddRange(welcomeNotifications);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[DbSeeder] {welcomeNotifications.Count} welcome notifications created successfully!");
+            logger.LogInformation("Welcome notifications created ({Count})", welcomeNotifications.Count);
         }
     }
 }

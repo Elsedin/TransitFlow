@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
@@ -15,11 +16,13 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<PaymentsController> _logger;
 
-    public PaymentsController(IPaymentService paymentService, ApplicationDbContext context)
+    public PaymentsController(IPaymentService paymentService, ApplicationDbContext context, ILogger<PaymentsController> logger)
     {
         _paymentService = paymentService;
         _context = context;
+        _logger = logger;
     }
 
     [HttpPost("stripe/create-intent")]
@@ -42,7 +45,8 @@ public class PaymentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating payment intent", error = ex.Message });
+            _logger.LogError(ex, "Failed creating Stripe payment intent for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while creating payment intent", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -68,7 +72,8 @@ public class PaymentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while confirming payment", error = ex.Message });
+            _logger.LogError(ex, "Failed confirming Stripe payment for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while confirming payment", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -96,7 +101,8 @@ public class PaymentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating PayPal order", error = ex.Message });
+            _logger.LogError(ex, "Failed creating PayPal order for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while creating PayPal order", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -120,7 +126,8 @@ public class PaymentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while capturing PayPal order", error = ex.Message });
+            _logger.LogError(ex, "Failed capturing PayPal order for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while capturing PayPal order", traceId = HttpContext.TraceIdentifier });
         }
     }
 

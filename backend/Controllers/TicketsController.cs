@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -13,11 +14,13 @@ public class TicketsController : ControllerBase
 {
     private readonly ITicketService _ticketService;
     private readonly IUserService _userService;
+    private readonly ILogger<TicketsController> _logger;
 
-    public TicketsController(ITicketService ticketService, IUserService userService)
+    public TicketsController(ITicketService ticketService, IUserService userService, ILogger<TicketsController> logger)
     {
         _ticketService = ticketService;
         _userService = userService;
+        _logger = logger;
     }
 
     [HttpGet("metrics")]
@@ -84,7 +87,8 @@ public class TicketsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while purchasing the ticket", error = ex.Message });
+            _logger.LogError(ex, "Ticket purchase failed for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while purchasing the ticket", traceId = HttpContext.TraceIdentifier });
         }
     }
 }
