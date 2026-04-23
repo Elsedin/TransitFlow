@@ -18,6 +18,7 @@ public class NotificationsController : ControllerBase
         _notificationService = notificationService;
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpGet("metrics")]
     public async Task<ActionResult<NotificationMetricsDto>> GetMetrics()
     {
@@ -25,6 +26,7 @@ public class NotificationsController : ControllerBase
         return Ok(metrics);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpGet]
     public async Task<ActionResult<List<NotificationDto>>> GetAll(
         [FromQuery] int? userId = null,
@@ -40,6 +42,7 @@ public class NotificationsController : ControllerBase
         return Ok(notifications);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpGet("{id}")]
     public async Task<ActionResult<NotificationDto>> GetById(int id)
     {
@@ -53,6 +56,7 @@ public class NotificationsController : ControllerBase
         return Ok(notification);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<NotificationDto>> Create([FromBody] CreateNotificationDto dto)
     {
@@ -67,6 +71,7 @@ public class NotificationsController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<NotificationDto>> Update(int id, [FromBody] UpdateNotificationDto dto)
     {
@@ -87,6 +92,7 @@ public class NotificationsController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<ActionResult> Delete(int id)
     {

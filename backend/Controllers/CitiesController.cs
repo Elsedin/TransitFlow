@@ -9,7 +9,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class CitiesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

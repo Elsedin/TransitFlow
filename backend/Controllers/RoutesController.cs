@@ -7,7 +7,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class RoutesController : ControllerBase
 {
     private readonly IRouteService _routeService;
