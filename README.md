@@ -13,12 +13,10 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
 ## Upute za instalaciju
 
 1. Kloniranje GitHub repozitorija
-
-    ```
+  ```
     git clone <repository-url>
     cd TransitFlow
-    ```
-
+  ```
 2. Konfiguracija (2026 upute)
 
 Konfiguracijske vrijednosti i tajne se ne drže u kodu niti u `appsettings.json`, već u `.env` fajlu.
@@ -26,25 +24,23 @@ Konfiguracijske vrijednosti i tajne se ne drže u kodu niti u `appsettings.json`
 - Kopirajte `.env.example` u `.env` i popunite vrijednosti (Stripe/PayPal/JWT/DB).
 - `.env` se ne commit-uje. Za predaju se `.env` zipuje (šifra `fit`) prema uputama.
 
-3. Pokretanje servisa (Docker)
-
-    ```
+1. Pokretanje servisa (Docker)
+  ```
     docker compose up --build
-    ```
+  ```
+
+`docker-compose.yml` čeka da SQL Server i RabbitMQ prođu healthcheck prije starta API-ja i workera. U `.env` koristite `SQLSERVER_SA_PASSWORD` (mapira se na `MSSQL_SA_PASSWORD` u SQL kontejneru). Vrijednosti s `#` u `.env` stavite u dvostruke navodnike da Docker Compose ne odreže string.
 
 API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:5000/swagger`).
 
-4. Pokretanje desktop aplikacije (Admin)
-
-    ```
+1. Pokretanje desktop aplikacije (Admin)
+  ```
     cd admin-frontend
     flutter pub get
     flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5000/api
-    ```
-
-5. Pokretanje mobilne aplikacije (User)
-
-    ```
+  ```
+2. Pokretanje mobilne aplikacije (User)
+  ```
     cd user-mobile
     flutter pub get
 
@@ -53,7 +49,7 @@ API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:500
 
     # Fizički Android uređaj (LAN):
     flutter run --dart-define=API_BASE_URL=http://<IP-PC>:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
-    ```
+  ```
 
 ## Kredencijali za prijavu
 
@@ -61,19 +57,9 @@ API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:500
 
 - Administrator
 
-    ```
-    Korisničko ime: desktop
-    Lozinka: test
-    ```
-
 ### Mobilna aplikacija
 
 - Korisnik
-
-    ```
-    Korisničko ime: mobile
-    Lozinka: test
-    ```
 
 ## KARTICA ZA PLAĆANJE
 

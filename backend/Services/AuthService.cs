@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -13,6 +14,9 @@ namespace TransitFlow.API.Services;
 
 public class AuthService : IAuthService
 {
+    private static readonly object PasswordHasherScope = new();
+    private static readonly PasswordHasher<object> SharedHasher = new();
+
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
@@ -35,10 +39,16 @@ public class AuthService : IAuthService
             return null;
         }
 
-        if (!VerifyPassword(request.Password, admin.PasswordHash))
+        var verification = VerifyPasswordDetailed(request.Password, admin.PasswordHash);
+        if (verification == PasswordVerifyResult.Failed)
         {
             _logger.LogWarning("Admin login failed: bad password ({Username})", request.Username);
             return null;
+        }
+
+        if (verification == PasswordVerifyResult.SuccessUpgradeHash)
+        {
+            admin.PasswordHash = HashPassword(request.Password);
         }
 
         admin.LastLoginAt = DateTime.UtcNow;
@@ -66,9 +76,15 @@ public class AuthService : IAuthService
             return null;
         }
 
-        if (!VerifyPassword(request.Password, user.PasswordHash))
+        var verification = VerifyPasswordDetailed(request.Password, user.PasswordHash);
+        if (verification == PasswordVerifyResult.Failed)
         {
             return null;
+        }
+
+        if (verification == PasswordVerifyResult.SuccessUpgradeHash)
+        {
+            user.PasswordHash = HashPassword(request.Password);
         }
 
         user.LastLoginAt = DateTime.UtcNow;
@@ -171,27 +187,64 @@ public class AuthService : IAuthService
         return tokenHandler.WriteToken(token);
     }
 
-    private static bool VerifyPassword(string password, string passwordHash)
+    private enum PasswordVerifyResult
     {
-        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(passwordHash))
+        Failed,
+        Success,
+        SuccessUpgradeHash
+    }
+
+    private static bool LooksLikeLegacySha256Base64Hash(string passwordHash)
+    {
+        if (string.IsNullOrWhiteSpace(passwordHash))
         {
             return false;
         }
-        
+
+        try
+        {
+            var bytes = Convert.FromBase64String(passwordHash.Trim());
+            return bytes.Length == 32;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool VerifyLegacySha256(string password, string storedHash)
+    {
         using var sha256 = SHA256.Create();
         var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
         var hashedPassword = Convert.ToBase64String(hashedBytes);
-        
-        var trimmedStored = passwordHash.Trim();
-        var trimmedComputed = hashedPassword.Trim();
-        
-        return trimmedComputed == trimmedStored;
+        return string.Equals(hashedPassword.Trim(), storedHash.Trim(), StringComparison.Ordinal);
+    }
+
+    private PasswordVerifyResult VerifyPasswordDetailed(string password, string storedHash)
+    {
+        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(storedHash))
+        {
+            return PasswordVerifyResult.Failed;
+        }
+
+        if (LooksLikeLegacySha256Base64Hash(storedHash))
+        {
+            return VerifyLegacySha256(password, storedHash)
+                ? PasswordVerifyResult.SuccessUpgradeHash
+                : PasswordVerifyResult.Failed;
+        }
+
+        var result = SharedHasher.VerifyHashedPassword(PasswordHasherScope, storedHash, password);
+        return result switch
+        {
+            PasswordVerificationResult.Success => PasswordVerifyResult.Success,
+            PasswordVerificationResult.SuccessRehashNeeded => PasswordVerifyResult.SuccessUpgradeHash,
+            _ => PasswordVerifyResult.Failed
+        };
     }
 
     public static string HashPassword(string password)
     {
-        using var sha256 = SHA256.Create();
-        var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-        return Convert.ToBase64String(hashedBytes);
+        return SharedHasher.HashPassword(PasswordHasherScope, password);
     }
 }

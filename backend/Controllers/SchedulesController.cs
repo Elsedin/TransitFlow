@@ -8,7 +8,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "Administrator")]
+[Authorize]
 public class SchedulesController : ControllerBase
 {
     private readonly IScheduleService _scheduleService;
@@ -44,6 +44,7 @@ public class SchedulesController : ControllerBase
         return Ok(schedule);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<ScheduleDto>> Create([FromBody] CreateScheduleDto dto)
     {
@@ -67,6 +68,7 @@ public class SchedulesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<ScheduleDto>> Update(int id, [FromBody] UpdateScheduleDto dto)
     {
@@ -96,6 +98,7 @@ public class SchedulesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

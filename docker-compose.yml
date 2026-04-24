@@ -12,6 +12,12 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - transitflow-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -20,12 +26,18 @@ services:
       - "1433:1433"
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: ${SQLSERVER_SA_PASSWORD}
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD}
       MSSQL_PID: "Express"
     volumes:
       - sqlserver_data:/var/opt/mssql
     networks:
       - transitflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "SQLCMD=/opt/mssql-tools18/bin/sqlcmd; [ -x $$SQLCMD ] || SQLCMD=/opt/mssql-tools/bin/sqlcmd; $$SQLCMD -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"SELECT 1\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
 
   api:
     build:
@@ -50,8 +62,10 @@ services:
       - PayPal__ClientSecret=${PAYPAL__CLIENTSECRET}
       - PayPal__IsSandbox=${PAYPAL__ISSANDBOX:-true}
     depends_on:
-      - sqlserver
-      - rabbitmq
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - transitflow-network
 
@@ -67,7 +81,8 @@ services:
       - RabbitMQ__UserName=${RABBITMQ__USERNAME:-guest}
       - RabbitMQ__Password=${RABBITMQ__PASSWORD:-guest}
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
       - transitflow-network
 

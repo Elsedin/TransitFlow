@@ -9,7 +9,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "Administrator")]
+[Authorize]
 public class TicketTypesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -73,6 +73,7 @@ public class TicketTypesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<TicketTypeDto>> Create([FromBody] CreateTicketTypeDto dto)
     {
@@ -105,6 +106,7 @@ public class TicketTypesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = ticketType.Id }, result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TicketTypeDto>> Update(int id, [FromBody] UpdateTicketTypeDto dto)
     {
@@ -140,6 +142,7 @@ public class TicketTypesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

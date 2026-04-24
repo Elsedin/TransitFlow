@@ -7,7 +7,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "Administrator")]
+[Authorize]
 public class RoutesController : ControllerBase
 {
     private readonly IRouteService _routeService;
@@ -35,6 +35,7 @@ public class RoutesController : ControllerBase
         return Ok(route);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<RouteDto>> Create([FromBody] CreateRouteDto dto)
     {
@@ -42,6 +43,7 @@ public class RoutesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = route.Id }, route);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<RouteDto>> Update(int id, [FromBody] UpdateRouteDto dto)
     {
@@ -53,6 +55,7 @@ public class RoutesController : ControllerBase
         return Ok(route);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

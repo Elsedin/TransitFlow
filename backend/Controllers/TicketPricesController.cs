@@ -8,7 +8,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = "Administrator")]
+[Authorize]
 public class TicketPricesController : ControllerBase
 {
     private readonly ITicketPriceService _ticketPriceService;
@@ -43,6 +43,7 @@ public class TicketPricesController : ControllerBase
         return Ok(ticketPrice);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<TicketPriceDto>> Create([FromBody] CreateTicketPriceDto dto)
     {
@@ -62,6 +63,7 @@ public class TicketPricesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TicketPriceDto>> Update(int id, [FromBody] UpdateTicketPriceDto dto)
     {
@@ -87,6 +89,7 @@ public class TicketPricesController : ControllerBase
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
