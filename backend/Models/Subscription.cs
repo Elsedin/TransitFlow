@@ -11,6 +11,10 @@ public class Subscription
     public int UserId { get; set; }
     
     public virtual User? User { get; set; }
+
+    public int SubscriptionPackageId { get; set; }
+
+    public virtual SubscriptionPackage? SubscriptionPackage { get; set; }
     
     [Required]
     [MaxLength(100)]

@@ -22,6 +22,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TicketType> TicketTypes { get; set; }
     public DbSet<Transaction> Transactions { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
+    public DbSet<SubscriptionPackage> SubscriptionPackages { get; set; }
     public DbSet<Zone> Zones { get; set; }
     public DbSet<TicketPrice> TicketPrices { get; set; }
     public DbSet<Notification> Notifications { get; set; }
@@ -159,6 +160,9 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Transaction>(entity =>
         {
             entity.HasIndex(e => e.TransactionNumber).IsUnique();
+            entity.HasIndex(e => e.ExternalTransactionId)
+                .IsUnique()
+                .HasFilter("[ExternalTransactionId] IS NOT NULL");
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Transactions)
                 .HasForeignKey(e => e.UserId)
@@ -172,10 +176,20 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
             
+            entity.HasOne(e => e.SubscriptionPackage)
+                .WithMany()
+                .HasForeignKey(e => e.SubscriptionPackageId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(e => e.Transaction)
                 .WithMany()
                 .HasForeignKey(e => e.TransactionId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SubscriptionPackage>(entity =>
+        {
+            entity.HasIndex(e => e.Key).IsUnique();
         });
 
         modelBuilder.Entity<Notification>(entity =>

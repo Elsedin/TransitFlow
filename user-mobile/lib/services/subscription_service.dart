@@ -86,22 +86,18 @@ class SubscriptionService {
   }
 
   Future<Subscription> purchaseSubscription({
-    required String packageName,
-    required double price,
-    required DateTime startDate,
-    required DateTime endDate,
-    required String status,
+    required String packageKey,
     int? transactionId,
   }) async {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
     final requestBody = {
-      'packageName': packageName,
-      'price': price,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-      'status': status,
+      'packageName': packageKey,
+      'price': 0.01,
+      'startDate': DateTime.now().toIso8601String(),
+      'endDate': DateTime.now().add(const Duration(days: 1)).toIso8601String(),
+      'status': 'Active',
       if (transactionId != null) 'transactionId': transactionId,
     };
 
@@ -142,48 +138,31 @@ class SubscriptionService {
     }
   }
 
-  List<SubscriptionPackage> getAvailablePackages() {
-    return [
-      SubscriptionPackage(
-        name: 'monthly',
-        displayName: 'Mjesečna pretplata',
-        durationDays: 30,
-        price: 45.00,
-        benefits: [
-          'Neograničen broj vožnji',
-          'Sve linije',
-          'Automatska obnova',
-          'Prioritetna podrška',
-        ],
-        tag: 'Najpopularnije',
-      ),
-      SubscriptionPackage(
-        name: 'annual',
-        displayName: 'Godišnja pretplata',
-        durationDays: 365,
-        price: 450.00,
-        benefits: [
-          'Neograničen broj vožnji',
-          'Sve linije',
-          'Automatska obnova',
-          'Prioritetna podrška',
-          'Besplatna aplikacija',
-        ],
-        tag: 'Najisplativije',
-        savings: 'Ušteda 90 KM',
-      ),
-      SubscriptionPackage(
-        name: 'student_monthly',
-        displayName: 'Studentska mjesečna',
-        durationDays: 30,
-        price: 30.00,
-        benefits: [
-          'Neograničen broj vožnji',
-          'Sve linije',
-          'Vrijedi samo za studente',
-        ],
-        savings: 'Ušteda 15 KM',
-      ),
-    ];
+  Future<List<SubscriptionPackage>> fetchAvailablePackages({bool? isActive = true}) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final queryParams = <String, String>{};
+    if (isActive != null) {
+      queryParams['isActive'] = isActive.toString();
+    }
+
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscription-packages')
+        .replace(queryParameters: queryParams);
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => SubscriptionPackage.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load subscription packages: ${response.statusCode}');
+    }
   }
 }

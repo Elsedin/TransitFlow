@@ -61,6 +61,7 @@ services:
       - PayPal__ClientId=${PAYPAL__CLIENTID}
       - PayPal__ClientSecret=${PAYPAL__CLIENTSECRET}
       - PayPal__IsSandbox=${PAYPAL__ISSANDBOX:-true}
+      - PayPal__BamToUsdRate=${PAYPAL__BAMTOUSDRATE:-1.95583}
     depends_on:
       sqlserver:
         condition: service_healthy

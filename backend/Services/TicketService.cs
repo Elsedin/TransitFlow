@@ -248,11 +248,60 @@ public class TicketService : ITicketService
         }
 
         var now = DateTime.UtcNow;
-        var hasActiveSubscription = await _context.Subscriptions
-            .AnyAsync(s => s.UserId == userId 
-                && s.Status.ToLower() == "active" 
-                && s.StartDate <= now 
-                && s.EndDate >= now);
+
+        var activeSubscription = await _context.Subscriptions
+            .Include(s => s.SubscriptionPackage)
+            .Where(s => s.UserId == userId
+                && s.Status.ToLower() == "active"
+                && s.StartDate <= now
+                && s.EndDate >= now)
+            .OrderByDescending(s => s.EndDate)
+            .FirstOrDefaultAsync();
+
+        var subscriptionAllowsFreeTicket = activeSubscription?.SubscriptionPackage != null &&
+                                           activeSubscription.SubscriptionPackage.IsActive &&
+                                           activeSubscription.SubscriptionPackage.MaxZoneId >= dto.ZoneId;
+
+        var expectedAmount = ticketPrice.Price;
+        Models.Transaction? transaction = null;
+
+        if (!subscriptionAllowsFreeTicket)
+        {
+            if (!dto.TransactionId.HasValue)
+            {
+                throw new InvalidOperationException("Transaction is required for paid ticket purchase");
+            }
+
+            transaction = await _context.Transactions
+                .FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
+
+            if (transaction == null)
+            {
+                throw new InvalidOperationException("Transaction not found");
+            }
+
+            if (transaction.UserId != userId)
+            {
+                throw new InvalidOperationException("Transaction does not belong to the user");
+            }
+
+            if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Transaction is not completed");
+            }
+
+            if (transaction.Amount != expectedAmount)
+            {
+                throw new InvalidOperationException("Transaction amount does not match ticket price");
+            }
+
+            var transactionUsedByTicket = await _context.Tickets.AnyAsync(t => t.TransactionId == transaction.Id);
+            var transactionUsedBySubscription = await _context.Subscriptions.AnyAsync(s => s.TransactionId == transaction.Id);
+            if (transactionUsedByTicket || transactionUsedBySubscription)
+            {
+                throw new InvalidOperationException("Transaction has already been used");
+            }
+        }
 
         var ticketNumber = GenerateTicketNumber();
 
@@ -263,12 +312,12 @@ public class TicketService : ITicketService
             TicketTypeId = dto.TicketTypeId,
             RouteId = dto.RouteId,
             ZoneId = dto.ZoneId,
-            Price = hasActiveSubscription ? 0 : ticketPrice.Price,
+            Price = subscriptionAllowsFreeTicket ? 0 : expectedAmount,
             ValidFrom = dto.ValidFrom,
             ValidTo = dto.ValidTo,
             PurchasedAt = DateTime.UtcNow,
             IsUsed = false,
-            TransactionId = hasActiveSubscription ? null : dto.TransactionId
+            TransactionId = subscriptionAllowsFreeTicket ? null : transaction!.Id
         };
 
         _context.Tickets.Add(ticket);

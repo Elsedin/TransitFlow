@@ -45,6 +45,15 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   bool _isPurchasing = false;
   String? _errorMessage;
   Subscription? _activeSubscription;
+  int? _activeSubscriptionMaxZoneId;
+  List<SubscriptionPackage> _subscriptionPackages = [];
+
+  bool get _coversSelection {
+    final zoneId = _selectedTicketPrice?.zoneId;
+    final maxZone = _activeSubscriptionMaxZoneId;
+    if (zoneId == null || maxZone == null) return false;
+    return maxZone >= zoneId;
+  }
 
   @override
   void initState() {
@@ -60,6 +69,23 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
 
     try {
       _activeSubscription = await _subscriptionService.getActiveSubscription();
+      if (_activeSubscription != null) {
+        try {
+          _subscriptionPackages = await _subscriptionService.fetchAvailablePackages();
+          final match = _subscriptionPackages
+              .where((p) => p.displayName == _activeSubscription!.packageName)
+              .toList();
+          if (match.isNotEmpty) {
+            _activeSubscriptionMaxZoneId = match.first.maxZoneId;
+          } else {
+            _activeSubscriptionMaxZoneId = null;
+          }
+        } catch (_) {
+          _activeSubscriptionMaxZoneId = null;
+        }
+      } else {
+        _activeSubscriptionMaxZoneId = null;
+      }
 
       if (widget.lineId != null) {
         final line = await _transportLineService.getById(widget.lineId!);
@@ -167,7 +193,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       return;
     }
 
-    if (_activeSubscription != null) {
+    if (_coversSelection) {
       await _createTicketWithoutPayment();
       return;
     }
@@ -412,7 +438,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
               else
                 _buildNoTicketPriceMessage(),
             ],
-            if (_activeSubscription == null) ...[
+            if (!_coversSelection) ...[
               const SizedBox(height: 16),
               _buildPaymentMethodSection(),
             ] else ...[
@@ -886,7 +912,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
               _buildSummaryRow('Linija:', _selectedRoute!.transportLineNumber),
             _buildSummaryRow(
               'Ukupno:', 
-              _activeSubscription != null
+              _coversSelection
                 ? 'Besplatno (pokriva pretplata)'
                 : (_selectedTicketPrice != null 
                     ? '${_getTotalPrice().toStringAsFixed(2)} KM'
@@ -932,7 +958,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     return ElevatedButton(
       onPressed: canPurchase ? _purchaseTicket : null,
       style: ElevatedButton.styleFrom(
-        backgroundColor: _activeSubscription != null ? Colors.green[700] : Colors.orange[700],
+        backgroundColor: _coversSelection ? Colors.green[700] : Colors.orange[700],
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
@@ -949,7 +975,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
               ),
             )
           : Text(
-              _activeSubscription != null ? 'Kreiraj besplatnu kartu' : 'Kupi kartu',
+              _coversSelection ? 'Kreiraj besplatnu kartu' : 'Kupi kartu',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

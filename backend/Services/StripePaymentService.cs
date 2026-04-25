@@ -54,6 +54,7 @@ public class StripePaymentService : IPaymentService
             PaymentMethod = "Stripe",
             Status = "pending",
             CreatedAt = DateTime.UtcNow,
+            ExternalTransactionId = paymentIntent.Id,
             Notes = $"PaymentIntent: {paymentIntent.Id}"
         };
 
@@ -91,12 +92,11 @@ public class StripePaymentService : IPaymentService
         }
 
         var transaction = await _context.Transactions
-            .FirstOrDefaultAsync(t => 
-                t.UserId == userId && 
-                t.PaymentMethod == "Stripe" && 
+            .FirstOrDefaultAsync(t =>
+                t.UserId == userId &&
+                t.PaymentMethod == "Stripe" &&
                 t.Status == "pending" &&
-                t.Notes != null &&
-                t.Notes.Contains(paymentIntentId));
+                t.ExternalTransactionId == paymentIntentId);
 
         if (transaction == null)
         {
@@ -128,7 +128,7 @@ public class StripePaymentService : IPaymentService
 
         if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
         {
-            throw new InvalidOperationException("PayPal credentials not configured. Please set PayPal:ClientId and PayPal:ClientSecret in appsettings.json with valid PayPal Sandbox credentials.");
+            throw new InvalidOperationException("PayPal credentials not configured");
         }
 
         var baseUrl = isSandbox 
@@ -152,8 +152,16 @@ public class StripePaymentService : IPaymentService
         var paypalAmount = amount;
         if (currencyCode == "BAM")
         {
+            var bamToUsdRateString = _configuration["PayPal:BamToUsdRate"];
+            if (string.IsNullOrWhiteSpace(bamToUsdRateString) ||
+                !decimal.TryParse(bamToUsdRateString, NumberStyles.Any, CultureInfo.InvariantCulture, out var bamToUsdRate) ||
+                bamToUsdRate <= 0)
+            {
+                throw new InvalidOperationException("PayPal BAM to USD rate not configured");
+            }
+
             currencyCode = "USD";
-            paypalAmount = decimal.Round(amount / 1.95583m, 2, MidpointRounding.AwayFromZero);
+            paypalAmount = decimal.Round(amount / bamToUsdRate, 2, MidpointRounding.AwayFromZero);
         }
 
         if (paypalAmount < 0.01m || paypalAmount > 100000m)
@@ -260,6 +268,7 @@ public class StripePaymentService : IPaymentService
             PaymentMethod = "PayPal",
             Status = "pending",
             CreatedAt = DateTime.UtcNow,
+            ExternalTransactionId = orderId,
             Notes = $"PayPal Order: {orderId}, PayPalAmount: {paypalAmount.ToString("F2", CultureInfo.InvariantCulture)} {currencyCode}"
         };
 
@@ -308,12 +317,11 @@ public class StripePaymentService : IPaymentService
             if (orderStatus == "COMPLETED")
             {
                 var existingTransaction = await _context.Transactions
-                    .FirstOrDefaultAsync(t => 
-                        t.UserId == userId && 
-                        t.PaymentMethod == "PayPal" && 
+                    .FirstOrDefaultAsync(t =>
+                        t.UserId == userId &&
+                        t.PaymentMethod == "PayPal" &&
                         t.Status == "pending" &&
-                        t.Notes != null &&
-                        t.Notes.Contains(orderId));
+                        t.ExternalTransactionId == orderId);
 
                 if (existingTransaction != null)
                 {
@@ -350,12 +358,11 @@ public class StripePaymentService : IPaymentService
             if (isSandbox && responseContent.Contains("COMPLIANCE_VIOLATION"))
             {
                 var sandboxTransaction = await _context.Transactions
-                    .FirstOrDefaultAsync(t => 
-                        t.UserId == userId && 
-                        t.PaymentMethod == "PayPal" && 
+                    .FirstOrDefaultAsync(t =>
+                        t.UserId == userId &&
+                        t.PaymentMethod == "PayPal" &&
                         t.Status == "pending" &&
-                        t.Notes != null &&
-                        t.Notes.Contains(orderId));
+                        t.ExternalTransactionId == orderId);
 
                 if (sandboxTransaction != null)
                 {
@@ -395,12 +402,11 @@ public class StripePaymentService : IPaymentService
         }
 
         var transaction = await _context.Transactions
-            .FirstOrDefaultAsync(t => 
-                t.UserId == userId && 
-                t.PaymentMethod == "PayPal" && 
+            .FirstOrDefaultAsync(t =>
+                t.UserId == userId &&
+                t.PaymentMethod == "PayPal" &&
                 t.Status == "pending" &&
-                t.Notes != null &&
-                t.Notes.Contains(orderId));
+                t.ExternalTransactionId == orderId);
 
         if (transaction == null)
         {

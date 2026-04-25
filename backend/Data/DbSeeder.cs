@@ -773,5 +773,25 @@ public static class DbSeeder
             await context.SaveChangesAsync();
             logger.LogInformation("Welcome notifications created ({Count})", welcomeNotifications.Count);
         }
+
+        if (!context.SubscriptionPackages.Any())
+        {
+            var now = DateTime.UtcNow;
+            var packages = new[]
+            {
+                new SubscriptionPackage { Key = "monthly_zone1", DisplayName = "Mjesečna (Zona 1)", DurationDays = 30, Price = 45.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone2", DisplayName = "Mjesečna (Zona 1-2)", DurationDays = 30, Price = 55.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone3", DisplayName = "Mjesečna (Zona 1-3)", DurationDays = 30, Price = 65.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone1", DisplayName = "Godišnja (Zona 1)", DurationDays = 365, Price = 450.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone2", DisplayName = "Godišnja (Zona 1-2)", DurationDays = 365, Price = 550.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone3", DisplayName = "Godišnja (Zona 1-3)", DurationDays = 365, Price = 650.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone1", DisplayName = "Studentska mjesečna (Zona 1)", DurationDays = 30, Price = 30.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone2", DisplayName = "Studentska mjesečna (Zona 1-2)", DurationDays = 30, Price = 40.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone3", DisplayName = "Studentska mjesečna (Zona 1-3)", DurationDays = 30, Price = 50.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now }
+            };
+
+            context.SubscriptionPackages.AddRange(packages);
+            await context.SaveChangesAsync();
+        }
     }
 }

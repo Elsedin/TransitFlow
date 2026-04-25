@@ -31,6 +31,9 @@ public class Transaction
     
     [MaxLength(500)]
     public string? Notes { get; set; }
+
+    [MaxLength(100)]
+    public string? ExternalTransactionId { get; set; }
     
     public virtual ICollection<Ticket> Tickets { get; set; } = new List<Ticket>();
 }

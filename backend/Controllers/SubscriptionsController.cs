@@ -97,6 +97,10 @@ public class SubscriptionsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed creating subscription for user {UserId}", dto.UserId);
@@ -119,6 +123,10 @@ public class SubscriptionsController : ControllerBase
             return Ok(subscription);
         }
         catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
         {
             return BadRequest(new { message = ex.Message });
         }
