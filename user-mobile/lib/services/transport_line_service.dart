@@ -130,4 +130,27 @@ class TransportLineService {
       throw Exception('Failed to load schedules: ${response.statusCode}');
     }
   }
+
+  Future<List<models.NextDeparture>> getNextDepartures(int routeId, {int count = 3}) async {
+    final token = await _getToken();
+    if (token == null) throw Exception('Not authenticated');
+
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/routes/$routeId/next-departures')
+        .replace(queryParameters: {'count': count.toString()});
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      return data.map((json) => models.NextDeparture.fromJson(json)).toList();
+    } else {
+      throw Exception('Failed to load next departures: ${response.statusCode}');
+    }
+  }
 }

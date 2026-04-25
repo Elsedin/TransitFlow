@@ -620,7 +620,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
-  bool? _statusFilter;
+  bool? _statusFilter = true;
   int _currentPage = 0;
   final int _itemsPerPage = 5;
 
@@ -643,7 +643,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
     });
 
     try {
-      final ticketTypes = await _ticketTypeService.getAll();
+      final ticketTypes = await _ticketTypeService.getAll(isActive: _statusFilter);
       setState(() {
         _ticketTypes = ticketTypes;
         _filteredTicketTypes = ticketTypes;
@@ -908,7 +908,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
                         setState(() {
                           _statusFilter = value;
                         });
-                        _applyFilters();
+                        _loadData();
                       },
                     ),
                   ),

@@ -182,8 +182,6 @@ public static class DbSeeder
             {
                 new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
                 new TicketType { Name = "Dnevna", Description = "Karta za jedan dan", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new TicketType { Name = "Mjesečna", Description = "Karta za jedan mjesec", ValidityDays = 30, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new TicketType { Name = "Godišnja", Description = "Karta za jednu godinu", ValidityDays = 365, IsActive = true, CreatedAt = DateTime.UtcNow }
             };
 
             context.TicketTypes.AddRange(ticketTypes);
@@ -390,8 +388,6 @@ public static class DbSeeder
         {
             var jednokratna = await context.TicketTypes.FirstAsync(t => t.Name == "Jednokratna");
             var dnevna = await context.TicketTypes.FirstAsync(t => t.Name == "Dnevna");
-            var mjesecna = await context.TicketTypes.FirstAsync(t => t.Name == "Mjesečna");
-            var godisnja = await context.TicketTypes.FirstAsync(t => t.Name == "Godišnja");
             
             var zone1 = await context.Zones.FirstAsync(z => z.Name == "Zona 1");
             var zone2 = await context.Zones.FirstAsync(z => z.Name == "Zona 2");
@@ -405,13 +401,7 @@ public static class DbSeeder
                 new TicketPrice { TicketTypeId = jednokratna.Id, ZoneId = zone3.Id, Price = 2.50m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
                 new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone1.Id, Price = 3.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
                 new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone2.Id, Price = 4.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone3.Id, Price = 5.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone1.Id, Price = 40.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone2.Id, Price = 50.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone3.Id, Price = 60.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone1.Id, Price = 400.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone2.Id, Price = 500.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone3.Id, Price = 600.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now }
+                new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone3.Id, Price = 5.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now }
             };
 
             context.TicketPrices.AddRange(ticketPrices);
@@ -466,7 +456,6 @@ public static class DbSeeder
             
             var jednokratna = await context.TicketTypes.FirstAsync(t => t.Name == "Jednokratna");
             var dnevna = await context.TicketTypes.FirstAsync(t => t.Name == "Dnevna");
-            var mjesecna = await context.TicketTypes.FirstAsync(t => t.Name == "Mjesečna");
             
             var zone1 = await context.Zones.FirstAsync(z => z.Name == "Zona 1");
             var zone2 = await context.Zones.FirstAsync(z => z.Name == "Zona 2");
@@ -541,19 +530,6 @@ public static class DbSeeder
                         ValidFrom = now.Date,
                         ValidTo = now.Date.AddDays(1),
                         PurchasedAt = now.AddHours(-2),
-                        IsUsed = false
-                    },
-                    new Ticket
-                    {
-                        TicketNumber = GenerateTicketNumber(),
-                        UserId = testUser1.Id,
-                        TicketTypeId = mjesecna.Id,
-                        RouteId = null,
-                        ZoneId = zone1.Id,
-                        Price = 40.00m,
-                        ValidFrom = now.AddDays(-15).Date,
-                        ValidTo = now.AddDays(15).Date,
-                        PurchasedAt = now.AddDays(-15),
                         IsUsed = false
                     },
                     new Ticket
@@ -635,19 +611,6 @@ public static class DbSeeder
                     {
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
-                        TicketTypeId = mjesecna.Id,
-                        RouteId = null,
-                        ZoneId = zone2.Id,
-                        Price = 50.00m,
-                        ValidFrom = now.AddDays(-10).Date,
-                        ValidTo = now.AddDays(20).Date,
-                        PurchasedAt = now.AddDays(-10),
-                        IsUsed = false
-                    },
-                    new Ticket
-                    {
-                        TicketNumber = GenerateTicketNumber(),
-                        UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
                         RouteId = route3.Id,
                         ZoneId = zone3.Id,
@@ -715,19 +678,6 @@ public static class DbSeeder
                     ValidFrom = now.Date,
                     ValidTo = now.Date.AddDays(1),
                     PurchasedAt = now.AddHours(-3),
-                    IsUsed = false
-                },
-                new Ticket
-                {
-                    TicketNumber = GenerateTicketNumber(),
-                    UserId = mobileUser.Id,
-                    TicketTypeId = mjesecna.Id,
-                    RouteId = null,
-                    ZoneId = zone1.Id,
-                    Price = 40.00m,
-                    ValidFrom = now.AddDays(-12).Date,
-                    ValidTo = now.AddDays(18).Date,
-                    PurchasedAt = now.AddDays(-12),
                     IsUsed = false
                 },
                 new Ticket

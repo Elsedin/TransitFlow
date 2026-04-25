@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/transport_line_service.dart';
 import '../services/favorite_service.dart';
 import '../services/recommendation_service.dart';
+import '../services/ticket_service.dart';
 import '../models/transport_line_model.dart' as models;
+import '../models/ticket_model.dart';
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
 
@@ -20,9 +21,12 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
   final _transportLineService = TransportLineService();
   final _favoriteService = FavoriteService();
   final _recommendationService = RecommendationService();
+  final _ticketService = TicketService();
   models.TransportLine? _line;
   models.Route? _route;
-  List<models.Schedule> _schedules = [];
+  List<models.NextDeparture> _nextDepartures = [];
+  List<TicketType> _ticketTypes = [];
+  List<TicketPrice> _ticketPrices = [];
   bool _isLoading = true;
   String? _errorMessage;
   bool _isFavorite = false;
@@ -53,11 +57,12 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       }
 
       final route = await _transportLineService.getRouteByLineId(line.id);
-      final schedules = route != null
-          ? await _transportLineService.getSchedulesByRouteId(route.id)
-          : <models.Schedule>[];
+      final nextDepartures = route != null
+          ? await _transportLineService.getNextDepartures(route.id, count: 3)
+          : <models.NextDeparture>[];
 
-      final todaySchedules = _filterTodaySchedules(schedules);
+      final ticketTypes = await _ticketService.getTicketTypes(isActive: true);
+      final ticketPrices = await _ticketService.getTicketPrices(isActive: true);
 
       final isFavorite = await _favoriteService.isFavorite(line.id);
       final feedbackStatus = await _recommendationService.getFeedbackStatus(line.id);
@@ -65,7 +70,9 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       setState(() {
         _line = line;
         _route = route;
-        _schedules = todaySchedules;
+        _nextDepartures = nextDepartures;
+        _ticketTypes = ticketTypes;
+        _ticketPrices = ticketPrices;
         _isFavorite = isFavorite;
         _recommendationFeedback = feedbackStatus;
         _isLoading = false;
@@ -78,75 +85,26 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
     }
   }
 
-  List<models.Schedule> _filterTodaySchedules(List<models.Schedule> schedules) {
-    final now = DateTime.now();
-    final currentDayOfWeek = now.weekday % 7;
-    final currentTime = TimeOfDay.fromDateTime(now);
-
-    final todaySchedules = schedules
-        .where((s) => s.dayOfWeek == currentDayOfWeek)
-        .where((s) {
-          final departure = _parseTime(s.departureTime);
-          final departureMinutes = departure.hour * 60 + departure.minute;
-          final currentMinutes = currentTime.hour * 60 + currentTime.minute;
-          return departureMinutes >= currentMinutes;
-        })
-        .toList();
-
-    todaySchedules.sort((a, b) {
-      final aTime = _parseTime(a.departureTime);
-      final bTime = _parseTime(b.departureTime);
-      final aMinutes = aTime.hour * 60 + aTime.minute;
-      final bMinutes = bTime.hour * 60 + bTime.minute;
-      return aMinutes.compareTo(bMinutes);
-    });
-
-    return todaySchedules.take(3).toList();
-  }
-
-  TimeOfDay _parseTime(String timeStr) {
-    final parts = timeStr.split(':');
-    return TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
-    );
-  }
-
-  String _formatTimeUntil(TimeOfDay departure) {
-    final now = DateTime.now();
-    var departureDateTime = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      departure.hour,
-      departure.minute,
-    );
-
-    if (departureDateTime.isBefore(now)) {
-      departureDateTime = departureDateTime.add(const Duration(days: 1));
-    }
-
-    final difference = departureDateTime.difference(now);
-    final minutes = difference.inMinutes;
-
+  String _formatTimeUntilMinutes(int minutes) {
     if (minutes < 60) {
       return 'Za $minutes minuta';
-    } else {
-      final hours = minutes ~/ 60;
-      final remainingMinutes = minutes % 60;
-      return 'Za $hours h $remainingMinutes min';
     }
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    return 'Za $hours h $remainingMinutes min';
   }
 
-  String _calculateArrival(String departureTime, int durationMinutes) {
-    final parts = departureTime.split(':');
-    final hour = int.parse(parts[0]);
-    final minute = int.parse(parts[1]);
+  List<int> get _availableZoneIds {
+    return const [1, 2, 3];
+  }
 
-    final departure = DateTime(2024, 1, 1, hour, minute);
-    final arrival = departure.add(Duration(minutes: durationMinutes));
-
-    return '${arrival.hour.toString().padLeft(2, '0')}:${arrival.minute.toString().padLeft(2, '0')}';
+  TicketPrice? _findLatestPrice(int ticketTypeId, int zoneId) {
+    final prices = _ticketPrices
+        .where((p) => p.ticketTypeId == ticketTypeId && p.zoneId == zoneId && p.isActive)
+        .toList();
+    if (prices.isEmpty) return null;
+    prices.sort((a, b) => b.validFrom.compareTo(a.validFrom));
+    return prices.first;
   }
 
   Future<void> _toggleFavorite() async {
@@ -369,15 +327,10 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                                 ),
                               ),
                               const SizedBox(height: 12),
-                              if (_schedules.isEmpty)
-                                const Text('Nema polazaka za danas')
+                              if (_nextDepartures.isEmpty)
+                                const Text('Nema planiranih polazaka')
                               else
-                                ..._schedules.map((schedule) {
-                                  final departure = _parseTime(schedule.departureTime);
-                                  final arrivalTime = _calculateArrival(
-                                    schedule.departureTime,
-                                    _route!.estimatedDurationMinutes,
-                                  );
+                                ..._nextDepartures.map((schedule) {
                                   return Card(
                                     margin: const EdgeInsets.only(bottom: 12),
                                     child: Padding(
@@ -396,7 +349,7 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                _formatTimeUntil(departure),
+                                                _formatTimeUntilMinutes(schedule.minutesUntilDeparture),
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey[600],
@@ -408,14 +361,14 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                                             crossAxisAlignment: CrossAxisAlignment.end,
                                             children: [
                                               Text(
-                                                'Stajalište: ${_route!.origin}',
+                                                schedule.dayOfWeekName,
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey[600],
                                                 ),
                                               ),
                                               Text(
-                                                'Dolazak: $arrivalTime',
+                                                'Dolazak: ${schedule.arrivalTime}',
                                                 style: TextStyle(
                                                   fontSize: 12,
                                                   color: Colors.grey[600],
@@ -543,11 +496,27 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
                                   padding: const EdgeInsets.all(16.0),
                                   child: Column(
                                     children: [
-                                      _buildPriceRow('Pojedinačna', '1.80 KM'),
-                                      const Divider(),
-                                      _buildPriceRow('Dnevna', '3.50 KM'),
-                                      const Divider(),
-                                      _buildPriceRow('Mjesečna', '45.00 KM'),
+                                      if (_ticketTypes.isEmpty)
+                                        const Text('Cijene trenutno nisu dostupne')
+                                      else
+                                        ..._ticketTypes.expand((type) {
+                                          final rows = <Widget>[];
+                                          rows.add(_buildPriceRow(type.name, ''));
+                                          for (final zoneId in _availableZoneIds) {
+                                            final price = _findLatestPrice(type.id, zoneId);
+                                            if (price == null) continue;
+                                            rows.add(Padding(
+                                              padding: const EdgeInsets.only(left: 12.0, top: 6, bottom: 6),
+                                              child: _buildPriceRow(
+                                                'Zona $zoneId',
+                                                '${price.price.toStringAsFixed(2)} KM',
+                                                isSubRow: true,
+                                              ),
+                                            ));
+                                          }
+                                          rows.add(const Divider());
+                                          return rows;
+                                        })
                                     ],
                                   ),
                                 ),
@@ -697,7 +666,7 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
     );
   }
 
-  Widget _buildPriceRow(String label, String price) {
+  Widget _buildPriceRow(String label, String price, {bool isSubRow = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -705,8 +674,10 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 16,
+            style: TextStyle(
+              fontSize: isSubRow ? 14 : 16,
+              color: isSubRow ? Colors.grey[700] : Colors.black87,
+              fontWeight: isSubRow ? FontWeight.w500 : FontWeight.normal,
             ),
           ),
           Text(

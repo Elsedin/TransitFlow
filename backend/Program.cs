@@ -116,6 +116,7 @@ builder.Services.AddScoped<ITransportLineService, TransportLineService>();
 builder.Services.AddScoped<IRouteService, RouteService>();
 builder.Services.AddScoped<IVehicleService, VehicleService>();
 builder.Services.AddScoped<IScheduleService, ScheduleService>();
+builder.Services.AddScoped<INextDepartureService, NextDepartureService>();
 builder.Services.AddScoped<ITicketPriceService, TicketPriceService>();
 builder.Services.AddScoped<ITicketService, TicketService>();
 builder.Services.AddScoped<IUserService, UserService>();

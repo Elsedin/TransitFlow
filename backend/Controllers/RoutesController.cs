@@ -11,10 +11,12 @@ namespace TransitFlow.API.Controllers;
 public class RoutesController : ControllerBase
 {
     private readonly IRouteService _routeService;
+    private readonly INextDepartureService _nextDepartureService;
 
-    public RoutesController(IRouteService routeService)
+    public RoutesController(IRouteService routeService, INextDepartureService nextDepartureService)
     {
         _routeService = routeService;
+        _nextDepartureService = nextDepartureService;
     }
 
     [HttpGet]
@@ -33,6 +35,13 @@ public class RoutesController : ControllerBase
             return NotFound();
         }
         return Ok(route);
+    }
+
+    [HttpGet("{id}/next-departures")]
+    public async Task<ActionResult<List<NextDepartureDto>>> GetNextDepartures(int id, [FromQuery] int count = 3)
+    {
+        var departures = await _nextDepartureService.GetNextDeparturesAsync(id, count, DateTimeOffset.UtcNow);
+        return Ok(departures);
     }
 
     [Authorize(Policy = "Administrator")]
