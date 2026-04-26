@@ -76,7 +76,13 @@ class _RecommendedLinesScreenState extends State<RecommendedLinesScreen> {
             children: [
               Icon(Icons.info_outline, color: Colors.orange[700]),
               const SizedBox(width: 8),
-              const Text('Objašnjenje preporuke'),
+              const Flexible(
+                child: Text(
+                  'Objašnjenje preporuke',
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              ),
             ],
           ),
           content: Text(
