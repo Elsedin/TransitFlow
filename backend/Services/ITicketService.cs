@@ -15,4 +15,5 @@ public interface ITicketService
     Task<TicketDto?> GetByIdAsync(int id);
     Task<TicketMetricsDto> GetMetricsAsync();
     Task<TicketDto> PurchaseAsync(PurchaseTicketDto dto, int userId);
+    Task<TicketValidationResultDto> ValidateAsync(Guid publicId);
 }

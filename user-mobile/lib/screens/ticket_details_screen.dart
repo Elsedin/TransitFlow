@@ -35,39 +35,32 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
 
   void _calculateRemainingTime() {
     final now = DateTime.now();
-    if (widget.ticket.isActive && !widget.ticket.isUsed) {
-      if (widget.ticket.validTo.isAfter(now)) {
-        _remainingTime = widget.ticket.validTo.difference(now);
-      } else {
-        _remainingTime = Duration.zero;
-      }
-    } else {
+    if (widget.ticket.isUsed) {
       _remainingTime = null;
+      setState(() {});
+      return;
     }
+
+    if (now.isBefore(widget.ticket.validFrom)) {
+      _remainingTime = widget.ticket.validFrom.difference(now);
+      setState(() {});
+      return;
+    }
+
+    if (now.isAfter(widget.ticket.validTo)) {
+      _remainingTime = null;
+      setState(() {});
+      return;
+    }
+
+    _remainingTime = widget.ticket.validTo.difference(now);
     setState(() {});
   }
 
   void _startTimer() {
-    if (widget.ticket.isActive && !widget.ticket.isUsed) {
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        _calculateRemainingTime();
-      });
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    final days = duration.inDays;
-    final hours = duration.inHours % 24;
-    final minutes = duration.inMinutes % 60;
-    final seconds = duration.inSeconds % 60;
-
-    if (days > 0) {
-      return '${days}d ${hours}h ${minutes}m';
-    } else if (hours > 0) {
-      return '${hours}h ${minutes}m ${seconds}s';
-    } else {
-      return '${minutes}m ${seconds}s';
-    }
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _calculateRemainingTime();
+    });
   }
 
   String _formatDurationLong(Duration duration) {
@@ -86,10 +79,11 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd.MM.yyyy');
-    final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
     final now = DateTime.now();
-    final isActive = widget.ticket.isActive && !widget.ticket.isUsed;
+    final isUsed = widget.ticket.isUsed;
+    final isNotActiveYet = !isUsed && now.isBefore(widget.ticket.validFrom);
+    final isExpired = !isUsed && now.isAfter(widget.ticket.validTo);
+    final isActive = !isUsed && !isNotActiveYet && !isExpired;
 
     return Scaffold(
       appBar: AppBar(
@@ -104,13 +98,17 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
           children: [
             _buildTicketHeader(),
             const SizedBox(height: 24),
-            if (isActive) _buildQRCodeSection(),
-            if (!isActive) _buildInactiveTicketMessage(),
+            _buildQRCodeSection(),
+            const SizedBox(height: 16),
+            if (isActive) _buildStatusMessage('Karta je aktivna', Icons.check_circle, Colors.green),
+            if (isNotActiveYet) _buildStatusMessage('Karta još nije aktivna', Icons.schedule, Colors.orange),
+            if (isExpired) _buildStatusMessage('Karta je istekla', Icons.error_outline, Colors.red),
+            if (isUsed) _buildStatusMessage('Karta je iskorištena', Icons.verified, Colors.grey),
             const SizedBox(height: 24),
             _buildTicketInfoCard(),
-            if (isActive && _remainingTime != null) ...[
+            if ((isActive || isNotActiveYet) && _remainingTime != null) ...[
               const SizedBox(height: 24),
-              _buildCountdownCard(),
+              _buildCountdownCard(isNotActiveYet: isNotActiveYet),
             ],
           ],
         ),
@@ -119,9 +117,6 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
   }
 
   Widget _buildTicketHeader() {
-    final dateFormat = DateFormat('dd.MM.yyyy');
-    final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
-
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -187,7 +182,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
             border: Border.all(color: Colors.grey[300]!),
           ),
           child: QrImageView(
-            data: widget.ticket.ticketNumber,
+            data: widget.ticket.publicId,
             version: QrVersions.auto,
             size: 250.0,
             backgroundColor: Colors.white,
@@ -195,7 +190,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          widget.ticket.ticketNumber,
+          widget.ticket.publicId,
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
@@ -204,7 +199,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Skeniraj prije ulaska u vozilo',
+          'Kontrolor/Admin provjerava pri ulasku u vozilo',
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey[600],
@@ -214,33 +209,25 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildInactiveTicketMessage() {
+  Widget _buildStatusMessage(String text, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: widget.ticket.isUsed ? Colors.grey[100] : Colors.red[50],
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: widget.ticket.isUsed ? Colors.grey[300]! : Colors.red[200]!,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
-          Icon(
-            widget.ticket.isUsed ? Icons.check_circle : Icons.error_outline,
-            color: widget.ticket.isUsed ? Colors.grey[600] : Colors.red[700],
-            size: 32,
-          ),
+          Icon(icon, color: color, size: 32),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              widget.ticket.isUsed
-                  ? 'Ova karta je već korištena'
-                  : 'Ova karta je istekla',
-              style: TextStyle(
+              text,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: widget.ticket.isUsed ? Colors.grey[800] : Colors.red[900],
+                color: Colors.black87,
               ),
             ),
           ),
@@ -250,7 +237,6 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
   }
 
   Widget _buildTicketInfoCard() {
-    final dateFormat = DateFormat('dd.MM.yyyy');
     final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
 
     return Card(
@@ -271,8 +257,12 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
             if (widget.ticket.routeName != null)
               _buildInfoRow('Linija:', widget.ticket.routeName!),
             _buildInfoRow(
-              'Datum i vrijeme:',
-              dateTimeFormat.format(widget.ticket.purchasedAt),
+              'Važi od:',
+              dateTimeFormat.format(widget.ticket.validFrom),
+            ),
+            _buildInfoRow(
+              'Važi do:',
+              dateTimeFormat.format(widget.ticket.validTo),
             ),
             _buildInfoRow(
               'Cijena:',
@@ -284,10 +274,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
                 'Način plaćanja:',
                 widget.ticket.paymentMethod == 'Stripe' ? 'Kartica' : widget.ticket.paymentMethod!,
               ),
-            _buildInfoRow(
-              'Važenje:',
-              'Do ${dateTimeFormat.format(widget.ticket.validTo)}',
-            ),
+            _buildInfoRow('Broj karte:', widget.ticket.ticketNumber),
           ],
         ),
       ),
@@ -325,7 +312,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
     );
   }
 
-  Widget _buildCountdownCard() {
+  Widget _buildCountdownCard({required bool isNotActiveYet}) {
     if (_remainingTime == null || _remainingTime!.isNegative) {
       return const SizedBox.shrink();
     }
@@ -342,9 +329,9 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
       ),
       child: Column(
         children: [
-          const Text(
-            'Preostalo vrijeme:',
-            style: TextStyle(
+          Text(
+            isNotActiveYet ? 'Aktivira se za:' : 'Preostalo vrijeme:',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 16,
             ),

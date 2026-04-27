@@ -7,6 +7,7 @@ import 'vehicles_screen.dart';
 import 'schedules_screen.dart';
 import 'ticket_prices_screen.dart';
 import 'tickets_screen.dart';
+import 'ticket_validation_screen.dart';
 import 'users_screen.dart';
 import 'transactions_screen.dart';
 import 'subscriptions_screen.dart';
@@ -46,6 +47,8 @@ class _MainScreenState extends State<MainScreen> {
         return const TicketPricesScreen();
       case '/tickets':
         return const TicketsScreen();
+      case '/ticket-validation':
+        return const TicketValidationScreen();
       case '/users':
         return const UsersScreen();
       case '/transactions':

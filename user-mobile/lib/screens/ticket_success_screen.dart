@@ -114,7 +114,7 @@ class TicketSuccessScreen extends StatelessWidget {
           ],
           const SizedBox(height: 24),
           QrImageView(
-            data: ticket.ticketNumber,
+            data: ticket.publicId,
             version: QrVersions.auto,
             size: 200.0,
             backgroundColor: Colors.white,

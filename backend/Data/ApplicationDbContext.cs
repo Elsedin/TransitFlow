@@ -118,6 +118,7 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Ticket>(entity =>
         {
             entity.HasIndex(e => e.TicketNumber).IsUnique();
+            entity.HasIndex(e => e.PublicId).IsUnique();
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Tickets)
                 .HasForeignKey(e => e.UserId)

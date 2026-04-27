@@ -108,4 +108,29 @@ class TicketService {
       throw Exception('Failed to load ticket: $e');
     }
   }
+
+  Future<Map<String, dynamic>> validateTicketByPublicId(String publicId) async {
+    final token = await AuthService().getToken();
+    if (token == null) {
+      throw Exception('Not authenticated');
+    }
+
+    final response = await http.post(
+      Uri.parse('${AppConfig.apiBaseUrl}/tickets/$publicId/validate'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    if (response.statusCode == 404) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+
+    throw Exception('Validacija nije uspjela (${response.statusCode})');
+  }
 }

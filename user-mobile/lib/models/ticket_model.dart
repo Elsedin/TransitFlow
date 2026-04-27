@@ -1,5 +1,6 @@
 class Ticket {
   final int id;
+  final String publicId;
   final String ticketNumber;
   final int userId;
   final String userEmail;
@@ -21,6 +22,7 @@ class Ticket {
 
   Ticket({
     required this.id,
+    required this.publicId,
     required this.ticketNumber,
     required this.userId,
     required this.userEmail,
@@ -44,6 +46,7 @@ class Ticket {
   factory Ticket.fromJson(Map<String, dynamic> json) {
     return Ticket(
       id: json['id'] as int,
+      publicId: json['publicId'] as String,
       ticketNumber: json['ticketNumber'] as String,
       userId: json['userId'] as int,
       userEmail: json['userEmail'] as String,
@@ -54,11 +57,11 @@ class Ticket {
       zoneId: json['zoneId'] as int,
       zoneName: json['zoneName'] as String,
       price: (json['price'] as num).toDouble(),
-      validFrom: DateTime.parse(json['validFrom'] as String),
-      validTo: DateTime.parse(json['validTo'] as String),
-      purchasedAt: DateTime.parse(json['purchasedAt'] as String),
+      validFrom: DateTime.parse(json['validFrom'] as String).toLocal(),
+      validTo: DateTime.parse(json['validTo'] as String).toLocal(),
+      purchasedAt: DateTime.parse(json['purchasedAt'] as String).toLocal(),
       isUsed: json['isUsed'] as bool,
-      usedAt: json['usedAt'] != null ? DateTime.parse(json['usedAt'] as String) : null,
+      usedAt: json['usedAt'] != null ? DateTime.parse(json['usedAt'] as String).toLocal() : null,
       status: json['status'] as String,
       isActive: json['isActive'] as bool,
       paymentMethod: json['paymentMethod'] as String?,
@@ -68,6 +71,7 @@ class Ticket {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'publicId': publicId,
       'ticketNumber': ticketNumber,
       'userId': userId,
       'userEmail': userEmail,

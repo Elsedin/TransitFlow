@@ -3,6 +3,7 @@ namespace TransitFlow.API.DTOs;
 public class TicketDto
 {
     public int Id { get; set; }
+    public Guid PublicId { get; set; }
     public string TicketNumber { get; set; } = string.Empty;
     public int UserId { get; set; }
     public string UserEmail { get; set; } = string.Empty;

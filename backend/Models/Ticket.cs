@@ -9,6 +9,9 @@ public class Ticket
     public int Id { get; set; }
     
     [Required]
+    public Guid PublicId { get; set; }
+    
+    [Required]
     [MaxLength(50)]
     public string TicketNumber { get; set; } = string.Empty;
     

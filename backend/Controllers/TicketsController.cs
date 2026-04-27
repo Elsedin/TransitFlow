@@ -91,4 +91,30 @@ public class TicketsController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while purchasing the ticket", traceId = HttpContext.TraceIdentifier });
         }
     }
+
+    [HttpPost("{publicId:guid}/validate")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<TicketValidationResultDto>> Validate(Guid publicId)
+    {
+        try
+        {
+            var result = await _ticketService.ValidateAsync(publicId);
+            if (string.Equals(result.Status, "NotFound", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(result);
+            }
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ticket validation failed for publicId {PublicId}", publicId);
+            return StatusCode(500, new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "Error",
+                Message = "Došlo je do greške prilikom validacije karte."
+            });
+        }
+    }
 }

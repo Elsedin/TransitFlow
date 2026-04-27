@@ -100,10 +100,13 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
   }
 
   String _getStatusText(Ticket ticket) {
+    final now = DateTime.now();
     if (ticket.isActive) {
       return 'Aktivna';
     } else if (ticket.isUsed) {
       return 'Korištena';
+    } else if (ticket.validFrom.isAfter(now)) {
+      return 'Neaktivna';
     } else {
       return 'Istekla';
     }
@@ -113,6 +116,8 @@ class _PurchaseHistoryScreenState extends State<PurchaseHistoryScreen> {
     switch (status) {
       case 'Aktivna':
         return Colors.green[700]!;
+      case 'Neaktivna':
+        return Colors.green[600]!;
       case 'Korištena':
         return Colors.red[300]!;
       case 'Istekla':

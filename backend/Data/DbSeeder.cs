@@ -180,7 +180,7 @@ public static class DbSeeder
         {
             var ticketTypes = new[]
             {
-                new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
                 new TicketType { Name = "Dnevna", Description = "Karta za jedan dan", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
             };
 
@@ -216,6 +216,7 @@ public static class DbSeeder
         if (!context.TransportLines.Any())
         {
             var busType = await context.TransportTypes.FirstAsync(t => t.Name == "Autobus");
+            var tramType = await context.TransportTypes.FirstAsync(t => t.Name == "Tramvaj");
             
             var transportLines = new[]
             {
@@ -223,7 +224,7 @@ public static class DbSeeder
                 {
                     LineNumber = "1",
                     Name = "Baščaršija - Ilidža",
-                    TransportTypeId = busType.Id,
+                    TransportTypeId = tramType.Id,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -481,6 +482,7 @@ public static class DbSeeder
                 {
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -495,6 +497,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -508,6 +511,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = dnevna.Id,
@@ -521,6 +525,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -534,6 +539,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -556,6 +562,7 @@ public static class DbSeeder
                 {
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -570,6 +577,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = dnevna.Id,
@@ -583,6 +591,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -596,6 +605,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -609,6 +619,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -629,6 +640,7 @@ public static class DbSeeder
             {
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -643,6 +655,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = dnevna.Id,
@@ -656,6 +669,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -669,6 +683,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -682,6 +697,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
