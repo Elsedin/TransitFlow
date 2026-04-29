@@ -176,35 +176,10 @@ public class StripePaymentService : IPaymentService
             {
                 new
                 {
-                    reference_id = $"TXN-{userId}-{DateTime.UtcNow:yyyyMMddHHmmss}",
-                    description = "TransitFlow Ticket Purchase",
-                    custom_id = $"USER-{userId}",
                     amount = new
                     {
                         currency_code = currencyCode,
-                        value = paypalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
-                        breakdown = new
-                        {
-                            item_total = new
-                            {
-                                currency_code = currencyCode,
-                                value = paypalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
-                            }
-                        }
-                    },
-                    items = new[]
-                    {
-                        new
-                        {
-                            name = "Transit Ticket",
-                            description = "Public transport ticket",
-                            quantity = "1",
-                            unit_amount = new
-                            {
-                                currency_code = currencyCode,
-                                value = paypalAmount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
-                            }
-                        }
+                        value = paypalAmount.ToString("F2", CultureInfo.InvariantCulture)
                     }
                 }
             },
@@ -213,9 +188,7 @@ public class StripePaymentService : IPaymentService
                 return_url = "https://transitflow.app/payment/success",
                 cancel_url = "https://transitflow.app/payment/cancel",
                 shipping_preference = "NO_SHIPPING",
-                landing_page = "LOGIN",
-                user_action = "PAY_NOW",
-                brand_name = "TransitFlow"
+                user_action = "PAY_NOW"
             }
         };
 
@@ -327,6 +300,17 @@ public class StripePaymentService : IPaymentService
                 {
                     existingTransaction.Status = "completed";
                     existingTransaction.CompletedAt = DateTime.UtcNow;
+                    try
+                    {
+                        var completedCaptureId = ExtractFirstPayPalCaptureId(orderData);
+                        if (!string.IsNullOrWhiteSpace(completedCaptureId))
+                        {
+                            existingTransaction.PayPalCaptureId = completedCaptureId;
+                        }
+                    }
+                    catch
+                    {
+                    }
                     await _context.SaveChangesAsync();
 
                     return new PaymentResult
@@ -355,32 +339,19 @@ public class StripePaymentService : IPaymentService
 
         if (!response.IsSuccessStatusCode)
         {
-            if (isSandbox && responseContent.Contains("COMPLIANCE_VIOLATION"))
+            var txn = await _context.Transactions
+                .FirstOrDefaultAsync(t =>
+                    t.UserId == userId &&
+                    t.PaymentMethod == "PayPal" &&
+                    t.Status == "pending" &&
+                    t.ExternalTransactionId == orderId);
+            if (txn != null)
             {
-                var sandboxTransaction = await _context.Transactions
-                    .FirstOrDefaultAsync(t =>
-                        t.UserId == userId &&
-                        t.PaymentMethod == "PayPal" &&
-                        t.Status == "pending" &&
-                        t.ExternalTransactionId == orderId);
-
-                if (sandboxTransaction != null)
-                {
-                    sandboxTransaction.Status = "completed";
-                    sandboxTransaction.CompletedAt = DateTime.UtcNow;
-                    sandboxTransaction.Notes = $"{sandboxTransaction.Notes} [Sandbox: COMPLIANCE_VIOLATION bypassed for testing]";
-                    await _context.SaveChangesAsync();
-
-                    return new PaymentResult
-                    {
-                        Success = true,
-                        TransactionId = sandboxTransaction.Id,
-                        PaymentIntentId = orderId,
-                        Message = "Payment completed (Sandbox workaround for COMPLIANCE_VIOLATION)"
-                    };
-                }
+                txn.Status = "failed";
+                txn.Notes = AppendNote(txn.Notes, $"Capture failed: {response.StatusCode}", responseContent);
+                await _context.SaveChangesAsync();
             }
-            
+
             throw new InvalidOperationException($"PayPal capture failed (Status: {response.StatusCode}): {responseContent}");
         }
 
@@ -413,8 +384,35 @@ public class StripePaymentService : IPaymentService
             throw new InvalidOperationException($"Transaction not found for orderId: {orderId}, userId: {userId}");
         }
 
+        var captureId = ExtractFirstPayPalCaptureId(captureData);
+        if (string.IsNullOrWhiteSpace(captureId))
+        {
+            try
+            {
+                var orderDetailsResponse = await httpClient.GetAsync($"{baseUrl}/v2/checkout/orders/{orderId}");
+                var orderDetailsContent = await orderDetailsResponse.Content.ReadAsStringAsync();
+                if (orderDetailsResponse.IsSuccessStatusCode)
+                {
+                    var details = JsonSerializer.Deserialize<JsonElement>(orderDetailsContent);
+                    captureId = ExtractFirstPayPalCaptureId(details);
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(captureId))
+        {
+            transaction.Status = "failed";
+            transaction.Notes = AppendNote(transaction.Notes, "Captured but captureId missing", responseContent);
+            await _context.SaveChangesAsync();
+            throw new InvalidOperationException("PayPal capture succeeded but capture id was not returned; transaction marked as failed.");
+        }
+
         transaction.Status = "completed";
         transaction.CompletedAt = DateTime.UtcNow;
+        transaction.PayPalCaptureId = captureId;
         await _context.SaveChangesAsync();
 
         return new PaymentResult
@@ -424,6 +422,100 @@ public class StripePaymentService : IPaymentService
             PaymentIntentId = orderId,
             Message = "Payment confirmed successfully"
         };
+    }
+
+    private static string? ExtractFirstPayPalCaptureId(JsonElement root)
+    {
+        try
+        {
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("purchase_units", out var purchaseUnits) &&
+                    purchaseUnits.ValueKind == JsonValueKind.Array &&
+                    purchaseUnits.GetArrayLength() > 0)
+                {
+                    var pu0 = purchaseUnits[0];
+                    if (pu0.ValueKind == JsonValueKind.Object &&
+                        pu0.TryGetProperty("payments", out var payments) &&
+                        payments.ValueKind == JsonValueKind.Object &&
+                        payments.TryGetProperty("captures", out var captures) &&
+                        captures.ValueKind == JsonValueKind.Array &&
+                        captures.GetArrayLength() > 0)
+                    {
+                        var cap0 = captures[0];
+                        if (cap0.ValueKind == JsonValueKind.Object && cap0.TryGetProperty("id", out var idEl))
+                        {
+                            var id = idEl.GetString();
+                            if (!string.IsNullOrWhiteSpace(id)) return id;
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return FindCaptureIdDeep(root);
+    }
+
+    private static string? FindCaptureIdDeep(JsonElement el)
+    {
+        try
+        {
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in el.EnumerateObject())
+                {
+                    if (prop.NameEquals("captures") && prop.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in prop.Value.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("id", out var idEl))
+                            {
+                                var id = idEl.GetString();
+                                if (!string.IsNullOrWhiteSpace(id)) return id;
+                            }
+                        }
+                    }
+
+                    var nested = FindCaptureIdDeep(prop.Value);
+                    if (!string.IsNullOrWhiteSpace(nested)) return nested;
+                }
+            }
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in el.EnumerateArray())
+                {
+                    var nested = FindCaptureIdDeep(item);
+                    if (!string.IsNullOrWhiteSpace(nested)) return nested;
+                }
+            }
+        }
+        catch
+        {
+        }
+
+        return null;
+    }
+
+    private static string AppendNote(string? existing, string label, string details)
+    {
+        var safeDetails = (details ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+        if (safeDetails.Length > 240)
+        {
+            safeDetails = safeDetails.Substring(0, 240) + "...";
+        }
+
+        var entry = $"[{label}] {safeDetails}";
+        if (string.IsNullOrWhiteSpace(existing))
+        {
+            return entry.Length <= 500 ? entry : entry.Substring(0, 500);
+        }
+
+        var combined = $"{existing} {entry}";
+        return combined.Length <= 500 ? combined : combined.Substring(0, 500);
     }
 
     private async Task<string> GetPayPalAccessTokenAsync(HttpClient httpClient, string baseUrl, string clientId, string clientSecret)

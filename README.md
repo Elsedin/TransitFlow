@@ -74,9 +74,12 @@ ZIP kod: bilo koji 5-cifreni broj (npr. 12345)
 
 ### PayPal Test Račun
 
-PayPal credentials se konfigurišu kroz `.env` (PAYPAL__CLIENTID / PAYPAL__CLIENTSECRET).
 
-Za testiranje PayPal plaćanja, koristite PayPal Sandbox test račun. Možete kreirati novi na [PayPal Developer Dashboard](https://developer.paypal.com/) pod "Sandbox" -> "Accounts". Koristite email i lozinku tog test računa za prijavu na PayPal stranici.
+Za testiranje PayPal plaćanja, koristite sljedeći PayPal Sandbox (buyer) račun na PayPal checkoutu:
+
+- Email: `transitflow@sandbox.com`
+- Password: `TransitFlow.123`
+
 
 ## NAPOMENA
 

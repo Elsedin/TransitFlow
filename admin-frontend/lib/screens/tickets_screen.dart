@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/ticket_service.dart';
 import '../services/ticket_type_service.dart';
 import '../services/export_service.dart';
@@ -19,7 +19,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
   final _ticketService = TicketService();
   final _ticketTypeService = TicketTypeService();
   TicketMetrics? _metrics;
-  List<Ticket> _tickets = [];
   List<Ticket> _filteredTickets = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -60,7 +59,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
       );
       setState(() {
         _metrics = metrics;
-        _tickets = tickets;
         _filteredTickets = tickets;
         _isLoading = false;
       });
@@ -419,10 +417,11 @@ class _TicketsScreenState extends State<TicketsScreen> {
           1: FlexColumnWidth(1.8),
           2: FlexColumnWidth(1.2),
           3: FlexColumnWidth(1.5),
-          4: FlexColumnWidth(1.2),
+          4: FlexColumnWidth(0.8),
           5: FlexColumnWidth(1.2),
-          6: FlexColumnWidth(1.3),
-          7: FlexColumnWidth(2.0),
+          6: FlexColumnWidth(1.2),
+          7: FlexColumnWidth(1.3),
+          8: FlexColumnWidth(2.0),
         },
         children: [
           TableRow(
@@ -438,6 +437,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
               _TableHeaderCell('Korisnik'),
               _TableHeaderCell('Tip karte'),
               _TableHeaderCell('Linija'),
+              _TableHeaderCell('QR'),
               _TableHeaderCell('Datum kupovine'),
               _TableHeaderCell('Važi do'),
               _TableHeaderCell('Status'),
@@ -456,6 +456,16 @@ class _TicketsScreenState extends State<TicketsScreen> {
                 _TableCell(ticket.userEmail),
                 _TableCell(ticket.ticketTypeName),
                 _TableCell(ticket.routeName ?? 'Sve linije'),
+                _TableCell(
+                  '',
+                  child: Center(
+                    child: QrImageView(
+                      data: ticket.publicId,
+                      size: 40,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
                 _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.purchasedAt)),
                 _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.validTo)),
                 _TableCell(
@@ -497,18 +507,6 @@ class _TicketsScreenState extends State<TicketsScreen> {
                         ),
                         child: const Text('Detalji'),
                       ),
-                      if (ticket.isActive) ...[
-                        const SizedBox(width: 4),
-                        TextButton(
-                          onPressed: () {
-                            _showQRCode(ticket);
-                          },
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          ),
-                          child: const Text('QR kod'),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -615,42 +613,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
     );
   }
 
-  void _showQRCode(Ticket ticket) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('QR kod - #${ticket.ticketNumber}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.qr_code,
-                size: 200,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'QR kod za kartu #${ticket.ticketNumber}',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Zatvori'),
-          ),
-        ],
-      ),
-    );
-  }
+  // QR dialog removed for Windows stability.
 }
 
 class _TableHeaderCell extends StatelessWidget {
@@ -676,10 +639,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -695,7 +657,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }

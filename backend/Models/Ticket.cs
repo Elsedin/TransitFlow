@@ -43,6 +43,10 @@ public class Ticket
     public bool IsUsed { get; set; } = false;
     
     public DateTime? UsedAt { get; set; }
+
+    public bool IsRefunded { get; set; } = false;
+
+    public DateTime? RefundedAt { get; set; }
     
     public int? TransactionId { get; set; }
     

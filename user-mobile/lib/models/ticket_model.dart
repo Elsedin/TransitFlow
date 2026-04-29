@@ -15,6 +15,7 @@ class Ticket {
   final DateTime validTo;
   final DateTime purchasedAt;
   final bool isUsed;
+  final bool isRefunded;
   final DateTime? usedAt;
   final String status;
   final bool isActive;
@@ -37,6 +38,7 @@ class Ticket {
     required this.validTo,
     required this.purchasedAt,
     required this.isUsed,
+    required this.isRefunded,
     this.usedAt,
     required this.status,
     required this.isActive,
@@ -61,6 +63,7 @@ class Ticket {
       validTo: DateTime.parse(json['validTo'] as String).toLocal(),
       purchasedAt: DateTime.parse(json['purchasedAt'] as String).toLocal(),
       isUsed: json['isUsed'] as bool,
+      isRefunded: (json['isRefunded'] as bool?) ?? false,
       usedAt: json['usedAt'] != null ? DateTime.parse(json['usedAt'] as String).toLocal() : null,
       status: json['status'] as String,
       isActive: json['isActive'] as bool,
@@ -86,6 +89,7 @@ class Ticket {
       'validTo': validTo.toIso8601String(),
       'purchasedAt': purchasedAt.toIso8601String(),
       'isUsed': isUsed,
+      'isRefunded': isRefunded,
       'usedAt': usedAt?.toIso8601String(),
       'status': status,
       'isActive': isActive,

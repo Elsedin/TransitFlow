@@ -22,6 +22,7 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpGet("metrics")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<SubscriptionMetricsDto>> GetMetrics()
     {
         var metrics = await _subscriptionService.GetMetricsAsync();
@@ -36,6 +37,12 @@ public class SubscriptionsController : ControllerBase
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] string? sortBy = null)
     {
+        if (User.IsInRole("Administrator"))
+        {
+            var subscriptionsAdmin = await _subscriptionService.GetAllAsync(search, status, null, dateFrom, dateTo, sortBy);
+            return Ok(subscriptionsAdmin);
+        }
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         int? userId = null;
         if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))

@@ -10,6 +10,7 @@ import 'tickets_screen.dart';
 import 'ticket_validation_screen.dart';
 import 'users_screen.dart';
 import 'transactions_screen.dart';
+import 'refund_requests_screen.dart';
 import 'subscriptions_screen.dart';
 import 'reports_screen.dart';
 import 'reference_data_screen.dart';
@@ -53,6 +54,8 @@ class _MainScreenState extends State<MainScreen> {
         return const UsersScreen();
       case '/transactions':
         return const TransactionsScreen();
+      case '/refund-requests':
+        return const RefundRequestsScreen();
       case '/subscriptions':
         return const SubscriptionsScreen();
       case '/reports':

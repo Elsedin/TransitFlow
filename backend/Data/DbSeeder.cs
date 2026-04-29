@@ -713,6 +713,27 @@ public static class DbSeeder
             };
             tickets.AddRange(mobileTickets);
 
+            foreach (var ticket in tickets)
+            {
+                if (ticket.TransactionId == null)
+                {
+                    var txn = new Models.Transaction
+                    {
+                        TransactionNumber = $"SEED-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpperInvariant()}",
+                        UserId = ticket.UserId,
+                        Amount = ticket.Price,
+                        PaymentMethod = "Seed",
+                        Status = "completed",
+                        CreatedAt = ticket.PurchasedAt,
+                        CompletedAt = ticket.PurchasedAt,
+                        Notes = "Seeded transaction for testing"
+                    };
+                    context.Transactions.Add(txn);
+                    await context.SaveChangesAsync();
+                    ticket.TransactionId = txn.Id;
+                }
+            }
+
             context.Tickets.AddRange(tickets);
             await context.SaveChangesAsync();
             logger.LogInformation("Test tickets created ({Count})", tickets.Count);

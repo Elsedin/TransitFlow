@@ -79,7 +79,10 @@ public class TransactionService : ITransactionService
             CreatedAt = t.CreatedAt,
             CompletedAt = t.CompletedAt,
             Notes = t.Notes,
-            TicketCount = t.Tickets.Count
+            TicketCount = t.Tickets.Count,
+            RefundStatus = t.RefundStatus,
+            RefundedAt = t.RefundedAt,
+            RefundReason = t.RefundReason
         }).ToList();
     }
 
@@ -106,7 +109,10 @@ public class TransactionService : ITransactionService
             CreatedAt = transaction.CreatedAt,
             CompletedAt = transaction.CompletedAt,
             Notes = transaction.Notes,
-            TicketCount = transaction.Tickets.Count
+            TicketCount = transaction.Tickets.Count,
+            RefundStatus = transaction.RefundStatus,
+            RefundedAt = transaction.RefundedAt,
+            RefundReason = transaction.RefundReason
         };
     }
 

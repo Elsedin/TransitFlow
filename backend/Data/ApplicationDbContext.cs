@@ -31,6 +31,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<TransportType> TransportTypes { get; set; }
     public DbSet<FavoriteLine> FavoriteLines { get; set; }
     public DbSet<RecommendationFeedback> RecommendationFeedbacks { get; set; }
+    public DbSet<RefundRequest> RefundRequests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

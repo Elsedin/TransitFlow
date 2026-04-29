@@ -54,7 +54,7 @@ public class AuthService : IAuthService
         admin.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
-        var token = GenerateJwtToken(admin.Username, role: "Administrator");
+        var token = GenerateJwtToken(admin.Username, admin.Id, role: "Administrator");
         var expiresAt = DateTime.UtcNow.AddMinutes(
             int.Parse(_configuration["Jwt:ExpirationMinutes"] ?? "60"));
 

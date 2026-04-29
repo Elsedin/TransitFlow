@@ -109,6 +109,12 @@ class Sidebar extends StatelessWidget {
                   currentRoute == '/transactions',
                 ),
                 _buildMenuItem(
+                  'Refund zahtjevi',
+                  Icons.undo,
+                  '/refund-requests',
+                  currentRoute == '/refund-requests',
+                ),
+                _buildMenuItem(
                   'Pretplate',
                   Icons.subscriptions,
                   '/subscriptions',

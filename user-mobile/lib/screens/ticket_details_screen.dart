@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
+import '../services/refund_request_service.dart';
 
 class TicketDetailsScreen extends StatefulWidget {
   final Ticket ticket;
@@ -19,6 +20,7 @@ class TicketDetailsScreen extends StatefulWidget {
 class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
   Timer? _timer;
   Duration? _remainingTime;
+  final _refundRequestService = RefundRequestService();
 
   @override
   void initState() {
@@ -81,9 +83,12 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final isUsed = widget.ticket.isUsed;
+    final isRefunded = widget.ticket.isRefunded;
+    final isValidatedAtLeastOnce = widget.ticket.usedAt != null;
     final isNotActiveYet = !isUsed && now.isBefore(widget.ticket.validFrom);
     final isExpired = !isUsed && now.isAfter(widget.ticket.validTo);
     final isActive = !isUsed && !isNotActiveYet && !isExpired;
+    final canRequestRefund = !isRefunded && !isUsed && !isExpired && !isValidatedAtLeastOnce;
 
     return Scaffold(
       appBar: AppBar(
@@ -104,16 +109,83 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
             if (isNotActiveYet) _buildStatusMessage('Karta još nije aktivna', Icons.schedule, Colors.orange),
             if (isExpired) _buildStatusMessage('Karta je istekla', Icons.error_outline, Colors.red),
             if (isUsed) _buildStatusMessage('Karta je iskorištena', Icons.verified, Colors.grey),
+            if (isRefunded) _buildStatusMessage('Karta je refundovana', Icons.undo, Colors.blueGrey),
+            if (!isRefunded && isValidatedAtLeastOnce)
+              _buildStatusMessage('Refund nije moguć jer je karta validirana na kontroli', Icons.info_outline, Colors.blueGrey),
             const SizedBox(height: 24),
             _buildTicketInfoCard(),
             if ((isActive || isNotActiveYet) && _remainingTime != null) ...[
               const SizedBox(height: 24),
               _buildCountdownCard(isNotActiveYet: isNotActiveYet),
             ],
+            if (canRequestRefund) ...[
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: _requestRefund,
+                icon: const Icon(Icons.undo),
+                label: const Text('Zatraži refund'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey[800],
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _requestRefund() async {
+    final controller = TextEditingController();
+    final message = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Zahtjev za refund'),
+        content: TextField(
+          controller: controller,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Unesite razlog (obavezno)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Odustani'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Pošalji'),
+          ),
+        ],
+      ),
+    );
+
+    if (message == null || message.isEmpty) return;
+
+    try {
+      await _refundRequestService.createRefundRequest(
+        ticketId: widget.ticket.id,
+        message: message,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zahtjev za refund je poslan.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final raw = e.toString().replaceAll('Exception: ', '').trim();
+      final friendly = raw.toLowerCase().contains('refund nije moguć')
+          ? 'Refund na ovu kartu nije moguć.'
+          : raw;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendly)),
+      );
+    }
   }
 
   Widget _buildTicketHeader() {

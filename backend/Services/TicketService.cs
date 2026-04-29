@@ -98,6 +98,8 @@ public class TicketService : ITicketService
             PurchasedAt = DateTime.SpecifyKind(t.PurchasedAt, DateTimeKind.Utc),
             IsUsed = t.IsUsed,
             UsedAt = t.UsedAt.HasValue ? DateTime.SpecifyKind(t.UsedAt.Value, DateTimeKind.Utc) : null,
+            IsRefunded = t.IsRefunded,
+            RefundedAt = t.RefundedAt.HasValue ? DateTime.SpecifyKind(t.RefundedAt.Value, DateTimeKind.Utc) : null,
             Status = GetTicketStatus(t, now),
             IsActive = !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now,
             PaymentMethod = t.Transaction?.PaymentMethod
@@ -142,6 +144,8 @@ public class TicketService : ITicketService
             PurchasedAt = DateTime.SpecifyKind(ticket.PurchasedAt, DateTimeKind.Utc),
             IsUsed = ticket.IsUsed,
             UsedAt = ticket.UsedAt.HasValue ? DateTime.SpecifyKind(ticket.UsedAt.Value, DateTimeKind.Utc) : null,
+            IsRefunded = ticket.IsRefunded,
+            RefundedAt = ticket.RefundedAt.HasValue ? DateTime.SpecifyKind(ticket.RefundedAt.Value, DateTimeKind.Utc) : null,
             Status = GetTicketStatus(ticket, now),
             IsActive = !ticket.IsUsed && ticket.ValidFrom <= now && ticket.ValidTo >= now,
             PaymentMethod = ticket.Transaction?.PaymentMethod
@@ -351,6 +355,17 @@ public class TicketService : ITicketService
 
         var now = DateTime.UtcNow;
 
+        if (ticket.IsRefunded)
+        {
+            return new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "Refunded",
+                Message = "Karta je refundovana i ne može se koristiti.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
         if (ticket.ValidFrom > now)
         {
             var remaining = ticket.ValidFrom - now;
@@ -403,6 +418,11 @@ public class TicketService : ITicketService
 
         if (ticket.TicketTypeId == 2)
         {
+            if (!ticket.UsedAt.HasValue)
+            {
+                ticket.UsedAt = now;
+                await _context.SaveChangesAsync();
+            }
             return new TicketValidationResultDto
             {
                 IsValid = true,

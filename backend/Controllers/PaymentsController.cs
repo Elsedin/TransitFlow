@@ -122,7 +122,15 @@ public class PaymentsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = ex.Message });
+            var msg = ex.Message;
+            if (msg.Contains("COMPLIANCE_VIOLATION", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new
+                {
+                    message = "PayPal Sandbox je odbio transakciju (COMPLIANCE_VIOLATION). Pokušajte ponovo ili koristite Kartica (Stripe)."
+                });
+            }
+            return BadRequest(new { message = msg });
         }
         catch (Exception ex)
         {
