@@ -15,6 +15,8 @@ public class RabbitMQService : IRabbitMQService, IDisposable
     private readonly object _lock = new object();
     private const string ExchangeName = "transitflow_notifications";
     private const string QueueName = "notification_queue";
+    private const string DeadLetterExchangeName = "transitflow_notifications_dlx";
+    private const string DeadLetterRoutingKey = "notification.dead";
 
     public RabbitMQService(IConfiguration configuration, ILogger<RabbitMQService> logger)
     {
@@ -58,7 +60,19 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 _channel = _connection.CreateModel();
 
                 _channel.ExchangeDeclare(exchange: ExchangeName, type: ExchangeType.Direct, durable: true);
-                _channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false);
+                // Must match the queue arguments declared by the worker to avoid
+                // PRECONDITION_FAILED (406) when the queue already exists.
+                _channel.ExchangeDeclare(exchange: DeadLetterExchangeName, type: ExchangeType.Direct, durable: true);
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: new Dictionary<string, object>
+                    {
+                        ["x-dead-letter-exchange"] = DeadLetterExchangeName,
+                        ["x-dead-letter-routing-key"] = DeadLetterRoutingKey
+                    });
                 _channel.QueueBind(queue: QueueName, exchange: ExchangeName, routingKey: "notification.created");
             }
             catch (Exception ex)

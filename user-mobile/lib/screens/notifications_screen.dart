@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/notification_model.dart' as models;
@@ -18,25 +19,39 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   List<models.Notification> _unreadNotifications = [];
   bool _isLoading = true;
   String? _errorMessage;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadNotifications();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadNotifications() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      if (_isLoading) return;
+      _loadNotifications(showLoading: false);
     });
+  }
+
+  Future<void> _loadNotifications({bool showLoading = true}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final all = await _notificationService.getAll();
@@ -48,10 +63,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false;
-      });
+      if (showLoading) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -135,14 +152,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                       ),
                       const SizedBox(height: 16),
                       ElevatedButton(
-                        onPressed: _loadNotifications,
+                        onPressed: () => _loadNotifications(),
                         child: const Text('Pokušaj ponovo'),
                       ),
                     ],
                   ),
                 )
               : RefreshIndicator(
-                  onRefresh: _loadNotifications,
+                  onRefresh: () => _loadNotifications(),
                   child: TabBarView(
                     controller: _tabController,
                     children: [

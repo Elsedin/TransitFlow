@@ -13,11 +13,13 @@ public class RefundRequestService : IRefundRequestService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IRabbitMQService _rabbitMQService;
 
-    public RefundRequestService(ApplicationDbContext context, IConfiguration configuration)
+    public RefundRequestService(ApplicationDbContext context, IConfiguration configuration, IRabbitMQService rabbitMQService)
     {
         _context = context;
         _configuration = configuration;
+        _rabbitMQService = rabbitMQService;
     }
 
     public async Task<RefundRequestDto> CreateAsync(int userId, CreateRefundRequestDto dto)
@@ -192,7 +194,7 @@ public class RefundRequestService : IRefundRequestService
         request.ResolvedByAdminId = adminId;
         request.AdminNote = dto.AdminNote?.Trim();
 
-        _context.Notifications.Add(new Notification
+        var notification = new Notification
         {
             UserId = request.UserId,
             Title = "Refund odobren",
@@ -202,9 +204,17 @@ public class RefundRequestService : IRefundRequestService
             IsRead = false,
             CreatedAt = DateTime.UtcNow,
             IsActive = true
-        });
+        };
+        _context.Notifications.Add(notification);
 
         await _context.SaveChangesAsync();
+
+        _rabbitMQService.PublishNotificationCreated(
+            notification.Id,
+            notification.Title,
+            notification.Message,
+            notification.Type,
+            notification.UserId);
 
         return await MapAsync(request.Id);
     }
@@ -226,19 +236,27 @@ public class RefundRequestService : IRefundRequestService
         request.ResolvedByAdminId = adminId;
         request.AdminNote = dto.AdminNote?.Trim();
 
-        _context.Notifications.Add(new Notification
+        var notification = new Notification
         {
             UserId = request.UserId,
             Title = "Refund odbijen",
             Message = $"Zahtjev za refund za kartu #{request.Ticket?.TicketNumber ?? request.TicketId.ToString()} je odbijen."
                       + (string.IsNullOrWhiteSpace(request.AdminNote) ? "" : $" Razlog: {request.AdminNote}"),
-            Type = "refund_rejected",
+            Type = "info",
             IsRead = false,
             CreatedAt = DateTime.UtcNow,
             IsActive = true
-        });
+        };
+        _context.Notifications.Add(notification);
 
         await _context.SaveChangesAsync();
+
+        _rabbitMQService.PublishNotificationCreated(
+            notification.Id,
+            notification.Title,
+            notification.Message,
+            notification.Type,
+            notification.UserId);
 
         return await MapAsync(request.Id);
     }

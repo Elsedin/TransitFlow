@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/notification_service.dart';
@@ -32,24 +33,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   DateTime? _dateTo;
   int _currentPage = 0;
   int _itemsPerPage = 5;
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _startAutoRefresh();
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      if (_isLoading) return;
+      _loadData(showLoading: false, includeUsers: false);
     });
+  }
+
+  Future<void> _loadData({bool showLoading = true, bool includeUsers = true}) async {
+    if (showLoading) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     try {
       final metrics = await _notificationService.getMetrics();
@@ -64,7 +79,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         dateTo: _dateTo,
         search: _searchController.text.isEmpty ? null : _searchController.text,
       );
-      final users = await _userService.getAll();
+
+      List<User> users = _users;
+      if (includeUsers || _users.isEmpty) {
+        users = await _userService.getAll();
+      }
+
       setState(() {
         _metrics = metrics;
         _notifications = result.items;
@@ -73,10 +93,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Greška: $e';
-        _isLoading = false;
-      });
+      if (showLoading) {
+        setState(() {
+          _errorMessage = 'Greška: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
