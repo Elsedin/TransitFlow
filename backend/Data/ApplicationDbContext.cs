@@ -202,6 +202,12 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<Country>(entity =>
+        {
+            entity.HasIndex(e => e.Name).IsUnique();
+            entity.HasIndex(e => e.Code).IsUnique().HasFilter("[Code] IS NOT NULL");
+        });
+
         modelBuilder.Entity<City>(entity =>
         {
             entity.HasOne(e => e.Country)

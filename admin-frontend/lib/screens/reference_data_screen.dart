@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/zone_service.dart';
 import '../services/city_service.dart';
+import '../services/country_service.dart';
 import '../services/ticket_type_service.dart';
 import '../services/transport_type_service.dart';
 import '../services/station_service.dart';
 import '../models/station_model.dart';
+import '../models/country_model.dart';
 import '../models/ticket_type_model.dart';
 import '../models/transport_type_model.dart';
 
@@ -68,6 +70,13 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
           'cities',
           Colors.amber,
           'Upravljanje gradovima',
+        ),
+        _buildCategoryCard(
+          'Države',
+          Icons.public,
+          'countries',
+          Colors.teal,
+          'Upravljanje državama',
         ),
         _buildCategoryCard(
           'Tipovi vozila',
@@ -151,6 +160,8 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
         return TransportTypesTable();
       case 'cities':
         return CitiesTable();
+      case 'countries':
+        return CountriesTable();
       case 'stations':
         return StationsTable();
       default:
@@ -1429,6 +1440,390 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
   }
 }
 
+class CountriesTable extends StatefulWidget {
+  @override
+  State<CountriesTable> createState() => _CountriesTableState();
+}
+
+class _CountriesTableState extends State<CountriesTable> {
+  final _countryService = CountryService();
+  List<Country> _countries = [];
+  List<Country> _filteredCountries = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+  final _searchController = TextEditingController();
+  bool? _statusFilter;
+  int _currentPage = 0;
+  final int _itemsPerPage = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final countries = await _countryService.getAll();
+      setState(() {
+        _countries = countries;
+        _filteredCountries = countries;
+        _isLoading = false;
+      });
+      _applyFilters();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Greška: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _applyFilters() {
+    List<Country> filtered = List.from(_countries);
+
+    if (_searchController.text.isNotEmpty) {
+      final search = _searchController.text.toLowerCase();
+      filtered = filtered.where((c) {
+        return c.name.toLowerCase().contains(search) ||
+            (c.code != null && c.code!.toLowerCase().contains(search));
+      }).toList();
+    }
+
+    if (_statusFilter != null) {
+      filtered = filtered.where((c) => c.isActive == _statusFilter).toList();
+    }
+
+    setState(() {
+      _filteredCountries = filtered;
+      _currentPage = 0;
+    });
+  }
+
+  List<Country> get _paginatedCountries {
+    final start = _currentPage * _itemsPerPage;
+    final end = (start + _itemsPerPage).clamp(0, _filteredCountries.length);
+    return _filteredCountries.sublist(start, end);
+  }
+
+  Future<void> _showAddEditDialog({Country? country}) async {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: country?.name ?? '');
+    final codeController = TextEditingController(text: country?.code ?? '');
+    bool isActive = country?.isActive ?? true;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(country == null ? 'Dodaj državu' : 'Uredi državu'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length > 100) {
+                        return 'Maksimalno 100 karaktera';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: codeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Kod (npr. BIH)',
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return null;
+                      if (value.trim().length > 3) return 'Maksimalno 3 karaktera';
+                      return null;
+                    },
+                  ),
+                  if (country != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Otkaži'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (!(formKey.currentState?.validate() ?? false)) return;
+
+                try {
+                  if (country == null) {
+                    await _countryService.create(
+                      CreateCountryRequest(
+                        name: nameController.text.trim(),
+                        code: codeController.text.trim().isEmpty ? null : codeController.text.trim(),
+                      ),
+                    );
+                  } else {
+                    await _countryService.update(
+                      country.id,
+                      UpdateCountryRequest(
+                        name: nameController.text.trim(),
+                        code: codeController.text.trim().isEmpty ? null : codeController.text.trim(),
+                        isActive: isActive,
+                      ),
+                    );
+                  }
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(country == null ? 'Država je uspješno dodana' : 'Država je uspješno ažurirana'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Greška: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sačuvaj'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteCountry(Country country) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda brisanja'),
+        content: Text('Da li ste sigurni da želite obrisati državu "${country.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Otkaži'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Obriši'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _countryService.delete(country.id);
+        if (mounted) {
+          _loadData();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Država je uspješno obrisana')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Greška: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: const InputDecoration(
+                  hintText: 'Pretraži države...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => _applyFilters(),
+              ),
+            ),
+            const SizedBox(width: 16),
+            DropdownButton<bool?>(
+              value: _statusFilter,
+              hint: const Text('Status'),
+              items: const [
+                DropdownMenuItem<bool?>(value: null, child: Text('Sve')),
+                DropdownMenuItem<bool?>(value: true, child: Text('Aktivne')),
+                DropdownMenuItem<bool?>(value: false, child: Text('Neaktivne')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _statusFilter = value;
+                });
+                _applyFilters();
+              },
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showAddEditDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Dodaj državu'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(child: Text(_errorMessage!))
+                : Column(
+                    children: [
+                      _buildTable(),
+                      const SizedBox(height: 20),
+                      _buildPagination(),
+                    ],
+                  ),
+      ],
+    );
+  }
+
+  Widget _buildTable() {
+    if (_paginatedCountries.isEmpty) {
+      return const Center(child: Text('Nema pronađenih država'));
+    }
+
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(0.6),
+        1: FlexColumnWidth(2.5),
+        2: FlexColumnWidth(1.0),
+        3: FlexColumnWidth(1.0),
+        4: FlexColumnWidth(1.2),
+      },
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: Colors.orange[700],
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
+          ),
+          children: const [
+            _TableHeaderCell('ID'),
+            _TableHeaderCell('Naziv'),
+            _TableHeaderCell('Kod'),
+            _TableHeaderCell('Gradova'),
+            _TableHeaderCell('Akcije'),
+          ],
+        ),
+        ..._paginatedCountries.map((c) => TableRow(
+              children: [
+                _TableCell(c.id.toString()),
+                _TableCell('${c.name}${c.isActive ? '' : ' (neaktivna)'}'),
+                _TableCell(c.code ?? ''),
+                _TableCell(c.cityCount.toString()),
+                _TableCell(
+                  '',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () => _showAddEditDialog(country: c),
+                        child: const Text('Uredi'),
+                      ),
+                      TextButton(
+                        onPressed: () => _deleteCountry(c),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Obriši'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )),
+      ],
+    );
+  }
+
+  Widget _buildPagination() {
+    final totalPages = (_filteredCountries.length / _itemsPerPage).ceil();
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Text('Stranica ${_currentPage + 1} od $totalPages'),
+        IconButton(
+          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
+    );
+  }
+}
+
 class CitiesTable extends StatefulWidget {
   @override
   State<CitiesTable> createState() => _CitiesTableState();
@@ -1436,7 +1831,9 @@ class CitiesTable extends StatefulWidget {
 
 class _CitiesTableState extends State<CitiesTable> {
   final _cityService = CityService();
+  final _countryService = CountryService();
   List<City> _cities = [];
+  List<Country> _countries = [];
   List<City> _filteredCities = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -1464,8 +1861,10 @@ class _CitiesTableState extends State<CitiesTable> {
     });
 
     try {
+      final countries = await _countryService.getAll();
       final cities = await _cityService.getAll();
       setState(() {
+        _countries = countries;
         _cities = cities;
         _filteredCities = cities;
         _isLoading = false;
@@ -1549,10 +1948,7 @@ class _CitiesTableState extends State<CitiesTable> {
                       value: null,
                       child: Text('Nije odabrano'),
                     ),
-                    const DropdownMenuItem<int>(
-                      value: 1,
-                      child: Text('Bosna i Hercegovina'),
-                    ),
+                    ..._buildCountryDropdownItems(selectedCountryId),
                   ],
                   onChanged: (value) {
                     setDialogState(() {
@@ -1638,6 +2034,35 @@ class _CitiesTableState extends State<CitiesTable> {
         ),
       ),
     );
+  }
+
+  List<DropdownMenuItem<int>> _buildCountryDropdownItems(int? selectedCountryId) {
+    final activeCountries = _countries.where((c) => c.isActive).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    Country? selected;
+    if (selectedCountryId != null) {
+      for (final c in _countries) {
+        if (c.id == selectedCountryId) {
+          selected = c;
+          break;
+        }
+      }
+    }
+
+    final all = <Country>[...activeCountries];
+    final selectedId = selected?.id;
+    if (selectedId != null && all.every((c) => c.id != selectedId)) {
+      all.insert(0, selected!);
+    }
+
+    return all.map((c) {
+      final suffix = c.isActive ? '' : ' (neaktivna)';
+      return DropdownMenuItem<int>(
+        value: c.id,
+        child: Text('${c.name}$suffix'),
+      );
+    }).toList();
   }
 
   Future<void> _deleteCity(City city) async {
