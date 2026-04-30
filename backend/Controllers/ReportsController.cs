@@ -8,7 +8,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = "Administrator")]
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
@@ -42,6 +42,38 @@ public class ReportsController : ControllerBase
         {
             _logger.LogError(ex, "Report generation failed ({ReportType})", request.ReportType);
             return StatusCode(500, new { message = "An error occurred while generating the report", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("ticket-sales/pdf")]
+    public async Task<IActionResult> TicketSalesPdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GenerateTicketSalesPdfAsync(request);
+            var fileName = $"izvjestaj_prodaja_karata_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ticket sales PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("refund-requests/pdf")]
+    public async Task<IActionResult> RefundRequestsPdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GenerateRefundRequestsPdfAsync(request);
+            var fileName = $"izvjestaj_refund_zahtjevi_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refund requests PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

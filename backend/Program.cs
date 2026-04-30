@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using System.Text;
+using PdfSharp.Fonts;
 using TransitFlow.API.Data;
 using TransitFlow.API.Middleware;
 using TransitFlow.API.Services;
@@ -140,6 +141,8 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod();
     });
 });
+
+GlobalFontSettings.FontResolver ??= new DejaVuFontResolver();
 
 var app = builder.Build();
 

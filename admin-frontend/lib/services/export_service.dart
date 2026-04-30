@@ -457,6 +457,17 @@ class ExportService {
     );
   }
 
+  static Future<String?> saveBytesAsFile(String fileName, List<int> bytes) async {
+    try {
+      final path = await _getSavePath(fileName);
+      if (path == null) return null;
+      await File(path).writeAsBytes(bytes);
+      return path;
+    } catch (e) {
+      throw Exception('Greška pri čuvanju fajla: $e');
+    }
+  }
+
   static Future<String?> _getSavePath(String fileName) async {
     try {
       final extension = fileName.split('.').last;

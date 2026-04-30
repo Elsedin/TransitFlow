@@ -87,6 +87,76 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
+  Future<void> _downloadTicketSalesPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'ticket_sales',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: _selectedTransportLineId,
+        ticketTypeId: _selectedTicketTypeId,
+      );
+
+      final bytes = await _reportService.downloadTicketSalesPdf(request);
+      final fileName = 'izvjestaj_prodaja_karata_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadRefundRequestsPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'refund_requests',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: null,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadRefundRequestsPdf(request);
+      final fileName = 'izvjestaj_refund_zahtjevi_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _selectDateFrom() async {
     final picked = await showDatePicker(
       context: context,
@@ -307,6 +377,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         ),
                       )
                     : const Text('Generiši izvještaj'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _downloadTicketSalesPdf,
+                icon: const Icon(Icons.picture_as_pdf, size: 18),
+                label: const Text('Preuzmi PDF (prodaja karata)'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _downloadRefundRequestsPdf,
+                icon: const Icon(Icons.picture_as_pdf, size: 18),
+                label: const Text('Preuzmi PDF (refund zahtjevi)'),
               ),
             ),
           ],
