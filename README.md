@@ -91,11 +91,6 @@ Build folder će biti na:
 
 - `admin-frontend/build/windows/x64/runner/Release/`
 
-### .env (tajne)
-
-- `.env` se ne commit-uje.
-- Za predaju se `.env` zipuje šifrom `fit` (npr. `.env-tajne.zip`) i šifra se navodi u DL sistemu.
-
 ## KARTICA ZA PLAĆANJE
 
 ### Stripe Test Kartica
