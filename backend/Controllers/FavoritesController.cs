@@ -22,7 +22,10 @@ public class FavoritesController : ControllerBase
     }
 
     [HttpGet("lines")]
-    public async Task<ActionResult<List<FavoriteLineDto>>> GetFavoriteLines()
+    public async Task<ActionResult<PagedResultDto<FavoriteLineDto>>> GetFavoriteLines(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
@@ -32,7 +35,7 @@ public class FavoritesController : ControllerBase
 
         try
         {
-            var favorites = await _favoriteService.GetAllAsync(userId);
+            var favorites = await _favoriteService.GetPagedAsync(userId, page, pageSize, search);
             return Ok(favorites);
         }
         catch (Exception ex)

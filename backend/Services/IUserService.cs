@@ -8,6 +8,13 @@ public interface IUserService
         string? search = null,
         bool? isActive = null,
         string? sortBy = null);
+    
+    Task<PagedResultDto<UserDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        bool? isActive = null,
+        string? sortBy = null);
     Task<UserDto?> GetByIdAsync(int id);
     Task<UserMetricsDto> GetMetricsAsync();
     Task<UserDto> CreateAsync(CreateUserDto dto);

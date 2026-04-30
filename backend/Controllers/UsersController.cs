@@ -28,13 +28,27 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<UserDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<UserDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null,
         [FromQuery] string? sortBy = null)
     {
-        var users = await _userService.GetAllAsync(search, isActive, sortBy);
-        return Ok(users);
+        var result = await _userService.GetPagedAsync(page, pageSize, search, isActive, sortBy);
+        return Ok(result);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<UserDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] string? sortBy = null)
+    {
+        var result = await _userService.GetPagedAsync(page, pageSize, search, isActive, sortBy);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]

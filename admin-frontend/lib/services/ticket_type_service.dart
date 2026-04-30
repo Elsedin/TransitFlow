@@ -1,18 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/ticket_type_model.dart';
 import 'auth_service.dart';
 
 class TicketTypeService {
   Future<List<TicketType>> getAll({String? search, bool? isActive}) async {
+    final result = await getPaged(page: 1, pageSize: 100, search: search, isActive: isActive);
+    return result.items;
+  }
+
+  Future<PagedResult<TicketType>> getPaged({
+    required int page,
+    required int pageSize,
+    String? search,
+    bool? isActive,
+  }) async {
     try {
       final token = await AuthService().getToken();
       if (token == null) {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
       }
@@ -20,7 +34,7 @@ class TicketTypeService {
         queryParams['isActive'] = isActive.toString();
       }
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/tickettypes')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/tickettypes/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -32,8 +46,11 @@ class TicketTypeService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => TicketType.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<TicketType>.fromJson(
+          data,
+          (json) => TicketType.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load ticket types');
       }

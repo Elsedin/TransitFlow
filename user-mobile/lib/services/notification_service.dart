@@ -15,7 +15,10 @@ class NotificationService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (isRead != null) {
       queryParams['isRead'] = isRead.toString();
     }
@@ -32,8 +35,9 @@ class NotificationService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => models.Notification.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => models.Notification.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load notifications: ${response.statusCode}');
     }

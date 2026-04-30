@@ -4,7 +4,8 @@ namespace TransitFlow.API.Services;
 
 public interface IRouteService
 {
-    Task<List<RouteDto>> GetAllAsync(string? search = null, bool? isActive = null);
+    Task<List<RouteDto>> GetAllAsync(string? search = null, bool? isActive = null, int? transportLineId = null);
+    Task<PagedResultDto<RouteDto>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null, int? transportLineId = null);
     Task<RouteDto?> GetByIdAsync(int id);
     Task<RouteDto> CreateAsync(CreateRouteDto dto);
     Task<RouteDto?> UpdateAsync(int id, UpdateRouteDto dto);

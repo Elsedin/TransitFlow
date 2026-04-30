@@ -44,21 +44,37 @@ public class RefundRequestsController : ControllerBase
     }
 
     [HttpGet("my")]
-    public async Task<ActionResult<List<RefundRequestDto>>> GetMy()
+    public async Task<ActionResult<PagedResultDto<RefundRequestDto>>> GetMy(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
         if (!TryGetUserId(out var userId))
         {
             return Unauthorized(new { message = "Not authenticated" });
         }
-        var items = await _service.GetMyAsync(userId);
+        var items = await _service.GetMyPagedAsync(userId, page, pageSize);
         return Ok(items);
     }
 
     [HttpGet]
     [Authorize(Roles = "Administrator")]
-    public async Task<ActionResult<List<RefundRequestDto>>> GetAll([FromQuery] string? status = null)
+    public async Task<ActionResult<PagedResultDto<RefundRequestDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null)
     {
-        var items = await _service.GetAllAsync(status);
+        var items = await _service.GetPagedAsync(page, pageSize, status);
+        return Ok(items);
+    }
+
+    [HttpGet("paged")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<PagedResultDto<RefundRequestDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? status = null)
+    {
+        var items = await _service.GetPagedAsync(page, pageSize, status);
         return Ok(items);
     }
 

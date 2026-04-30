@@ -233,13 +233,14 @@ class ExportService {
   static Future<String?> exportReportToExcel(Report report) async {
     try {
       var excel = Excel.createExcel();
-      excel.delete('Sheet1');
-      Sheet sheetObject = excel['Izvještaj'];
+      // Always write into the first default sheet so the
+      // first tab isn't empty when opening the file.
+      Sheet sheetObject = excel['Sheet1'];
 
       sheetObject.appendRow([TextCellValue('Izvestaj: ${_transliterate(report.reportTitle)}')]);
       final titleCell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
       titleCell.cellStyle = CellStyle(bold: true, fontSize: 14);
-      
+
       int currentRow = 1;
       if (report.dateFrom != null && report.dateTo != null) {
         sheetObject.appendRow([
@@ -254,41 +255,133 @@ class ExportService {
       final summaryHeaderCell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow));
       summaryHeaderCell.cellStyle = CellStyle(bold: true);
       currentRow++;
-      
-      sheetObject.appendRow([TextCellValue('Ukupno karata'), IntCellValue(report.summary.totalTickets)]);
-      currentRow++;
-      sheetObject.appendRow([TextCellValue('Ukupni prihod (KM)'), TextCellValue(report.summary.totalRevenue.toStringAsFixed(2))]);
-      currentRow++;
-      sheetObject.appendRow([TextCellValue('Prosjecna cijena (KM)'), TextCellValue(report.summary.averagePrice.toStringAsFixed(2))]);
-      currentRow++;
-      sheetObject.appendRow([TextCellValue('Aktivni korisnici'), IntCellValue(report.summary.activeUsers)]);
-      currentRow++;
-      sheetObject.appendRow([]);
-      currentRow++;
 
-      sheetObject.appendRow([TextCellValue('Po tipu karte')]);
-      final typeHeaderCell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow));
-      typeHeaderCell.cellStyle = CellStyle(bold: true);
-      currentRow++;
-      
-      sheetObject.appendRow([TextCellValue('Tip karte'), TextCellValue('Broj'), TextCellValue('Prihod (KM)')]);
-      for (int i = 0; i < 3; i++) {
-        final cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow));
-        cell.cellStyle = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Center);
+      if (report.summaryItems.isNotEmpty) {
+        for (final item in report.summaryItems) {
+          sheetObject.appendRow([TextCellValue(_transliterate(item.label)), TextCellValue(_transliterate(item.value))]);
+          currentRow++;
+        }
+      } else {
+        sheetObject.appendRow([TextCellValue('Ukupno karata'), IntCellValue(report.summary.totalTickets)]);
+        currentRow++;
+        sheetObject.appendRow([TextCellValue('Ukupni prihod (KM)'), TextCellValue(report.summary.totalRevenue.toStringAsFixed(2))]);
+        currentRow++;
+        sheetObject.appendRow([TextCellValue('Prosjecna cijena (KM)'), TextCellValue(report.summary.averagePrice.toStringAsFixed(2))]);
+        currentRow++;
+        sheetObject.appendRow([TextCellValue('Aktivni korisnici'), IntCellValue(report.summary.activeUsers)]);
+        currentRow++;
       }
-      currentRow++;
-      
-      for (var item in report.salesByTicketType) {
-        sheetObject.appendRow([
-          TextCellValue(_transliterate(item.ticketTypeName)),
-          IntCellValue(item.count),
-          TextCellValue(item.revenue.toStringAsFixed(2)),
-        ]);
+
+      if (report.sections.isEmpty) {
+        sheetObject.appendRow([]);
+        currentRow++;
+
+        sheetObject.appendRow([TextCellValue('Po tipu karte')]);
+        final typeHeaderCell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow));
+        typeHeaderCell.cellStyle = CellStyle(bold: true);
+        currentRow++;
+
+        sheetObject.appendRow([TextCellValue('Tip karte'), TextCellValue('Broj'), TextCellValue('Prihod (KM)')]);
+        for (int i = 0; i < 3; i++) {
+          final cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow));
+          cell.cellStyle = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Center);
+        }
+        currentRow++;
+
+        for (var item in report.salesByTicketType) {
+          sheetObject.appendRow([
+            TextCellValue(_transliterate(item.ticketTypeName)),
+            IntCellValue(item.count),
+            TextCellValue(item.revenue.toStringAsFixed(2)),
+          ]);
+        }
+
+        _autoFitColumns(
+          sheetObject,
+          columns: const ['Tip karte', 'Broj', 'Prihod (KM)'],
+          rows: report.salesByTicketType
+              .map((x) => [
+                    _transliterate(x.ticketTypeName),
+                    x.count.toString(),
+                    x.revenue.toStringAsFixed(2),
+                  ])
+              .toList(),
+        );
+      } else {
+        for (int idx = 0; idx < report.sections.length; idx++) {
+          final section = report.sections[idx];
+          if (idx == 0) {
+            sheetObject.appendRow([]);
+            currentRow++;
+            sheetObject.appendRow([TextCellValue(_transliterate(section.title))]);
+            final sCell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: currentRow));
+            sCell.cellStyle = CellStyle(bold: true);
+            currentRow++;
+
+            sheetObject.appendRow(section.columns.map((c) => TextCellValue(_transliterate(c))).toList());
+            for (int i = 0; i < section.columns.length; i++) {
+              final cell = sheetObject.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: currentRow));
+              cell.cellStyle = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Center);
+            }
+            currentRow++;
+
+            for (final row in section.rows) {
+              sheetObject.appendRow(row.map((c) => TextCellValue(_transliterate(c))).toList());
+              currentRow++;
+            }
+
+            _autoFitColumns(
+              sheetObject,
+              columns: section.columns.map(_transliterate).toList(),
+              rows: section.rows.map((r) => r.map(_transliterate).toList()).toList(),
+            );
+          } else {
+            final safeTitle = section.title.isEmpty ? 'Sekcija ${idx + 1}' : section.title;
+            final sheetName = _transliterate(safeTitle).replaceAll(RegExp(r'[^A-Za-z0-9 ]'), '').trim();
+            final finalName = sheetName.isEmpty ? 'Sekcija${idx + 1}' : (sheetName.length > 28 ? sheetName.substring(0, 28) : sheetName);
+
+            Sheet s = excel[finalName];
+            s.appendRow([TextCellValue('Izvestaj: ${_transliterate(report.reportTitle)}')]);
+            final tc = s.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+            tc.cellStyle = CellStyle(bold: true, fontSize: 14);
+
+            int r = 1;
+            if (report.dateFrom != null && report.dateTo != null) {
+              s.appendRow([TextCellValue('Period: ${_dateFormat.format(report.dateFrom!)} - ${_dateFormat.format(report.dateTo!)}')]);
+              r++;
+            }
+            s.appendRow([]);
+            r++;
+            s.appendRow([TextCellValue(_transliterate(section.title))]);
+            final sh = s.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: r));
+            sh.cellStyle = CellStyle(bold: true);
+            r++;
+            s.appendRow(section.columns.map((c) => TextCellValue(_transliterate(c))).toList());
+            for (int i = 0; i < section.columns.length; i++) {
+              final cell = s.cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: r));
+              cell.cellStyle = CellStyle(bold: true, horizontalAlign: HorizontalAlign.Center);
+            }
+            r++;
+            for (final row in section.rows) {
+              s.appendRow(row.map((c) => TextCellValue(_transliterate(c))).toList());
+              r++;
+            }
+
+            _autoFitColumns(
+              s,
+              columns: section.columns.map(_transliterate).toList(),
+              rows: section.rows.map((r) => r.map(_transliterate).toList()).toList(),
+            );
+          }
+        }
       }
-      
-      sheetObject.setColumnWidth(0, 25);
-      sheetObject.setColumnWidth(1, 15);
-      sheetObject.setColumnWidth(2, 15);
+
+      _autoFitColumns(
+        sheetObject,
+        columns: const [''],
+        rows: const [],
+        minWidth: 20,
+      );
 
       final fileName = 'izvjestaj_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.xlsx';
       final path = await _getSavePath(fileName);
@@ -316,20 +409,37 @@ class ExportService {
       rows.add([]);
 
       rows.add(['Sazetak']);
-      rows.add(['Ukupno karata', report.summary.totalTickets]);
-      rows.add(['Ukupni prihod (KM)', report.summary.totalRevenue.toStringAsFixed(2)]);
-      rows.add(['Prosjecna cijena (KM)', report.summary.averagePrice.toStringAsFixed(2)]);
-      rows.add(['Aktivni korisnici', report.summary.activeUsers]);
+      if (report.summaryItems.isNotEmpty) {
+        for (final item in report.summaryItems) {
+          rows.add([_transliterate(item.label), _transliterate(item.value)]);
+        }
+      } else {
+        rows.add(['Ukupno karata', report.summary.totalTickets]);
+        rows.add(['Ukupni prihod (KM)', report.summary.totalRevenue.toStringAsFixed(2)]);
+        rows.add(['Prosjecna cijena (KM)', report.summary.averagePrice.toStringAsFixed(2)]);
+        rows.add(['Aktivni korisnici', report.summary.activeUsers]);
+      }
       rows.add([]);
 
-      rows.add(['Po tipu karte']);
-      rows.add(['Tip karte', 'Broj', 'Prihod (KM)']);
-      for (var item in report.salesByTicketType) {
-        rows.add([
-          _transliterate(item.ticketTypeName),
-          item.count,
-          item.revenue.toStringAsFixed(2),
-        ]);
+      if (report.sections.isEmpty) {
+        rows.add(['Po tipu karte']);
+        rows.add(['Tip karte', 'Broj', 'Prihod (KM)']);
+        for (var item in report.salesByTicketType) {
+          rows.add([
+            _transliterate(item.ticketTypeName),
+            item.count,
+            item.revenue.toStringAsFixed(2),
+          ]);
+        }
+      } else {
+        for (final section in report.sections) {
+          rows.add([_transliterate(section.title)]);
+          rows.add(section.columns.map((c) => _transliterate(c)).toList());
+          for (final row in section.rows) {
+            rows.add(row.map((c) => _transliterate(c)).toList());
+          }
+          rows.add([]);
+        }
       }
 
       String csv = const ListToCsvConverter().convert(rows);
@@ -342,6 +452,35 @@ class ExportService {
       return path;
     } catch (e) {
       throw Exception('Greška pri izvozu u CSV: $e');
+    }
+  }
+
+  static void _autoFitColumns(
+    Sheet sheet, {
+    required List<String> columns,
+    required List<List<String>> rows,
+    double minWidth = 12,
+    double maxWidth = 55,
+  }) {
+    if (columns.isEmpty) return;
+
+    final colCount = columns.length;
+    final maxLens = List<int>.filled(colCount, 0);
+
+    for (int c = 0; c < colCount; c++) {
+      maxLens[c] = columns[c].length;
+    }
+
+    for (final row in rows) {
+      for (int c = 0; c < colCount && c < row.length; c++) {
+        final len = row[c].length;
+        if (len > maxLens[c]) maxLens[c] = len;
+      }
+    }
+
+    for (int c = 0; c < colCount; c++) {
+      final width = (maxLens[c] + 3).toDouble().clamp(minWidth, maxWidth);
+      sheet.setColumnWidth(c, width);
     }
   }
 

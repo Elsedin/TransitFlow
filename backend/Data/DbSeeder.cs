@@ -780,5 +780,121 @@ public static class DbSeeder
             context.SubscriptionPackages.AddRange(packages);
             await context.SaveChangesAsync();
         }
+
+        if (!context.Subscriptions.Any())
+        {
+            var now = DateTime.UtcNow;
+            var user2 = await context.Users.FirstOrDefaultAsync(u => u.Id == 2);
+            var user3 = await context.Users.FirstOrDefaultAsync(u => u.Id == 3);
+
+            var annual = await context.SubscriptionPackages.FirstOrDefaultAsync(p => p.Key == "annual_zone1");
+            var student = await context.SubscriptionPackages.FirstOrDefaultAsync(p => p.Key == "student_monthly_zone1");
+
+            var subs = new List<Subscription>();
+            if (user2 != null && annual != null)
+            {
+                subs.Add(new Subscription
+                {
+                    UserId = user2.Id,
+                    SubscriptionPackageId = annual.Id,
+                    PackageName = annual.DisplayName,
+                    Price = annual.Price,
+                    StartDate = now.Date.AddDays(-10),
+                    EndDate = now.Date.AddDays(-10).AddDays(annual.DurationDays),
+                    Status = "active",
+                    CreatedAt = now.AddDays(-10)
+                });
+            }
+
+            if (user3 != null && student != null)
+            {
+                subs.Add(new Subscription
+                {
+                    UserId = user3.Id,
+                    SubscriptionPackageId = student.Id,
+                    PackageName = student.DisplayName,
+                    Price = student.Price,
+                    StartDate = now.Date.AddDays(-5),
+                    EndDate = now.Date.AddDays(-5).AddDays(student.DurationDays),
+                    Status = "active",
+                    CreatedAt = now.AddDays(-5)
+                });
+            }
+
+            if (subs.Count > 0)
+            {
+                context.Subscriptions.AddRange(subs);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        if (!context.RefundRequests.Any())
+        {
+            var now = DateTime.UtcNow;
+            var admin = await context.Administrators.FirstOrDefaultAsync(a => a.Username == "admin");
+
+            var tickets = await context.Tickets
+                .OrderByDescending(t => t.PurchasedAt)
+                .Take(10)
+                .ToListAsync();
+
+            var candidates = tickets
+                .Where(t => !t.IsRefunded)
+                .Take(3)
+                .ToList();
+
+            if (candidates.Count >= 3)
+            {
+                var approved1 = candidates[0];
+                approved1.IsRefunded = true;
+                approved1.RefundedAt = now.AddDays(-2);
+
+                var approved2 = candidates[1];
+                approved2.IsRefunded = true;
+                approved2.RefundedAt = now.AddDays(-1);
+
+                var rejected = candidates[2];
+
+                var requests = new[]
+                {
+                    new RefundRequest
+                    {
+                        UserId = approved1.UserId,
+                        TicketId = approved1.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "approved",
+                        CreatedAt = now.AddDays(-3),
+                        ResolvedAt = now.AddDays(-2),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odobreno (seed)"
+                    },
+                    new RefundRequest
+                    {
+                        UserId = approved2.UserId,
+                        TicketId = approved2.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "approved",
+                        CreatedAt = now.AddDays(-2),
+                        ResolvedAt = now.AddDays(-1),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odobreno (seed)"
+                    },
+                    new RefundRequest
+                    {
+                        UserId = rejected.UserId,
+                        TicketId = rejected.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "rejected",
+                        CreatedAt = now.AddDays(-2),
+                        ResolvedAt = now.AddDays(-1),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odbijeno (seed)"
+                    }
+                };
+
+                context.RefundRequests.AddRange(requests);
+                await context.SaveChangesAsync();
+            }
+        }
     }
 }

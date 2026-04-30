@@ -31,7 +31,9 @@ public class NotificationsController : ControllerBase
 
     [Authorize(Policy = "Administrator")]
     [HttpGet]
-    public async Task<ActionResult<List<NotificationDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<NotificationDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] int? userId = null,
         [FromQuery] string? type = null,
         [FromQuery] bool? isRead = null,
@@ -40,8 +42,26 @@ public class NotificationsController : ControllerBase
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] string? search = null)
     {
-        var notifications = await _notificationService.GetAllAsync(
-            userId, type, isRead, isActive, dateFrom, dateTo, search);
+        var notifications = await _notificationService.GetPagedAsync(
+            page, pageSize, userId, type, isRead, isActive, dateFrom, dateTo, search);
+        return Ok(notifications);
+    }
+
+    [Authorize(Policy = "Administrator")]
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<NotificationDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? userId = null,
+        [FromQuery] string? type = null,
+        [FromQuery] bool? isRead = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] string? search = null)
+    {
+        var notifications = await _notificationService.GetPagedAsync(
+            page, pageSize, userId, type, isRead, isActive, dateFrom, dateTo, search);
         return Ok(notifications);
     }
 
@@ -133,7 +153,9 @@ public class NotificationsController : ControllerBase
     }
 
     [HttpGet("my")]
-    public async Task<ActionResult<List<NotificationDto>>> GetMyNotifications(
+    public async Task<ActionResult<PagedResultDto<NotificationDto>>> GetMyNotifications(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] bool? isRead = null)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -142,10 +164,16 @@ public class NotificationsController : ControllerBase
             return Unauthorized(new { message = "User not authenticated or user ID not found." });
         }
 
-        var notifications = await _notificationService.GetAllAsync(
+        var notifications = await _notificationService.GetPagedAsync(
+            page,
+            pageSize,
             userId: userId,
+            type: null,
             isRead: isRead,
-            isActive: true);
+            isActive: true,
+            dateFrom: null,
+            dateTo: null,
+            search: null);
         return Ok(notifications);
     }
 

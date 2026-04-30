@@ -74,6 +74,147 @@ public static class PdfReportBuilder
         return Render(doc);
     }
 
+    public static byte[] BuildRevenuePdf(
+        string title,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int totalTransactions,
+        decimal totalRevenue,
+        decimal avgAmount,
+        List<(DateTime DateUtc, int Count, decimal Revenue)> rows)
+    {
+        var doc = CreateDocumentBase(title, fromUtc, toUtc);
+        AddSummaryTable(doc, new (string Label, string Value)[]
+        {
+            ("Ukupno transakcija", totalTransactions.ToString()),
+            ("Ukupni prihod (KM)", FormatMoney(totalRevenue)),
+            ("Prosječan iznos (KM)", FormatMoney(avgAmount))
+        });
+
+        var section = doc.LastSection;
+        section.AddParagraph();
+        section.AddParagraph("Prihodi po danima").Format.Font.Bold = true;
+
+        var table = CreateTable(new[] { 3.5, 3.0, 4.0 }, new[] { "Datum", "Broj", "Prihod (KM)" });
+        foreach (var r in rows)
+        {
+            AddRow(table, r.DateUtc.ToString("dd.MM.yyyy"), r.Count.ToString(), FormatMoney(r.Revenue));
+        }
+
+        section.Add(table);
+        return Render(doc);
+    }
+
+    public static byte[] BuildPopularLinesPdf(
+        string title,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int totalTickets,
+        decimal totalRevenue,
+        List<(string LineNumber, string LineName, string Route, int Count, decimal Revenue)> rows)
+    {
+        var doc = CreateDocumentBase(title, fromUtc, toUtc);
+        AddSummaryTable(doc, new (string Label, string Value)[]
+        {
+            ("Ukupno karata (Top)", totalTickets.ToString()),
+            ("Ukupni prihod (Top) (KM)", FormatMoney(totalRevenue))
+        });
+
+        var section = doc.LastSection;
+        section.AddParagraph();
+        section.AddParagraph("Najpopularnije linije/rute (Top 50)").Format.Font.Bold = true;
+
+        var table = CreateTable(
+            new[] { 2.5, 5.0, 6.0, 2.5, 3.0 },
+            new[] { "Broj", "Linija", "Ruta", "Karte", "Prihod" });
+
+        foreach (var r in rows.Take(50))
+        {
+            AddRow(table, r.LineNumber, r.LineName, r.Route, r.Count.ToString(), FormatMoney(r.Revenue));
+        }
+
+        section.Add(table);
+        return Render(doc);
+    }
+
+    public static byte[] BuildUserActivityPdf(
+        string title,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int activeUsers,
+        int totalTickets,
+        decimal totalRevenue,
+        List<(int UserId, string Email, int TicketCount, decimal Revenue, DateTime LastPurchaseUtc)> rows)
+    {
+        var doc = CreateDocumentBase(title, fromUtc, toUtc);
+        AddSummaryTable(doc, new (string Label, string Value)[]
+        {
+            ("Aktivni korisnici (Top)", activeUsers.ToString()),
+            ("Ukupno karata (Top)", totalTickets.ToString()),
+            ("Ukupni prihod (Top) (KM)", FormatMoney(totalRevenue))
+        });
+
+        var section = doc.LastSection;
+        section.AddParagraph();
+        section.AddParagraph("Top korisnici po broju karata").Format.Font.Bold = true;
+
+        var table = CreateTable(
+            new[] { 2.5, 6.0, 2.5, 3.0, 3.5 },
+            new[] { "UserId", "Email", "Karte", "Prihod", "Zadnja kupovina" });
+
+        foreach (var r in rows.Take(50))
+        {
+            AddRow(table,
+                r.UserId.ToString(),
+                r.Email,
+                r.TicketCount.ToString(),
+                FormatMoney(r.Revenue),
+                r.LastPurchaseUtc.ToString("dd.MM.yyyy"));
+        }
+
+        section.Add(table);
+        return Render(doc);
+    }
+
+    public static byte[] BuildSubscriptionsPdf(
+        string title,
+        DateTime fromUtc,
+        DateTime toUtc,
+        int totalSubscriptions,
+        decimal totalRevenue,
+        List<(string PackageName, int Count, decimal Revenue)> byPackage,
+        List<(int UserId, string Email, int Count, decimal TotalSpent)> topUsers)
+    {
+        var doc = CreateDocumentBase(title, fromUtc, toUtc);
+        AddSummaryTable(doc, new (string Label, string Value)[]
+        {
+            ("Ukupno pretplata", totalSubscriptions.ToString()),
+            ("Ukupni prihod (KM)", FormatMoney(totalRevenue))
+        });
+
+        var section = doc.LastSection;
+        section.AddParagraph();
+        section.AddParagraph("Pretplate po paketu").Format.Font.Bold = true;
+
+        var table1 = CreateTable(new[] { 8.0, 3.0, 3.5 }, new[] { "Paket", "Broj", "Prihod (KM)" });
+        foreach (var r in byPackage)
+        {
+            AddRow(table1, r.PackageName, r.Count.ToString(), FormatMoney(r.Revenue));
+        }
+        section.Add(table1);
+
+        section.AddParagraph();
+        section.AddParagraph("Top korisnici po potrošnji na pretplate").Format.Font.Bold = true;
+        var table2 = CreateTable(new[] { 2.5, 7.0, 3.0, 3.5 }, new[] { "UserId", "Email", "Pretplate", "Potrošnja (KM)" });
+        foreach (var r in topUsers.Take(50))
+        {
+            AddRow(table2, r.UserId.ToString(), r.Email, r.Count.ToString(), FormatMoney(r.TotalSpent));
+        }
+        section.Add(table2);
+
+        return Render(doc);
+    }
+
     private static Document CreateDocumentBase(string title, DateTime fromUtc, DateTime toUtc)
     {
         var doc = new Document();

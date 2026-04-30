@@ -20,16 +20,34 @@ public class CitiesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<CityDto>>> GetAll([FromQuery] string? search = null, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<CityDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<CityDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.Cities
             .Include(c => c.Country)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(c => 
-                c.Name.Contains(search) || 
+            query = query.Where(c =>
+                c.Name.Contains(search) ||
                 (c.PostalCode != null && c.PostalCode.Contains(search)));
         }
 
@@ -38,11 +56,14 @@ public class CitiesController : ControllerBase
             query = query.Where(c => c.IsActive == isActive.Value);
         }
 
+        var total = await query.CountAsync();
         var cities = await query
             .OrderBy(c => c.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        var result = cities.Select(c => new CityDto
+        var items = cities.Select(c => new CityDto
         {
             Id = c.Id,
             Name = c.Name,
@@ -52,7 +73,13 @@ public class CitiesController : ControllerBase
             IsActive = c.IsActive
         }).ToList();
 
-        return Ok(result);
+        return Ok(new PagedResultDto<CityDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]

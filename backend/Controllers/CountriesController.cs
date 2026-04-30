@@ -20,9 +20,24 @@ public class CountriesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<CountryDto>>> GetAll([FromQuery] string? search = null, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<CountryDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
-        var items = await _service.GetAllAsync(search, isActive);
+        var items = await _service.GetPagedAsync(page, pageSize, search, isActive);
+        return Ok(items);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<CountryDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var items = await _service.GetPagedAsync(page, pageSize, search, isActive);
         return Ok(items);
     }
 

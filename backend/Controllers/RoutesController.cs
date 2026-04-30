@@ -20,9 +20,26 @@ public class RoutesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<RouteDto>>> GetAll([FromQuery] string? search, [FromQuery] bool? isActive)
+    public async Task<ActionResult<PagedResultDto<RouteDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int? transportLineId = null)
     {
-        var routes = await _routeService.GetAllAsync(search, isActive);
+        var routes = await _routeService.GetPagedAsync(page, pageSize, search, isActive, transportLineId);
+        return Ok(routes);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<RouteDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] int? transportLineId = null)
+    {
+        var routes = await _routeService.GetPagedAsync(page, pageSize, search, isActive, transportLineId);
         return Ok(routes);
     }
 

@@ -20,14 +20,32 @@ public class TransportTypesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TransportTypeDto>>> GetAll([FromQuery] string? search = null, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<TransportTypeDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TransportTypeDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.TransportTypes.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(t => 
-                t.Name.Contains(search) || 
+            query = query.Where(t =>
+                t.Name.Contains(search) ||
                 (t.Description != null && t.Description.Contains(search)));
         }
 
@@ -36,7 +54,8 @@ public class TransportTypesController : ControllerBase
             query = query.Where(t => t.IsActive == isActive.Value);
         }
 
-        var types = await query
+        var total = await query.CountAsync();
+        var items = await query
             .OrderBy(t => t.Name)
             .Select(t => new TransportTypeDto
             {
@@ -45,9 +64,17 @@ public class TransportTypesController : ControllerBase
                 Description = t.Description,
                 IsActive = t.IsActive
             })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(types);
+        return Ok(new PagedResultDto<TransportTypeDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]

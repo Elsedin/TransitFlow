@@ -18,11 +18,24 @@ public class TransportLinesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TransportLineDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TransportLineDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null)
     {
-        var lines = await _transportLineService.GetAllAsync(search, isActive);
+        var lines = await _transportLineService.GetPagedAsync(page, pageSize, search, isActive);
+        return Ok(lines);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TransportLineDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var lines = await _transportLineService.GetPagedAsync(page, pageSize, search, isActive);
         return Ok(lines);
     }
 

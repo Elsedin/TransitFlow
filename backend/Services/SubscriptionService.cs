@@ -64,6 +64,78 @@ public class SubscriptionService : ISubscriptionService
         DateTime? dateTo = null,
         string? sortBy = null)
     {
+        var query = BuildFilteredQuery(search, status, userId, dateFrom, dateTo, sortBy);
+        var subscriptions = await query.ToListAsync();
+        return subscriptions.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<SubscriptionDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? userId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? sortBy = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, status, userId, dateFrom, dateTo, sortBy);
+        var total = await query.CountAsync();
+        var subscriptions = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<SubscriptionDto>
+        {
+            Items = subscriptions.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<SubscriptionDto?> GetByIdAsync(int id)
+    {
+        var subscription = await _context.Subscriptions
+            .Include(s => s.User)
+            .Include(s => s.Transaction)
+            .Include(s => s.SubscriptionPackage)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (subscription == null)
+            return null;
+
+        return new SubscriptionDto
+        {
+            Id = subscription.Id,
+            UserId = subscription.UserId,
+            UserEmail = subscription.User?.Email ?? string.Empty,
+            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
+            PackageName = subscription.PackageName,
+            Price = subscription.Price,
+            StartDate = subscription.StartDate,
+            EndDate = subscription.EndDate,
+            Status = subscription.Status,
+            CreatedAt = subscription.CreatedAt,
+            UpdatedAt = subscription.UpdatedAt,
+            TransactionId = subscription.TransactionId,
+            TransactionNumber = subscription.Transaction?.TransactionNumber
+        };
+    }
+
+    private IQueryable<Subscription> BuildFilteredQuery(
+        string? search,
+        string? status,
+        int? userId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        string? sortBy)
+    {
         var query = _context.Subscriptions
             .Include(s => s.User)
             .Include(s => s.Transaction)
@@ -110,9 +182,12 @@ public class SubscriptionService : ISubscriptionService
             _ => query.OrderByDescending(s => s.CreatedAt)
         };
 
-        var subscriptions = await query.ToListAsync();
+        return query;
+    }
 
-        return subscriptions.Select(s => new SubscriptionDto
+    private static SubscriptionDto MapToDto(Subscription s)
+    {
+        return new SubscriptionDto
         {
             Id = s.Id,
             UserId = s.UserId,
@@ -127,35 +202,6 @@ public class SubscriptionService : ISubscriptionService
             UpdatedAt = s.UpdatedAt,
             TransactionId = s.TransactionId,
             TransactionNumber = s.Transaction?.TransactionNumber
-        }).ToList();
-    }
-
-    public async Task<SubscriptionDto?> GetByIdAsync(int id)
-    {
-        var subscription = await _context.Subscriptions
-            .Include(s => s.User)
-            .Include(s => s.Transaction)
-            .Include(s => s.SubscriptionPackage)
-            .FirstOrDefaultAsync(s => s.Id == id);
-
-        if (subscription == null)
-            return null;
-
-        return new SubscriptionDto
-        {
-            Id = subscription.Id,
-            UserId = subscription.UserId,
-            UserEmail = subscription.User?.Email ?? string.Empty,
-            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
-            PackageName = subscription.PackageName,
-            Price = subscription.Price,
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            Status = subscription.Status,
-            CreatedAt = subscription.CreatedAt,
-            UpdatedAt = subscription.UpdatedAt,
-            TransactionId = subscription.TransactionId,
-            TransactionNumber = subscription.Transaction?.TransactionNumber
         };
     }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/notification_model.dart' as models;
+import '../models/paged_result.dart';
 import 'auth_service.dart';
 
 class NotificationService {
@@ -20,12 +21,40 @@ class NotificationService {
     DateTime? dateTo,
     String? search,
   }) async {
+    final result = await getPaged(
+      page: 1,
+      pageSize: 100,
+      userId: userId,
+      type: type,
+      isRead: isRead,
+      isActive: isActive,
+      dateFrom: dateFrom,
+      dateTo: dateTo,
+      search: search,
+    );
+    return result.items;
+  }
+
+  Future<PagedResult<models.Notification>> getPaged({
+    required int page,
+    required int pageSize,
+    int? userId,
+    String? type,
+    bool? isRead,
+    bool? isActive,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+    String? search,
+  }) async {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/notifications');
-    final queryParams = <String, String>{};
-    
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/notifications/paged');
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'pageSize': pageSize.toString(),
+    };
+
     if (userId != null) queryParams['userId'] = userId.toString();
     if (type != null && type.isNotEmpty) queryParams['type'] = type;
     if (isRead != null) queryParams['isRead'] = isRead.toString();
@@ -45,8 +74,11 @@ class NotificationService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => models.Notification.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      return PagedResult<models.Notification>.fromJson(
+        data,
+        (json) => models.Notification.fromJson(json),
+      );
     } else {
       throw Exception('Failed to load notifications: ${response.statusCode}');
     }

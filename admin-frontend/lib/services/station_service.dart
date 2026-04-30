@@ -1,11 +1,22 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/station_model.dart';
 import 'auth_service.dart';
 
 class StationService {
   Future<List<Station>> getAll({
+    String? search,
+    bool? isActive,
+  }) async {
+    final result = await getPaged(page: 1, pageSize: 100, search: search, isActive: isActive);
+    return result.items;
+  }
+
+  Future<PagedResult<Station>> getPaged({
+    required int page,
+    required int pageSize,
     String? search,
     bool? isActive,
   }) async {
@@ -15,7 +26,10 @@ class StationService {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
       }
@@ -23,7 +37,7 @@ class StationService {
         queryParams['isActive'] = isActive.toString();
       }
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/stations')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/stations/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -35,8 +49,11 @@ class StationService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Station.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<Station>.fromJson(
+          data,
+          (json) => Station.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load stations');
       }

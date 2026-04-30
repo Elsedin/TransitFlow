@@ -23,6 +23,56 @@ public class TicketService : ITicketService
         int? userId = null)
     {
         var now = DateTime.UtcNow;
+        var query = BuildFilteredQuery(now, search, status, ticketTypeId, dateFrom, dateTo, userId);
+
+        var tickets = await query
+            .OrderByDescending(t => t.PurchasedAt)
+            .ToListAsync();
+        return tickets.Select(t => MapToDto(t, now)).ToList();
+    }
+
+    public async Task<PagedResultDto<TicketDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? ticketTypeId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        int? userId = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var now = DateTime.UtcNow;
+        var query = BuildFilteredQuery(now, search, status, ticketTypeId, dateFrom, dateTo, userId);
+        var total = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(t => t.PurchasedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<TicketDto>
+        {
+            Items = items.Select(t => MapToDto(t, now)).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    private IQueryable<Ticket> BuildFilteredQuery(
+        DateTime now,
+        string? search,
+        string? status,
+        int? ticketTypeId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int? userId)
+    {
         var query = _context.Tickets
             .Include(t => t.User)
             .Include(t => t.TicketType)
@@ -39,7 +89,7 @@ public class TicketService : ITicketService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchLower = search.ToLower();
+            var searchLower = search.Trim().ToLower();
             query = query.Where(t =>
                 t.TicketNumber.ToLower().Contains(searchLower) ||
                 t.User!.Email.ToLower().Contains(searchLower) ||
@@ -48,7 +98,7 @@ public class TicketService : ITicketService
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            query = status.ToLower() switch
+            query = status.Trim().ToLower() switch
             {
                 "aktivna" => query.Where(t => !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now),
                 "korištena" => query.Where(t => t.IsUsed),
@@ -72,10 +122,12 @@ public class TicketService : ITicketService
             query = query.Where(t => t.PurchasedAt <= dateTo.Value.AddDays(1).AddTicks(-1));
         }
 
-        var tickets = await query
-            .OrderByDescending(t => t.PurchasedAt)
-            .ToListAsync();
-        return tickets.Select(t => new TicketDto
+        return query;
+    }
+
+    private static TicketDto MapToDto(Ticket t, DateTime now)
+    {
+        return new TicketDto
         {
             Id = t.Id,
             PublicId = t.PublicId,
@@ -103,7 +155,7 @@ public class TicketService : ITicketService
             Status = GetTicketStatus(t, now),
             IsActive = !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now,
             PaymentMethod = t.Transaction?.PaymentMethod
-        }).ToList();
+        };
     }
 
     public async Task<TicketDto?> GetByIdAsync(int id)

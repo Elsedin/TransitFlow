@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/refund_request_model.dart';
+import '../models/paged_result.dart';
 import 'auth_service.dart';
 
 class RefundRequestService {
@@ -21,12 +22,28 @@ class RefundRequestService {
   }
 
   Future<List<RefundRequest>> getAll({String? status}) async {
+    final result = await getPaged(page: 1, pageSize: 100, status: status);
+    return result.items;
+  }
+
+  Future<PagedResult<RefundRequest>> getPaged({
+    required int page,
+    required int pageSize,
+    String? status,
+  }) async {
     final token = await AuthService().getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/refundrequests').replace(
-      queryParameters: status != null ? {'status': status} : null,
-    );
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'pageSize': pageSize.toString(),
+    };
+    if (status != null && status.trim().isNotEmpty) {
+      queryParams['status'] = status;
+    }
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/refundrequests/paged')
+        .replace(queryParameters: queryParams);
 
     final response = await http.get(
       uri,
@@ -37,8 +54,11 @@ class RefundRequestService {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body) as List<dynamic>;
-      return data.map((e) => RefundRequest.fromJson(e as Map<String, dynamic>)).toList();
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return PagedResult<RefundRequest>.fromJson(
+        data,
+        (json) => RefundRequest.fromJson(json),
+      );
     }
 
     throw _buildError(response, 'Failed to load refund requests');

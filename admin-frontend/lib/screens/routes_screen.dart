@@ -7,6 +7,7 @@ import '../services/transport_line_service.dart';
 import '../models/route_model.dart' as route_models;
 import '../models/station_model.dart';
 import '../models/transport_line_model.dart';
+import '../widgets/pagination_bar.dart';
 
 class RoutesScreen extends StatefulWidget {
   const RoutesScreen({super.key});
@@ -23,7 +24,6 @@ class _RoutesScreenState extends State<RoutesScreen> {
   final _transportLineService = TransportLineService();
   
   List<route_models.Route> _routes = [];
-  List<route_models.Route> _filteredRoutes = [];
   route_models.Route? _selectedRoute;
   List<Station> _stations = [];
   List<City> _cities = [];
@@ -34,6 +34,9 @@ class _RoutesScreenState extends State<RoutesScreen> {
   String? _errorMessage;
   String _searchQuery = '';
   bool? _statusFilter;
+  int _currentPage = 1;
+  int _pageSize = 10;
+  int _totalCount = 0;
 
   @override
   void initState() {
@@ -48,7 +51,9 @@ class _RoutesScreenState extends State<RoutesScreen> {
     });
 
     try {
-      final routes = await _routeService.getAll(
+      final routesResult = await _routeService.getPaged(
+        page: _currentPage,
+        pageSize: _pageSize,
         search: _searchQuery.isEmpty ? null : _searchQuery,
         isActive: _statusFilter,
       );
@@ -58,14 +63,14 @@ class _RoutesScreenState extends State<RoutesScreen> {
       final transportLines = await _transportLineService.getAll(isActive: true);
       
       setState(() {
-        _routes = routes;
-        _filteredRoutes = routes;
+        _routes = routesResult.items;
+        _totalCount = routesResult.totalCount;
         _stations = stations;
         _cities = cities;
         _zones = zones;
         _transportLines = transportLines;
         _isLoading = false;
-        if (_routes.isNotEmpty && _selectedRoute == null) {
+        if (_routes.isNotEmpty && (_selectedRoute == null || !_routes.any((r) => r.id == _selectedRoute!.id))) {
           _selectedRoute = _routes.first;
         }
       });
@@ -79,20 +84,9 @@ class _RoutesScreenState extends State<RoutesScreen> {
 
   void _applyFilters() {
     setState(() {
-      _filteredRoutes = _routes.where((route) {
-        if (_statusFilter != null && route.isActive != _statusFilter) {
-          return false;
-        }
-        if (_searchQuery.isNotEmpty) {
-          final query = _searchQuery.toLowerCase();
-          return route.name.toLowerCase().contains(query) ||
-              route.origin.toLowerCase().contains(query) ||
-              route.destination.toLowerCase().contains(query) ||
-              route.transportLineNumber.toLowerCase().contains(query);
-        }
-        return true;
-      }).toList();
+      _currentPage = 1;
     });
+    _loadData();
   }
 
   Future<void> _deleteRoute(int id) async {
@@ -186,6 +180,7 @@ class _RoutesScreenState extends State<RoutesScreen> {
   }
 
   Widget _buildRoutesList() {
+    final totalPages = _totalCount == 0 ? 0 : ((_totalCount + _pageSize - 1) ~/ _pageSize);
     return Card(
       elevation: 2,
       child: Padding(
@@ -220,12 +215,12 @@ class _RoutesScreenState extends State<RoutesScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                       ? Center(child: Text(_errorMessage!))
-                      : _filteredRoutes.isEmpty
+                      : _routes.isEmpty
                           ? const Center(child: Text('Nema ruta'))
                           : ListView.builder(
-                              itemCount: _filteredRoutes.length,
+                              itemCount: _routes.length,
                               itemBuilder: (context, index) {
-                                final route = _filteredRoutes[index];
+                                final route = _routes[index];
                                 final isSelected = _selectedRoute?.id == route.id;
                                 return InkWell(
                                   onTap: () {
@@ -267,6 +262,31 @@ class _RoutesScreenState extends State<RoutesScreen> {
                                 );
                               },
                             ),
+            ),
+            PaginationBar(
+              page: _currentPage,
+              pageSize: _pageSize,
+              totalCount: _totalCount,
+              totalPages: totalPages,
+              onPrev: () {
+                setState(() {
+                  _currentPage = (_currentPage - 1).clamp(1, _currentPage);
+                });
+                _loadData();
+              },
+              onNext: () {
+                setState(() {
+                  _currentPage = _currentPage + 1;
+                });
+                _loadData();
+              },
+              onPageSizeChanged: (newSize) {
+                setState(() {
+                  _pageSize = newSize;
+                  _currentPage = 1;
+                });
+                _loadData();
+              },
             ),
           ],
         ),

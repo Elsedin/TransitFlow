@@ -26,11 +26,32 @@ public class ReportsController : ControllerBase
         try
         {
             ReportDto report;
-            
-            switch (request.ReportType.ToLower())
+
+            var reportType = (request.ReportType ?? string.Empty).Trim().ToLowerInvariant().Replace("-", "_");
+            if (string.IsNullOrWhiteSpace(reportType))
+            {
+                return BadRequest(new { message = "Invalid report type" });
+            }
+
+            switch (reportType)
             {
                 case "ticket_sales":
                     report = await _reportService.GenerateTicketSalesReportAsync(request);
+                    break;
+                case "revenue":
+                    report = await _reportService.GenerateRevenueReportAsync(request);
+                    break;
+                case "popular_lines":
+                    report = await _reportService.GeneratePopularLinesReportAsync(request);
+                    break;
+                case "user_activity":
+                    report = await _reportService.GenerateUserActivityReportAsync(request);
+                    break;
+                case "subscriptions":
+                    report = await _reportService.GenerateSubscriptionsReportAsync(request);
+                    break;
+                case "refund_requests":
+                    report = await _reportService.GenerateRefundRequestsReportAsync(request);
                     break;
                 default:
                     return BadRequest(new { message = "Invalid report type" });
@@ -73,6 +94,70 @@ public class ReportsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Refund requests PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("revenue/pdf")]
+    public async Task<IActionResult> RevenuePdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GenerateRevenuePdfAsync(request);
+            var fileName = $"izvjestaj_prihodi_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Revenue PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("popular-lines/pdf")]
+    public async Task<IActionResult> PopularLinesPdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GeneratePopularLinesPdfAsync(request);
+            var fileName = $"izvjestaj_popularne_linije_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Popular lines PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("user-activity/pdf")]
+    public async Task<IActionResult> UserActivityPdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GenerateUserActivityPdfAsync(request);
+            var fileName = $"izvjestaj_aktivnost_korisnika_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "User activity PDF generation failed");
+            return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("subscriptions/pdf")]
+    public async Task<IActionResult> SubscriptionsPdf([FromBody] ReportRequestDto request)
+    {
+        try
+        {
+            var bytes = await _reportService.GenerateSubscriptionsPdfAsync(request);
+            var fileName = $"izvjestaj_pretplate_{DateTime.UtcNow:yyyyMMdd_HHmmss}.pdf";
+            return File(bytes, "application/pdf", fileName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Subscriptions PDF generation failed");
             return StatusCode(500, new { message = "An error occurred while generating the PDF", traceId = HttpContext.TraceIdentifier });
         }
     }

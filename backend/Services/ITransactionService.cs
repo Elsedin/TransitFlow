@@ -11,6 +11,16 @@ public interface ITransactionService
         DateTime? dateFrom = null,
         DateTime? dateTo = null,
         string? sortBy = null);
+    
+    Task<PagedResultDto<TransactionDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? userId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? sortBy = null);
     Task<TransactionDto?> GetByIdAsync(int id);
     Task<TransactionMetricsDto> GetMetricsAsync();
 }

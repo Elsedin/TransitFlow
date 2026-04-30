@@ -26,6 +26,97 @@ public class NotificationService : INotificationService
         DateTime? dateTo = null,
         string? search = null)
     {
+        var query = BuildFilteredQuery(userId, type, isRead, isActive, dateFrom, dateTo, search);
+        var notifications = await query
+            .OrderByDescending(n => n.CreatedAt)
+            .ToListAsync();
+
+        return notifications.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<NotificationDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        int? userId = null,
+        string? type = null,
+        bool? isRead = null,
+        bool? isActive = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? search = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(userId, type, isRead, isActive, dateFrom, dateTo, search);
+        var total = await query.CountAsync();
+        var notifications = await query
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<NotificationDto>
+        {
+            Items = notifications.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<NotificationDto?> GetByIdAsync(int id)
+    {
+        var notification = await _context.Notifications
+            .Include(n => n.User)
+            .FirstOrDefaultAsync(n => n.Id == id);
+
+        if (notification == null) return null;
+
+        return new NotificationDto
+        {
+            Id = notification.Id,
+            UserId = notification.UserId,
+            UserEmail = notification.User?.Email,
+            UserName = notification.User != null ? $"{notification.User.FirstName} {notification.User.LastName}".Trim() : null,
+            Title = notification.Title,
+            Message = notification.Message,
+            Type = notification.Type,
+            IsRead = notification.IsRead,
+            CreatedAt = notification.CreatedAt,
+            ReadAt = notification.ReadAt,
+            IsActive = notification.IsActive,
+        };
+    }
+
+    public async Task<NotificationMetricsDto> GetMetricsAsync()
+    {
+        var notifications = await _context.Notifications.ToListAsync();
+
+        return new NotificationMetricsDto
+        {
+            TotalNotifications = notifications.Count,
+            UnreadNotifications = notifications.Count(n => !n.IsRead),
+            ReadNotifications = notifications.Count(n => n.IsRead),
+            ActiveNotifications = notifications.Count(n => n.IsActive),
+            NotificationsByType = notifications
+                .GroupBy(n => n.Type)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            BroadcastNotifications = notifications.Count(n => n.UserId == null),
+            UserSpecificNotifications = notifications.Count(n => n.UserId != null),
+        };
+    }
+
+    private IQueryable<Notification> BuildFilteredQuery(
+        int? userId,
+        string? type,
+        bool? isRead,
+        bool? isActive,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        string? search)
+    {
         var query = _context.Notifications
             .Include(n => n.User)
             .AsQueryable();
@@ -69,11 +160,12 @@ public class NotificationService : INotificationService
                 (n.User != null && n.User.Email.ToLower().Contains(searchLower)));
         }
 
-        var notifications = await query
-            .OrderByDescending(n => n.CreatedAt)
-            .ToListAsync();
+        return query;
+    }
 
-        return notifications.Select(n => new NotificationDto
+    private static NotificationDto MapToDto(Notification n)
+    {
+        return new NotificationDto
         {
             Id = n.Id,
             UserId = n.UserId,
@@ -86,48 +178,6 @@ public class NotificationService : INotificationService
             CreatedAt = n.CreatedAt,
             ReadAt = n.ReadAt,
             IsActive = n.IsActive,
-        }).ToList();
-    }
-
-    public async Task<NotificationDto?> GetByIdAsync(int id)
-    {
-        var notification = await _context.Notifications
-            .Include(n => n.User)
-            .FirstOrDefaultAsync(n => n.Id == id);
-
-        if (notification == null) return null;
-
-        return new NotificationDto
-        {
-            Id = notification.Id,
-            UserId = notification.UserId,
-            UserEmail = notification.User?.Email,
-            UserName = notification.User != null ? $"{notification.User.FirstName} {notification.User.LastName}".Trim() : null,
-            Title = notification.Title,
-            Message = notification.Message,
-            Type = notification.Type,
-            IsRead = notification.IsRead,
-            CreatedAt = notification.CreatedAt,
-            ReadAt = notification.ReadAt,
-            IsActive = notification.IsActive,
-        };
-    }
-
-    public async Task<NotificationMetricsDto> GetMetricsAsync()
-    {
-        var notifications = await _context.Notifications.ToListAsync();
-
-        return new NotificationMetricsDto
-        {
-            TotalNotifications = notifications.Count,
-            UnreadNotifications = notifications.Count(n => !n.IsRead),
-            ReadNotifications = notifications.Count(n => n.IsRead),
-            ActiveNotifications = notifications.Count(n => n.IsActive),
-            NotificationsByType = notifications
-                .GroupBy(n => n.Type)
-                .ToDictionary(g => g.Key, g => g.Count()),
-            BroadcastNotifications = notifications.Count(n => n.UserId == null),
-            UserSpecificNotifications = notifications.Count(n => n.UserId != null),
         };
     }
 

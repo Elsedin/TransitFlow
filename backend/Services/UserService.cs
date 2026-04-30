@@ -22,13 +22,48 @@ public class UserService : IUserService
         bool? isActive = null,
         string? sortBy = null)
     {
+        var query = BuildFilteredQuery(search, isActive, sortBy);
+        var users = await query.ToListAsync();
+        return users.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<UserDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        bool? isActive = null,
+        string? sortBy = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, isActive, sortBy);
+        var total = await query.CountAsync();
+
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<UserDto>
+        {
+            Items = items.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    private IQueryable<User> BuildFilteredQuery(string? search, bool? isActive, string? sortBy)
+    {
         var query = _context.Users
             .Include(u => u.Tickets)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchLower = search.ToLower();
+            var searchLower = search.Trim().ToLower();
             query = query.Where(u =>
                 u.Username.ToLower().Contains(searchLower) ||
                 u.Email.ToLower().Contains(searchLower) ||
@@ -42,7 +77,7 @@ public class UserService : IUserService
             query = query.Where(u => u.IsActive == isActive.Value);
         }
 
-        query = sortBy?.ToLower() switch
+        return sortBy?.ToLower() switch
         {
             "name" => query.OrderBy(u => u.FirstName).ThenBy(u => u.LastName),
             "email" => query.OrderBy(u => u.Email),
@@ -50,10 +85,11 @@ public class UserService : IUserService
             "purchases" => query.OrderByDescending(u => u.Tickets.Count),
             _ => query.OrderByDescending(u => u.CreatedAt)
         };
+    }
 
-        var users = await query.ToListAsync();
-
-        return users.Select(u => new UserDto
+    private static UserDto MapToDto(User u)
+    {
+        return new UserDto
         {
             Id = u.Id,
             Username = u.Username,
@@ -66,7 +102,7 @@ public class UserService : IUserService
             LastLoginAt = u.LastLoginAt,
             IsActive = u.IsActive,
             PurchaseCount = u.Tickets.Count
-        }).ToList();
+        };
     }
 
     public async Task<UserDto?> GetByIdAsync(int id)

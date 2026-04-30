@@ -30,7 +30,9 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<SubscriptionDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<SubscriptionDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
         [FromQuery] DateTime? dateFrom = null,
@@ -39,7 +41,7 @@ public class SubscriptionsController : ControllerBase
     {
         if (User.IsInRole("Administrator"))
         {
-            var subscriptionsAdmin = await _subscriptionService.GetAllAsync(search, status, null, dateFrom, dateTo, sortBy);
+            var subscriptionsAdmin = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, null, dateFrom, dateTo, sortBy);
             return Ok(subscriptionsAdmin);
         }
 
@@ -50,7 +52,34 @@ public class SubscriptionsController : ControllerBase
             userId = parsedUserId;
         }
 
-        var subscriptions = await _subscriptionService.GetAllAsync(search, status, userId, dateFrom, dateTo, sortBy);
+        var subscriptions = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
+        return Ok(subscriptions);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<SubscriptionDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] string? sortBy = null)
+    {
+        if (User.IsInRole("Administrator"))
+        {
+            var subscriptionsAdmin = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, null, dateFrom, dateTo, sortBy);
+            return Ok(subscriptionsAdmin);
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        int? userId = null;
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+        {
+            userId = parsedUserId;
+        }
+
+        var subscriptions = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
         return Ok(subscriptions);
     }
 

@@ -21,12 +21,26 @@ public class TicketPricesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TicketPriceDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TicketPriceDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] int? ticketTypeId = null,
         [FromQuery] int? zoneId = null,
         [FromQuery] bool? isActive = null)
     {
-        var ticketPrices = await _ticketPriceService.GetAllAsync(ticketTypeId, zoneId, isActive);
+        var ticketPrices = await _ticketPriceService.GetPagedAsync(page, pageSize, ticketTypeId, zoneId, isActive);
+        return Ok(ticketPrices);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TicketPriceDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? ticketTypeId = null,
+        [FromQuery] int? zoneId = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var ticketPrices = await _ticketPriceService.GetPagedAsync(page, pageSize, ticketTypeId, zoneId, isActive);
         return Ok(ticketPrices);
     }
 

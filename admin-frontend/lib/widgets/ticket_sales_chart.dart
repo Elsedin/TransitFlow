@@ -145,6 +145,21 @@ class TicketSalesChart extends StatelessWidget {
                       touchTooltipData: LineTouchTooltipData(
                         tooltipBgColor: Colors.orange[700]!,
                         tooltipRoundedRadius: 8,
+                        getTooltipItems: (touchedSpots) {
+                          return touchedSpots.map((spot) {
+                            final i = spot.x.round();
+                            final date = (i >= 0 && i < data.length) ? data[i].date : null;
+                            final dateText = date == null ? '' : DateFormat('dd.MM.yyyy').format(date);
+                            return LineTooltipItem(
+                              '$dateText\n${spot.y.toInt()} karata',
+                              const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            );
+                          }).toList();
+                        },
                       ),
                     ),
                   ),

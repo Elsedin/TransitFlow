@@ -81,23 +81,64 @@ public class RefundRequestService : IRefundRequestService
         return items.Select(Map).ToList();
     }
 
-    public async Task<List<RefundRequestDto>> GetAllAsync(string? status = null)
+    public async Task<PagedResultDto<RefundRequestDto>> GetMyPagedAsync(int userId, int page, int pageSize)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.RefundRequests
             .Include(r => r.User)
             .Include(r => r.Ticket)
-            .AsQueryable();
+            .Where(r => r.UserId == userId);
 
-        if (!string.IsNullOrWhiteSpace(status))
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<RefundRequestDto>
         {
-            query = query.Where(r => r.Status == status);
-        }
+            Items = items.Select(Map).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
 
+    public async Task<List<RefundRequestDto>> GetAllAsync(string? status = null)
+    {
+        var query = BuildFilteredQuery(status);
         var items = await query
             .OrderByDescending(r => r.CreatedAt)
             .ToListAsync();
 
         return items.Select(Map).ToList();
+    }
+
+    public async Task<PagedResultDto<RefundRequestDto>> GetPagedAsync(int page, int pageSize, string? status = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(status);
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<RefundRequestDto>
+        {
+            Items = items.Select(Map).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<RefundRequestDto> ApproveAsync(int adminId, int requestId, ResolveRefundRequestDto dto)
@@ -314,6 +355,21 @@ public class RefundRequestService : IRefundRequestService
         }
 
         throw new InvalidOperationException("Unsupported payment method for refund");
+    }
+
+    private IQueryable<RefundRequest> BuildFilteredQuery(string? status)
+    {
+        var query = _context.RefundRequests
+            .Include(r => r.User)
+            .Include(r => r.Ticket)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(status))
+        {
+            query = query.Where(r => r.Status == status);
+        }
+
+        return query;
     }
 
     private static string? ExtractFirstPayPalCaptureId(JsonElement root)

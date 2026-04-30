@@ -27,6 +27,47 @@ class ReportRequest {
   }
 }
 
+class ReportSummaryItem {
+  final String label;
+  final String value;
+
+  ReportSummaryItem({required this.label, required this.value});
+
+  factory ReportSummaryItem.fromJson(Map<String, dynamic> json) {
+    return ReportSummaryItem(
+      label: json['label'] as String? ?? '',
+      value: json['value'] as String? ?? '',
+    );
+  }
+}
+
+class ReportSection {
+  final String title;
+  final List<String> columns;
+  final List<List<String>> rows;
+
+  ReportSection({
+    required this.title,
+    required this.columns,
+    required this.rows,
+  });
+
+  factory ReportSection.fromJson(Map<String, dynamic> json) {
+    final cols = (json['columns'] as List<dynamic>? ?? const <dynamic>[])
+        .map((e) => e.toString())
+        .toList();
+    final rows = (json['rows'] as List<dynamic>? ?? const <dynamic>[])
+        .map((r) => (r as List<dynamic>).map((c) => c.toString()).toList())
+        .toList();
+
+    return ReportSection(
+      title: json['title'] as String? ?? '',
+      columns: cols,
+      rows: rows,
+    );
+  }
+}
+
 class ReportSummary {
   final int totalTickets;
   final double totalRevenue;
@@ -77,6 +118,8 @@ class Report {
   final DateTime? dateTo;
   final ReportSummary summary;
   final List<ReportByTicketType> salesByTicketType;
+  final List<ReportSummaryItem> summaryItems;
+  final List<ReportSection> sections;
 
   Report({
     required this.reportType,
@@ -85,6 +128,8 @@ class Report {
     this.dateTo,
     required this.summary,
     required this.salesByTicketType,
+    required this.summaryItems,
+    required this.sections,
   });
 
   factory Report.fromJson(Map<String, dynamic> json) {
@@ -93,9 +138,17 @@ class Report {
       reportTitle: json['reportTitle'] as String,
       dateFrom: json['dateFrom'] != null ? DateTime.parse(json['dateFrom'] as String) : null,
       dateTo: json['dateTo'] != null ? DateTime.parse(json['dateTo'] as String) : null,
-      summary: ReportSummary.fromJson(json['summary'] as Map<String, dynamic>),
-      salesByTicketType: (json['salesByTicketType'] as List<dynamic>)
+      summary: json['summary'] != null
+          ? ReportSummary.fromJson(json['summary'] as Map<String, dynamic>)
+          : ReportSummary(totalTickets: 0, totalRevenue: 0, averagePrice: 0, activeUsers: 0),
+      salesByTicketType: (json['salesByTicketType'] as List<dynamic>? ?? const <dynamic>[])
           .map((item) => ReportByTicketType.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      summaryItems: (json['summaryItems'] as List<dynamic>? ?? const <dynamic>[])
+          .map((e) => ReportSummaryItem.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      sections: (json['sections'] as List<dynamic>? ?? const <dynamic>[])
+          .map((e) => ReportSection.fromJson(e as Map<String, dynamic>))
           .toList(),
     );
   }

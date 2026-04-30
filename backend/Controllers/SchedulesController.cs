@@ -21,13 +21,28 @@ public class SchedulesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ScheduleDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<ScheduleDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] int? routeId = null,
         [FromQuery] int? vehicleId = null,
         [FromQuery] int? dayOfWeek = null,
         [FromQuery] bool? isActive = null)
     {
-        var schedules = await _scheduleService.GetAllAsync(routeId, vehicleId, dayOfWeek, isActive);
+        var schedules = await _scheduleService.GetPagedAsync(page, pageSize, routeId, vehicleId, dayOfWeek, isActive);
+        return Ok(schedules);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<ScheduleDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? routeId = null,
+        [FromQuery] int? vehicleId = null,
+        [FromQuery] int? dayOfWeek = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var schedules = await _scheduleService.GetPagedAsync(page, pageSize, routeId, vehicleId, dayOfWeek, isActive);
         return Ok(schedules);
     }
 

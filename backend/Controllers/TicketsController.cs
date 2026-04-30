@@ -31,7 +31,9 @@ public class TicketsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TicketDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TicketDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
         [FromQuery] int? ticketTypeId = null,
@@ -50,8 +52,34 @@ public class TicketsController : ControllerBase
             }
         }
 
-        var tickets = await _ticketService.GetAllAsync(search, status, ticketTypeId, dateFrom, dateTo, userId);
-        return Ok(tickets);
+        var result = await _ticketService.GetPagedAsync(page, pageSize, search, status, ticketTypeId, dateFrom, dateTo, userId);
+        return Ok(result);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TicketDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int? ticketTypeId = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        int? userId = null;
+
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+        {
+            var isAdmin = User.IsInRole("Administrator");
+            if (!isAdmin)
+            {
+                userId = parsedUserId;
+            }
+        }
+
+        var result = await _ticketService.GetPagedAsync(page, pageSize, search, status, ticketTypeId, dateFrom, dateTo, userId);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]

@@ -23,8 +23,26 @@ public class StationsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<StationDto>>> GetAll([FromQuery] string? search, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<StationDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<StationDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.Stations
             .Include(s => s.City)
             .Include(s => s.Zone)
@@ -32,8 +50,8 @@ public class StationsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(s => 
-                s.Name.Contains(search) || 
+            query = query.Where(s =>
+                s.Name.Contains(search) ||
                 (s.Address != null && s.Address.Contains(search)));
         }
 
@@ -42,11 +60,14 @@ public class StationsController : ControllerBase
             query = query.Where(s => s.IsActive == isActive.Value);
         }
 
+        var total = await query.CountAsync();
         var stations = await query
             .OrderBy(s => s.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        var result = stations.Select(s => new StationDto
+        var items = stations.Select(s => new StationDto
         {
             Id = s.Id,
             Name = s.Name,
@@ -60,7 +81,13 @@ public class StationsController : ControllerBase
             IsActive = s.IsActive
         }).ToList();
 
-        return Ok(result);
+        return Ok(new PagedResultDto<StationDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]

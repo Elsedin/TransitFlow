@@ -5,6 +5,7 @@ namespace TransitFlow.API.Services;
 public interface ITicketPriceService
 {
     Task<List<TicketPriceDto>> GetAllAsync(int? ticketTypeId = null, int? zoneId = null, bool? isActive = null);
+    Task<PagedResultDto<TicketPriceDto>> GetPagedAsync(int page, int pageSize, int? ticketTypeId = null, int? zoneId = null, bool? isActive = null);
     Task<TicketPriceDto?> GetByIdAsync(int id);
     Task<TicketPriceDto> CreateAsync(CreateTicketPriceDto dto);
     Task<TicketPriceDto?> UpdateAsync(int id, UpdateTicketPriceDto dto);

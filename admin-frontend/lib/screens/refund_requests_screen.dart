@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/refund_request_model.dart';
 import '../services/refund_request_service.dart';
+import '../widgets/pagination_bar.dart';
 
 class RefundRequestsScreen extends StatefulWidget {
   const RefundRequestsScreen({super.key});
@@ -16,6 +17,9 @@ class _RefundRequestsScreenState extends State<RefundRequestsScreen> {
   String? _error;
   String? _statusFilter = 'pending';
   List<RefundRequest> _items = [];
+  int _totalCount = 0;
+  int _currentPage = 0;
+  int _itemsPerPage = 10;
 
   @override
   void initState() {
@@ -29,9 +33,14 @@ class _RefundRequestsScreenState extends State<RefundRequestsScreen> {
       _error = null;
     });
     try {
-      final items = await _service.getAll(status: _statusFilter);
+      final result = await _service.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        status: _statusFilter,
+      );
       setState(() {
-        _items = items;
+        _items = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -111,6 +120,7 @@ class _RefundRequestsScreenState extends State<RefundRequestsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -134,7 +144,10 @@ class _RefundRequestsScreenState extends State<RefundRequestsScreen> {
                       DropdownMenuItem(value: null, child: Text('Svi')),
                     ],
                     onChanged: (v) {
-                      setState(() => _statusFilter = v);
+                      setState(() {
+                        _statusFilter = v;
+                        _currentPage = 0;
+                      });
                       _load();
                     },
                   ),
@@ -221,6 +234,32 @@ class _RefundRequestsScreenState extends State<RefundRequestsScreen> {
               },
             ),
           ),
+          if (!_isLoading && _error == null)
+            PaginationBar(
+              page: _currentPage + 1,
+              pageSize: _itemsPerPage,
+              totalCount: _totalCount,
+              totalPages: totalPages,
+              onPrev: _currentPage > 0
+                  ? () {
+                      setState(() => _currentPage--);
+                      _load();
+                    }
+                  : null,
+              onNext: _currentPage < totalPages - 1
+                  ? () {
+                      setState(() => _currentPage++);
+                      _load();
+                    }
+                  : null,
+              onPageSizeChanged: (v) {
+                setState(() {
+                  _itemsPerPage = v;
+                  _currentPage = 0;
+                });
+                _load();
+              },
+            ),
         ],
       ),
     );

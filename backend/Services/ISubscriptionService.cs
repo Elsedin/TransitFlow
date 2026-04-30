@@ -12,6 +12,15 @@ public interface ISubscriptionService
         DateTime? dateFrom = null,
         DateTime? dateTo = null,
         string? sortBy = null);
+    Task<PagedResultDto<SubscriptionDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? userId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? sortBy = null);
     Task<SubscriptionDto?> GetByIdAsync(int id);
     Task<SubscriptionDto> CreateAsync(CreateSubscriptionDto dto);
     Task<SubscriptionDto?> UpdateAsync(int id, UpdateSubscriptionDto dto);

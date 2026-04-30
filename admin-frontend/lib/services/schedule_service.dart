@@ -1,11 +1,31 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/schedule_model.dart';
 import 'auth_service.dart';
 
 class ScheduleService {
   Future<List<Schedule>> getAll({
+    int? routeId,
+    int? vehicleId,
+    int? dayOfWeek,
+    bool? isActive,
+  }) async {
+    final result = await getPaged(
+      page: 1,
+      pageSize: 100,
+      routeId: routeId,
+      vehicleId: vehicleId,
+      dayOfWeek: dayOfWeek,
+      isActive: isActive,
+    );
+    return result.items;
+  }
+
+  Future<PagedResult<Schedule>> getPaged({
+    required int page,
+    required int pageSize,
     int? routeId,
     int? vehicleId,
     int? dayOfWeek,
@@ -17,21 +37,16 @@ class ScheduleService {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
-      if (routeId != null) {
-        queryParams['routeId'] = routeId.toString();
-      }
-      if (vehicleId != null) {
-        queryParams['vehicleId'] = vehicleId.toString();
-      }
-      if (dayOfWeek != null) {
-        queryParams['dayOfWeek'] = dayOfWeek.toString();
-      }
-      if (isActive != null) {
-        queryParams['isActive'] = isActive.toString();
-      }
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
+      if (routeId != null) queryParams['routeId'] = routeId.toString();
+      if (vehicleId != null) queryParams['vehicleId'] = vehicleId.toString();
+      if (dayOfWeek != null) queryParams['dayOfWeek'] = dayOfWeek.toString();
+      if (isActive != null) queryParams['isActive'] = isActive.toString();
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/schedules')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/schedules/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -43,8 +58,11 @@ class ScheduleService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Schedule.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<Schedule>.fromJson(
+          data,
+          (json) => Schedule.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load schedules');
       }

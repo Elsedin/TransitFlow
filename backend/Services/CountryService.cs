@@ -16,28 +16,35 @@ public class CountryService : ICountryService
 
     public async Task<List<CountryDto>> GetAllAsync(string? search = null, bool? isActive = null)
     {
-        var query = _context.Countries
-            .Include(c => c.Cities)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var s = search.Trim().ToLower();
-            query = query.Where(c =>
-                c.Name.ToLower().Contains(s) ||
-                (c.Code != null && c.Code.ToLower().Contains(s)));
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(c => c.IsActive == isActive.Value);
-        }
-
+        var query = BuildFilteredQuery(search, isActive);
         var items = await query
             .OrderBy(c => c.Name)
             .ToListAsync();
 
         return items.Select(Map).ToList();
+    }
+
+    public async Task<PagedResultDto<CountryDto>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, isActive);
+        var total = await query.CountAsync();
+        var items = await query
+            .OrderBy(c => c.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<CountryDto>
+        {
+            Items = items.Select(Map).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<CountryDto?> GetByIdAsync(int id)
@@ -126,6 +133,28 @@ public class CountryService : ICountryService
             IsActive = c.IsActive,
             CityCount = c.Cities.Count
         };
+    }
+
+    private IQueryable<Country> BuildFilteredQuery(string? search, bool? isActive)
+    {
+        var query = _context.Countries
+            .Include(c => c.Cities)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim().ToLower();
+            query = query.Where(c =>
+                c.Name.ToLower().Contains(s) ||
+                (c.Code != null && c.Code.ToLower().Contains(s)));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(c => c.IsActive == isActive.Value);
+        }
+
+        return query;
     }
 }
 

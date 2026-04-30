@@ -48,6 +48,22 @@ class ReportService {
     return _downloadPdf('${AppConfig.apiBaseUrl}/reports/refund-requests/pdf', request);
   }
 
+  Future<Uint8List> downloadRevenuePdf(ReportRequest request) async {
+    return _downloadPdf('${AppConfig.apiBaseUrl}/reports/revenue/pdf', request);
+  }
+
+  Future<Uint8List> downloadPopularLinesPdf(ReportRequest request) async {
+    return _downloadPdf('${AppConfig.apiBaseUrl}/reports/popular-lines/pdf', request);
+  }
+
+  Future<Uint8List> downloadUserActivityPdf(ReportRequest request) async {
+    return _downloadPdf('${AppConfig.apiBaseUrl}/reports/user-activity/pdf', request);
+  }
+
+  Future<Uint8List> downloadSubscriptionsPdf(ReportRequest request) async {
+    return _downloadPdf('${AppConfig.apiBaseUrl}/reports/subscriptions/pdf', request);
+  }
+
   Future<Uint8List> _downloadPdf(String url, ReportRequest request) async {
     final token = await AuthService().getToken();
     if (token == null) {

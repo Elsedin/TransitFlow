@@ -5,6 +5,7 @@ import '../services/user_service.dart';
 import '../models/notification_model.dart' as models;
 import '../models/user_model.dart';
 import '../widgets/metric_card_enhanced.dart';
+import '../widgets/pagination_bar.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -18,7 +19,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _userService = UserService();
   models.NotificationMetrics? _metrics;
   List<models.Notification> _notifications = [];
-  List<models.Notification> _filteredNotifications = [];
+  int _totalCount = 0;
   List<User> _users = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -30,7 +31,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   DateTime? _dateFrom;
   DateTime? _dateTo;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -52,7 +53,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     try {
       final metrics = await _notificationService.getMetrics();
-      final notifications = await _notificationService.getAll(
+      final result = await _notificationService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         userId: _userIdFilter,
         type: _typeFilter,
         isRead: _isReadFilter,
@@ -64,8 +67,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       final users = await _userService.getAll();
       setState(() {
         _metrics = metrics;
-        _notifications = notifications;
-        _filteredNotifications = notifications;
+        _notifications = result.items;
+        _totalCount = result.totalCount;
         _users = users;
         _isLoading = false;
       });
@@ -78,16 +81,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _applyFilters() {
+    setState(() => _currentPage = 0);
     _loadData();
   }
 
   List<models.Notification> get _paginatedNotifications {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredNotifications.length);
-    return _filteredNotifications.sublist(start, end);
+    return _notifications;
   }
 
-  int get _totalPages => (_filteredNotifications.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
+
+  Widget _buildPagination() {
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _itemsPerPage = v;
+          _currentPage = 0;
+        });
+        _loadData();
+      },
+    );
+  }
 
   Future<void> _showAddEditDialog({models.Notification? notification}) async {
     await showDialog(
@@ -596,45 +626,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Prikazano ${_paginatedNotifications.length} od ${_filteredNotifications.length} notifikacija',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Row(
-            children: [
-              TextButton(
-                onPressed: _currentPage > 0
-                    ? () {
-                        setState(() {
-                          _currentPage--;
-                        });
-                      }
-                    : null,
-                child: const Text('Prethodna'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _currentPage < _totalPages - 1
-                    ? () {
-                        setState(() {
-                          _currentPage++;
-                        });
-                      }
-                    : null,
-                child: const Text('Sljedeća'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  // (pagination is standardized via PaginationBar above)
 }
 
 class _TableHeaderCell extends StatelessWidget {

@@ -8,4 +8,6 @@ public class ReportDto
     public DateTime? DateTo { get; set; }
     public ReportSummaryDto Summary { get; set; } = new();
     public List<ReportByTicketTypeDto> SalesByTicketType { get; set; } = new();
+    public List<ReportSummaryItemDto> SummaryItems { get; set; } = new();
+    public List<ReportSectionDto> Sections { get; set; } = new();
 }

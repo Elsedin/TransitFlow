@@ -16,7 +16,7 @@ class FavoriteService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines?page=1&pageSize=100'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -24,8 +24,9 @@ class FavoriteService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => FavoriteLine.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => FavoriteLine.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load favorite lines: ${response.statusCode}');
     }

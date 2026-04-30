@@ -19,15 +19,32 @@ public class SubscriptionPackagesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<SubscriptionPackageDto>>> GetAll([FromQuery] bool? isActive = true)
+    public async Task<ActionResult<PagedResultDto<SubscriptionPackageDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] bool? isActive = true)
     {
+        return await GetPaged(page, pageSize, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<SubscriptionPackageDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] bool? isActive = true)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.SubscriptionPackages.AsQueryable();
         if (isActive.HasValue)
         {
             query = query.Where(p => p.IsActive == isActive.Value);
         }
 
-        var packages = await query
+        var total = await query.CountAsync();
+        var items = await query
             .OrderBy(p => p.DisplayName)
             .Select(p => new SubscriptionPackageDto
             {
@@ -39,9 +56,17 @@ public class SubscriptionPackagesController : ControllerBase
                 MaxZoneId = p.MaxZoneId,
                 IsActive = p.IsActive
             })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(packages);
+        return Ok(new PagedResultDto<SubscriptionPackageDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 }
 

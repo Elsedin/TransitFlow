@@ -21,7 +21,10 @@ class TicketService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
@@ -38,7 +41,7 @@ class TicketService {
       queryParams['dateTo'] = dateTo.toIso8601String();
     }
 
-    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets/paged')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -50,8 +53,9 @@ class TicketService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => Ticket.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => Ticket.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load tickets: ${response.statusCode}');
     }
@@ -82,12 +86,15 @@ class TicketService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (isActive != null) {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickettypes')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickettypes/paged')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -99,8 +106,9 @@ class TicketService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => TicketType.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => TicketType.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load ticket types: ${response.statusCode}');
     }
@@ -114,7 +122,10 @@ class TicketService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (ticketTypeId != null) {
       queryParams['ticketTypeId'] = ticketTypeId.toString();
     }
@@ -125,7 +136,7 @@ class TicketService {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/ticketprices')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/ticketprices/paged')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -137,8 +148,9 @@ class TicketService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      final allPrices = data.map((json) => TicketPrice.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      final allPrices = items.map((json) => TicketPrice.fromJson(json)).toList();
       
       final groupedPrices = <String, TicketPrice>{};
       for (final price in allPrices) {

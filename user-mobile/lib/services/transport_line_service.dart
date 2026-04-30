@@ -18,7 +18,10 @@ class TransportLineService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (search != null && search.isNotEmpty) {
       queryParams['search'] = search;
     }
@@ -26,7 +29,7 @@ class TransportLineService {
       queryParams['isActive'] = isActive.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/transportlines')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/transportlines/paged')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -38,8 +41,9 @@ class TransportLineService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => models.TransportLine.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => models.TransportLine.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load transport lines: ${response.statusCode}');
     }
@@ -70,8 +74,17 @@ class TransportLineService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/routes/paged').replace(
+      queryParameters: {
+        'page': '1',
+        'pageSize': '1',
+        'isActive': 'true',
+        'transportLineId': transportLineId.toString(),
+      },
+    );
+
     final response = await http.get(
-      Uri.parse('${AppConfig.resolvedApiBaseUrl}/routes?isActive=true'),
+      uri,
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -79,12 +92,10 @@ class TransportLineService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      final routes = data.map((json) => models.Route.fromJson(json)).toList();
-      return routes.firstWhere(
-        (r) => r.transportLineId == transportLineId,
-        orElse: () => routes.isNotEmpty ? routes.first : throw StateError('No routes found'),
-      );
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      if (items.isEmpty) return null;
+      return models.Route.fromJson(items.first);
     } else {
       throw Exception('Failed to load routes: ${response.statusCode}');
     }
@@ -115,8 +126,17 @@ class TransportLineService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/schedules/paged').replace(
+      queryParameters: {
+        'page': '1',
+        'pageSize': '100',
+        'routeId': routeId.toString(),
+        'isActive': 'true',
+      },
+    );
+
     final response = await http.get(
-      Uri.parse('${AppConfig.resolvedApiBaseUrl}/schedules?routeId=$routeId&isActive=true'),
+      uri,
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -124,8 +144,9 @@ class TransportLineService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => models.Schedule.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => models.Schedule.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load schedules: ${response.statusCode}');
     }

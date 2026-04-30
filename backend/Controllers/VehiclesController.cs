@@ -21,11 +21,24 @@ public class VehiclesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<VehicleDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<VehicleDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null)
     {
-        var vehicles = await _vehicleService.GetAllAsync(search, isActive);
+        var vehicles = await _vehicleService.GetPagedAsync(page, pageSize, search, isActive);
+        return Ok(vehicles);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<VehicleDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var vehicles = await _vehicleService.GetPagedAsync(page, pageSize, search, isActive);
         return Ok(vehicles);
     }
 

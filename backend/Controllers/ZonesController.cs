@@ -20,16 +20,34 @@ public class ZonesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ZoneDto>>> GetAll([FromQuery] string? search = null, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<ZoneDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<ZoneDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.Zones
             .Include(z => z.Stations)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(z => 
-                z.Name.Contains(search) || 
+            query = query.Where(z =>
+                z.Name.Contains(search) ||
                 (z.Description != null && z.Description.Contains(search)));
         }
 
@@ -38,11 +56,14 @@ public class ZonesController : ControllerBase
             query = query.Where(z => z.IsActive == isActive.Value);
         }
 
+        var total = await query.CountAsync();
         var zones = await query
             .OrderBy(z => z.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        var result = zones.Select(z => new ZoneDto
+        var items = zones.Select(z => new ZoneDto
         {
             Id = z.Id,
             Name = z.Name,
@@ -51,7 +72,13 @@ public class ZonesController : ControllerBase
             IsActive = z.IsActive
         }).ToList();
 
-        return Ok(result);
+        return Ok(new PagedResultDto<ZoneDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]

@@ -9,6 +9,7 @@ import '../models/station_model.dart';
 import '../models/country_model.dart';
 import '../models/ticket_type_model.dart';
 import '../models/transport_type_model.dart';
+import '../widgets/pagination_bar.dart';
 
 class ReferenceDataScreen extends StatefulWidget {
   const ReferenceDataScreen({super.key});
@@ -178,7 +179,7 @@ class ZonesTable extends StatefulWidget {
 class _ZonesTableState extends State<ZonesTable> {
   final _zoneService = ZoneService();
   List<Zone> _zones = [];
-  List<Zone> _filteredZones = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -205,13 +206,17 @@ class _ZonesTableState extends State<ZonesTable> {
     });
 
     try {
-      final zones = await _zoneService.getAll();
+      final result = await _zoneService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _zones = zones;
-        _filteredZones = zones;
+        _zones = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -221,30 +226,14 @@ class _ZonesTableState extends State<ZonesTable> {
   }
 
   void _applyFilters() {
-    List<Zone> filtered = List.from(_zones);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((zone) {
-        return zone.name.toLowerCase().contains(search) ||
-            (zone.description != null && zone.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((zone) => zone.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredZones = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<Zone> get _paginatedZones {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredZones.length);
-    return _filteredZones.sublist(start, end);
+    return _zones;
   }
 
   Future<void> _showAddEditDialog({Zone? zone}) async {
@@ -551,26 +540,24 @@ class _ZonesTableState extends State<ZonesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredZones.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -627,7 +614,7 @@ class TicketTypesTable extends StatefulWidget {
 class _TicketTypesTableState extends State<TicketTypesTable> {
   final _ticketTypeService = TicketTypeService();
   List<TicketType> _ticketTypes = [];
-  List<TicketType> _filteredTicketTypes = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -654,13 +641,17 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
     });
 
     try {
-      final ticketTypes = await _ticketTypeService.getAll(isActive: _statusFilter);
+      final result = await _ticketTypeService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _ticketTypes = ticketTypes;
-        _filteredTicketTypes = ticketTypes;
+        _ticketTypes = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -670,30 +661,14 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
   }
 
   void _applyFilters() {
-    List<TicketType> filtered = List.from(_ticketTypes);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((type) {
-        return type.name.toLowerCase().contains(search) ||
-            (type.description != null && type.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((type) => type.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredTicketTypes = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<TicketType> get _paginatedTicketTypes {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTicketTypes.length);
-    return _filteredTicketTypes.sublist(start, end);
+    return _ticketTypes;
   }
 
   Future<void> _showAddEditDialog({TicketType? ticketType}) async {
@@ -1017,26 +992,24 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredTicketTypes.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -1049,7 +1022,7 @@ class TransportTypesTable extends StatefulWidget {
 class _TransportTypesTableState extends State<TransportTypesTable> {
   final _transportTypeService = TransportTypeService();
   List<TransportType> _transportTypes = [];
-  List<TransportType> _filteredTransportTypes = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -1076,13 +1049,17 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
     });
 
     try {
-      final transportTypes = await _transportTypeService.getAll();
+      final result = await _transportTypeService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _transportTypes = transportTypes;
-        _filteredTransportTypes = transportTypes;
+        _transportTypes = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1092,30 +1069,14 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
   }
 
   void _applyFilters() {
-    List<TransportType> filtered = List.from(_transportTypes);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((type) {
-        return type.name.toLowerCase().contains(search) ||
-            (type.description != null && type.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((type) => type.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredTransportTypes = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<TransportType> get _paginatedTransportTypes {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTransportTypes.length);
-    return _filteredTransportTypes.sublist(start, end);
+    return _transportTypes;
   }
 
   Future<void> _showAddEditDialog({TransportType? transportType}) async {
@@ -1416,26 +1377,24 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredTransportTypes.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -1448,7 +1407,7 @@ class CountriesTable extends StatefulWidget {
 class _CountriesTableState extends State<CountriesTable> {
   final _countryService = CountryService();
   List<Country> _countries = [];
-  List<Country> _filteredCountries = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -1475,13 +1434,17 @@ class _CountriesTableState extends State<CountriesTable> {
     });
 
     try {
-      final countries = await _countryService.getAll();
+      final result = await _countryService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _countries = countries;
-        _filteredCountries = countries;
+        _countries = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1491,30 +1454,14 @@ class _CountriesTableState extends State<CountriesTable> {
   }
 
   void _applyFilters() {
-    List<Country> filtered = List.from(_countries);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((c) {
-        return c.name.toLowerCase().contains(search) ||
-            (c.code != null && c.code!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((c) => c.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredCountries = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<Country> get _paginatedCountries {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredCountries.length);
-    return _filteredCountries.sublist(start, end);
+    return _countries;
   }
 
   Future<void> _showAddEditDialog({Country? country}) async {
@@ -1804,22 +1751,24 @@ class _CountriesTableState extends State<CountriesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredCountries.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0 ? () => setState(() => _currentPage--) : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1 ? () => setState(() => _currentPage++) : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -1834,7 +1783,7 @@ class _CitiesTableState extends State<CitiesTable> {
   final _countryService = CountryService();
   List<City> _cities = [];
   List<Country> _countries = [];
-  List<City> _filteredCities = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -1862,14 +1811,18 @@ class _CitiesTableState extends State<CitiesTable> {
 
     try {
       final countries = await _countryService.getAll();
-      final cities = await _cityService.getAll();
+      final result = await _cityService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
         _countries = countries;
-        _cities = cities;
-        _filteredCities = cities;
+        _cities = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1879,31 +1832,14 @@ class _CitiesTableState extends State<CitiesTable> {
   }
 
   void _applyFilters() {
-    List<City> filtered = List.from(_cities);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((city) {
-        return city.name.toLowerCase().contains(search) ||
-            (city.postalCode != null && city.postalCode!.toLowerCase().contains(search)) ||
-            city.countryName.toLowerCase().contains(search);
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((city) => city.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredCities = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<City> get _paginatedCities {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredCities.length);
-    return _filteredCities.sublist(start, end);
+    return _cities;
   }
 
   Future<void> _showAddEditDialog({City? city}) async {
@@ -2258,26 +2194,24 @@ class _CitiesTableState extends State<CitiesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredCities.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -2292,7 +2226,7 @@ class _StationsTableState extends State<StationsTable> {
   final _cityService = CityService();
   final _zoneService = ZoneService();
   List<Station> _stations = [];
-  List<Station> _filteredStations = [];
+  int _totalCount = 0;
   List<City> _cities = [];
   List<Zone> _zones = [];
   bool _isLoading = true;
@@ -2321,20 +2255,21 @@ class _StationsTableState extends State<StationsTable> {
     });
 
     try {
-      final stations = await _stationService.getAll(
+      final result = await _stationService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         search: _searchController.text.isEmpty ? null : _searchController.text,
         isActive: _statusFilter,
       );
       final cities = await _cityService.getAll(isActive: true);
       final zones = await _zoneService.getAll();
       setState(() {
-        _stations = stations;
-        _filteredStations = stations;
+        _stations = result.items;
+        _totalCount = result.totalCount;
         _cities = cities;
         _zones = zones;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -2344,32 +2279,14 @@ class _StationsTableState extends State<StationsTable> {
   }
 
   void _applyFilters() {
-    List<Station> filtered = List.from(_stations);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((station) {
-        return station.name.toLowerCase().contains(search) ||
-            (station.address != null && station.address!.toLowerCase().contains(search)) ||
-            station.cityName.toLowerCase().contains(search) ||
-            station.zoneName.toLowerCase().contains(search);
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((station) => station.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredStations = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<Station> get _paginatedStations {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredStations.length);
-    return _filteredStations.sublist(start, end);
+    return _stations;
   }
 
   Future<void> _showAddEditDialog({Station? station}) async {
@@ -2661,7 +2578,7 @@ class _StationsTableState extends State<StationsTable> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onChanged: (_) => _loadData(),
+                    onChanged: (_) => _applyFilters(),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -2686,7 +2603,7 @@ class _StationsTableState extends State<StationsTable> {
                         setState(() {
                           _statusFilter = value;
                         });
-                        _loadData();
+                        _applyFilters();
                       },
                     ),
                   ),
@@ -2803,26 +2720,24 @@ class _StationsTableState extends State<StationsTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredStations.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
