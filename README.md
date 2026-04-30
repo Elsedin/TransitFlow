@@ -13,70 +13,83 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
 ## Upute za instalaciju
 
 1. Kloniranje GitHub repozitorija
-
-    ```
+  ```
     git clone <repository-url>
     cd TransitFlow
-    ```
+  ```
+2. Konfiguracija 
 
-2. Pokretanje baze podataka i RabbitMQ
+- SMTP (Mailtrap/sandbox): free plan ima rate limit za broj emailova u sekundi. Ako broadcast notifikacija ide sporije, to je očekivano. Podešava se preko `SMTP__MININTERVALMS` (npr. 400–1000).
 
-    ```
-    docker compose up -d rabbitmq sqlserver
-    ```
+1. Pokretanje servisa (Docker)
+  ```
+    docker compose up --build
+  ```
 
-3. Pokretanje backend API-ja
+`docker-compose.yml` čeka da SQL Server i RabbitMQ prođu healthcheck prije starta API-ja i workera. U `.env` koristite `SQLSERVER_SA_PASSWORD` (mapira se na `MSSQL_SA_PASSWORD` u SQL kontejneru). Vrijednosti s `#` u `.env` stavite u dvostruke navodnike da Docker Compose ne odreže string.
 
-    ```
-    cd backend
-    dotnet restore
-    dotnet ef database update
-    dotnet run
-    ```
+API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:5000/swagger`).
 
-4. Pokretanje Worker servisa (za notifikacije)
-
-    ```
-    cd worker
-    dotnet restore
-    dotnet run
-    ```
-
-5. Pokretanje desktop aplikacije (Admin)
-
-    ```
+1. Pokretanje desktop aplikacije (Admin)
+  ```
     cd admin-frontend
     flutter pub get
-    flutter run -d windows
-    ```
-
-6. Pokretanje mobilne aplikacije (User)
-
-    ```
+    flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5000/api
+  ```
+2. Pokretanje mobilne aplikacije (User)
+  ```
     cd user-mobile
     flutter pub get
-    flutter run
-    ```
+
+    # Android emulator (AVD):
+    flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+    # Fizički Android uređaj (LAN):
+    flutter run --dart-define=API_BASE_URL=http://<IP-PC>:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+  ```
 
 ## Kredencijali za prijavu
 
-### Desktop aplikacija
+### Desktop aplikacija (Admin)
 
-- Administrator
+Seed korisnik:
 
-    ```
-    Korisničko ime: desktop
-    Lozinka: test
-    ```
+- **Username**: `desktop`
+- **Password**: `test`
 
-### Mobilna aplikacija
+### Mobilna aplikacija (User)
 
-- Korisnik
+Seed korisnik:
 
-    ```
-    Korisničko ime: mobile
-    Lozinka: test
-    ```
+- **Username**: `mobile`
+- **Password**: `test`
+
+## Recommender dokumentacija
+
+Dokumentacija sistema preporuke nalazi se na putanji:
+
+- `docs/recommender/recommender_dokumentacija.pdf`
+
+### GitHub Release (build artefakti)
+
+Build fajlovi se postavljaju kao ZIP asset na GitHub Release.
+
+ZIP sadrži:
+
+- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+- `admin-frontend/build/windows/x64/runner/Release/`
+
+### Build Android (APK)
+
+APK će biti na:
+
+- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+
+### Build Windows (EXE)
+
+Build folder će biti na:
+
+- `admin-frontend/build/windows/x64/runner/Release/`
 
 ## KARTICA ZA PLAĆANJE
 
@@ -91,9 +104,12 @@ ZIP kod: bilo koji 5-cifreni broj (npr. 12345)
 
 ### PayPal Test Račun
 
-PayPal credentials su već konfigurisani u `backend/appsettings.json` sa Sandbox podacima.
 
-Za testiranje PayPal plaćanja, koristite PayPal Sandbox test račun. Možete kreirati novi na [PayPal Developer Dashboard](https://developer.paypal.com/) pod "Sandbox" -> "Accounts". Koristite email i lozinku tog test računa za prijavu na PayPal stranici.
+Za testiranje PayPal plaćanja, koristite sljedeći PayPal Sandbox (buyer) račun na PayPal checkoutu:
+
+- Email: `transitflow@sandbox.com`
+- Password: `TransitFlow.123`
+
 
 ## NAPOMENA
 

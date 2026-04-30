@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -61,13 +62,17 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
                   _handleUrlChange(currentUrl);
                 }
               } catch (e) {
-                print('Error getting current URL: $e');
+                if (kDebugMode) {
+                  debugPrint('Error getting current URL: $e');
+                }
               }
             }
           },
           onWebResourceError: (WebResourceError error) {
             if (_paymentCompleted) return;
-            print('WebView error: ${error.description}');
+            if (kDebugMode) {
+              debugPrint('WebView error: ${error.description}');
+            }
           },
           onUrlChange: (UrlChange change) {
             if (_paymentCompleted) return;
@@ -88,19 +93,24 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
 
   void _handleUrlChange(String url) {
     if (_paymentCompleted) return;
-    
-    print('PayPal URL changed: $url');
+    if (kDebugMode) {
+      debugPrint('PayPal URL changed: $url');
+    }
     
     if (url.contains('transitflow.app/payment/success') || 
         (url.contains('token=') && (url.contains('PayerID=') || url.contains('payer_id=')))) {
-      print('PayPal payment approved - closing WebView');
+      if (kDebugMode) {
+        debugPrint('PayPal payment approved - closing WebView');
+      }
       _paymentCompleted = true;
       if (mounted) {
         Navigator.of(context).pop(widget.orderId);
       }
     } else if (url.contains('transitflow.app/payment/cancel') || 
                (url.contains('cancel') && url.contains('transitflow.app'))) {
-      print('PayPal payment cancelled');
+      if (kDebugMode) {
+        debugPrint('PayPal payment cancelled');
+      }
       _paymentCompleted = true;
       widget.onPaymentCancel();
       if (mounted) {
@@ -109,7 +119,9 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
     } else if ((url.contains('/checkoutnow/2') || 
                url.contains('payment/confirm') || 
                url.contains('checkout/confirm')) && url.contains('token=')) {
-      print('PayPal payment confirmed - closing WebView');
+      if (kDebugMode) {
+        debugPrint('PayPal payment confirmed - closing WebView');
+      }
       _paymentCompleted = true;
       if (mounted) {
         Navigator.of(context).pop(widget.orderId);

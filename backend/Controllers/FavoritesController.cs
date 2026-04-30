@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,14 +13,19 @@ namespace TransitFlow.API.Controllers;
 public class FavoritesController : ControllerBase
 {
     private readonly IFavoriteService _favoriteService;
+    private readonly ILogger<FavoritesController> _logger;
 
-    public FavoritesController(IFavoriteService favoriteService)
+    public FavoritesController(IFavoriteService favoriteService, ILogger<FavoritesController> logger)
     {
         _favoriteService = favoriteService;
+        _logger = logger;
     }
 
     [HttpGet("lines")]
-    public async Task<ActionResult<List<FavoriteLineDto>>> GetFavoriteLines()
+    public async Task<ActionResult<PagedResultDto<FavoriteLineDto>>> GetFavoriteLines(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
@@ -29,12 +35,13 @@ public class FavoritesController : ControllerBase
 
         try
         {
-            var favorites = await _favoriteService.GetAllAsync(userId);
+            var favorites = await _favoriteService.GetPagedAsync(userId, page, pageSize, search);
             return Ok(favorites);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while loading favorite lines", error = ex.Message });
+            _logger.LogError(ex, "Failed loading favorite lines for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while loading favorite lines", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -67,7 +74,8 @@ public class FavoritesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while checking favorite status", error = ex.Message });
+            _logger.LogError(ex, "Failed checking favorite status for user {UserId} line {TransportLineId}", userId, transportLineId);
+            return StatusCode(500, new { message = "An error occurred while checking favorite status", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -95,7 +103,8 @@ public class FavoritesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while adding favorite line", error = ex.Message });
+            _logger.LogError(ex, "Failed adding favorite line for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while adding favorite line", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -121,7 +130,8 @@ public class FavoritesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while removing favorite line", error = ex.Message });
+            _logger.LogError(ex, "Failed removing favorite line for user {UserId} line {TransportLineId}", userId, transportLineId);
+            return StatusCode(500, new { message = "An error occurred while removing favorite line", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

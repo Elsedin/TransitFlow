@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,10 +13,12 @@ namespace TransitFlow.API.Controllers;
 public class RecommendationsController : ControllerBase
 {
     private readonly IRecommendationService _recommendationService;
+    private readonly ILogger<RecommendationsController> _logger;
 
-    public RecommendationsController(IRecommendationService recommendationService)
+    public RecommendationsController(IRecommendationService recommendationService, ILogger<RecommendationsController> logger)
     {
         _recommendationService = recommendationService;
+        _logger = logger;
     }
 
     [HttpGet("lines")]
@@ -34,7 +37,8 @@ public class RecommendationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while getting recommendations", error = ex.Message });
+            _logger.LogError(ex, "Failed getting recommendations for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while getting recommendations", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -54,7 +58,8 @@ public class RecommendationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while saving feedback", error = ex.Message });
+            _logger.LogError(ex, "Failed saving feedback for user {UserId} line {TransportLineId}", userId, dto.TransportLineId);
+            return StatusCode(500, new { message = "An error occurred while saving feedback", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -74,7 +79,8 @@ public class RecommendationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while getting feedback status", error = ex.Message });
+            _logger.LogError(ex, "Failed getting feedback status for user {UserId} line {TransportLineId}", userId, transportLineId);
+            return StatusCode(500, new { message = "An error occurred while getting feedback status", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

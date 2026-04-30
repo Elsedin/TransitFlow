@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 
 namespace TransitFlow.API.Services;
@@ -10,13 +11,17 @@ public class RabbitMQService : IRabbitMQService, IDisposable
     private IConnection? _connection;
     private IModel? _channel;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<RabbitMQService> _logger;
     private readonly object _lock = new object();
     private const string ExchangeName = "transitflow_notifications";
     private const string QueueName = "notification_queue";
+    private const string DeadLetterExchangeName = "transitflow_notifications_dlx";
+    private const string DeadLetterRoutingKey = "notification.dead";
 
-    public RabbitMQService(IConfiguration configuration)
+    public RabbitMQService(IConfiguration configuration, ILogger<RabbitMQService> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
     private void EnsureConnection()
@@ -55,18 +60,30 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 _channel = _connection.CreateModel();
 
                 _channel.ExchangeDeclare(exchange: ExchangeName, type: ExchangeType.Direct, durable: true);
-                _channel.QueueDeclare(queue: QueueName, durable: true, exclusive: false, autoDelete: false);
+                // Must match the queue arguments declared by the worker to avoid
+                // PRECONDITION_FAILED (406) when the queue already exists.
+                _channel.ExchangeDeclare(exchange: DeadLetterExchangeName, type: ExchangeType.Direct, durable: true);
+                _channel.QueueDeclare(
+                    queue: QueueName,
+                    durable: true,
+                    exclusive: false,
+                    autoDelete: false,
+                    arguments: new Dictionary<string, object>
+                    {
+                        ["x-dead-letter-exchange"] = DeadLetterExchangeName,
+                        ["x-dead-letter-routing-key"] = DeadLetterRoutingKey
+                    });
                 _channel.QueueBind(queue: QueueName, exchange: ExchangeName, routingKey: "notification.created");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RabbitMQService] Failed to connect to RabbitMQ: {ex.Message}");
+                _logger.LogError(ex, "Failed to connect to RabbitMQ");
                 throw;
             }
         }
     }
 
-    public void PublishNotificationCreated(int notificationId, string title, string message, string type, int? userId)
+    public void PublishNotificationCreated(int notificationId, string title, string message, string type, int? userId, string? userEmail)
     {
         try
         {
@@ -79,6 +96,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 Message = message,
                 Type = type,
                 UserId = userId,
+                UserEmail = userEmail,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -95,7 +113,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RabbitMQService] Failed to publish notification: {ex.Message}");
+            _logger.LogError(ex, "Failed to publish notification");
         }
     }
 
@@ -128,7 +146,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[RabbitMQService] Failed to publish broadcast notification: {ex.Message}");
+            _logger.LogError(ex, "Failed to publish broadcast notification");
         }
     }
 

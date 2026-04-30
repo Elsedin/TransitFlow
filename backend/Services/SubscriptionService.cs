@@ -14,6 +14,22 @@ public class SubscriptionService : ISubscriptionService
         _context = context;
     }
 
+    private async Task<Models.SubscriptionPackage> ResolvePackageAsync(string packageName, CancellationToken cancellationToken = default)
+    {
+        var normalized = (packageName ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            throw new ArgumentException("Invalid package name");
+        }
+
+        var package = await _context.SubscriptionPackages
+            .Where(p => p.IsActive)
+            .Where(p => p.Key.ToLower() == normalized || p.DisplayName.ToLower() == normalized)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return package ?? throw new ArgumentException("Invalid package name");
+    }
+
     public async Task<SubscriptionMetricsDto> GetMetricsAsync()
     {
         var now = DateTime.UtcNow;
@@ -48,9 +64,82 @@ public class SubscriptionService : ISubscriptionService
         DateTime? dateTo = null,
         string? sortBy = null)
     {
+        var query = BuildFilteredQuery(search, status, userId, dateFrom, dateTo, sortBy);
+        var subscriptions = await query.ToListAsync();
+        return subscriptions.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<SubscriptionDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? userId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? sortBy = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, status, userId, dateFrom, dateTo, sortBy);
+        var total = await query.CountAsync();
+        var subscriptions = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<SubscriptionDto>
+        {
+            Items = subscriptions.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    public async Task<SubscriptionDto?> GetByIdAsync(int id)
+    {
+        var subscription = await _context.Subscriptions
+            .Include(s => s.User)
+            .Include(s => s.Transaction)
+            .Include(s => s.SubscriptionPackage)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (subscription == null)
+            return null;
+
+        return new SubscriptionDto
+        {
+            Id = subscription.Id,
+            UserId = subscription.UserId,
+            UserEmail = subscription.User?.Email ?? string.Empty,
+            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
+            PackageName = subscription.PackageName,
+            Price = subscription.Price,
+            StartDate = subscription.StartDate,
+            EndDate = subscription.EndDate,
+            Status = subscription.Status,
+            CreatedAt = subscription.CreatedAt,
+            UpdatedAt = subscription.UpdatedAt,
+            TransactionId = subscription.TransactionId,
+            TransactionNumber = subscription.Transaction?.TransactionNumber
+        };
+    }
+
+    private IQueryable<Subscription> BuildFilteredQuery(
+        string? search,
+        string? status,
+        int? userId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        string? sortBy)
+    {
         var query = _context.Subscriptions
             .Include(s => s.User)
             .Include(s => s.Transaction)
+            .Include(s => s.SubscriptionPackage)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -93,9 +182,12 @@ public class SubscriptionService : ISubscriptionService
             _ => query.OrderByDescending(s => s.CreatedAt)
         };
 
-        var subscriptions = await query.ToListAsync();
+        return query;
+    }
 
-        return subscriptions.Select(s => new SubscriptionDto
+    private static SubscriptionDto MapToDto(Subscription s)
+    {
+        return new SubscriptionDto
         {
             Id = s.Id,
             UserId = s.UserId,
@@ -110,34 +202,6 @@ public class SubscriptionService : ISubscriptionService
             UpdatedAt = s.UpdatedAt,
             TransactionId = s.TransactionId,
             TransactionNumber = s.Transaction?.TransactionNumber
-        }).ToList();
-    }
-
-    public async Task<SubscriptionDto?> GetByIdAsync(int id)
-    {
-        var subscription = await _context.Subscriptions
-            .Include(s => s.User)
-            .Include(s => s.Transaction)
-            .FirstOrDefaultAsync(s => s.Id == id);
-
-        if (subscription == null)
-            return null;
-
-        return new SubscriptionDto
-        {
-            Id = subscription.Id,
-            UserId = subscription.UserId,
-            UserEmail = subscription.User?.Email ?? string.Empty,
-            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
-            PackageName = subscription.PackageName,
-            Price = subscription.Price,
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            Status = subscription.Status,
-            CreatedAt = subscription.CreatedAt,
-            UpdatedAt = subscription.UpdatedAt,
-            TransactionId = subscription.TransactionId,
-            TransactionNumber = subscription.Transaction?.TransactionNumber
         };
     }
 
@@ -148,26 +212,71 @@ public class SubscriptionService : ISubscriptionService
             throw new ArgumentException("Invalid User ID");
         }
 
-        if (dto.TransactionId.HasValue && !await _context.Transactions.AnyAsync(t => t.Id == dto.TransactionId.Value))
+        if (!dto.TransactionId.HasValue)
+        {
+            throw new ArgumentException("Transaction ID is required");
+        }
+
+        var transaction = await _context.Transactions
+            .FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
+
+        if (transaction == null)
         {
             throw new ArgumentException("Invalid Transaction ID");
         }
 
-        if (dto.EndDate <= dto.StartDate)
+        if (transaction.UserId != dto.UserId)
         {
-            throw new ArgumentException("End date must be after start date");
+            throw new InvalidOperationException("Transaction does not belong to the user");
         }
+
+        if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Transaction is not completed");
+        }
+
+        var usedByAnySubscription = await _context.Subscriptions
+            .AnyAsync(s => s.TransactionId == transaction.Id);
+
+        if (usedByAnySubscription)
+        {
+            throw new InvalidOperationException("Transaction has already been used");
+        }
+
+        var package = await ResolvePackageAsync(dto.PackageName);
+
+        if (transaction.Amount != package.Price)
+        {
+            throw new InvalidOperationException("Transaction amount does not match package price");
+        }
+
+        var now = DateTime.UtcNow;
+        var activeSubscription = await _context.Subscriptions
+            .Where(s => s.UserId == dto.UserId
+                && s.EndDate >= now
+                && s.Status.ToLower() == "active")
+            .OrderByDescending(s => s.EndDate)
+            .FirstOrDefaultAsync();
+
+        var startDate = now;
+        if (activeSubscription != null && activeSubscription.EndDate > now)
+        {
+            startDate = activeSubscription.EndDate;
+        }
+
+        var endDate = startDate.AddDays(package.DurationDays);
 
         var subscription = new Subscription
         {
             UserId = dto.UserId,
-            PackageName = dto.PackageName.Trim(),
-            Price = dto.Price,
-            StartDate = dto.StartDate,
-            EndDate = dto.EndDate,
-            Status = dto.Status.Trim(),
-            TransactionId = dto.TransactionId,
-            CreatedAt = DateTime.UtcNow
+            SubscriptionPackageId = package.Id,
+            PackageName = package.DisplayName,
+            Price = package.Price,
+            StartDate = startDate,
+            EndDate = endDate,
+            Status = "active",
+            TransactionId = transaction.Id,
+            CreatedAt = now
         };
 
         _context.Subscriptions.Add(subscription);
@@ -192,12 +301,25 @@ public class SubscriptionService : ISubscriptionService
             throw new ArgumentException("End date must be after start date");
         }
 
-        subscription.PackageName = dto.PackageName.Trim();
-        subscription.Price = dto.Price;
+        var package = await ResolvePackageAsync(dto.PackageName);
+
+        subscription.SubscriptionPackageId = package.Id;
+        subscription.PackageName = package.DisplayName;
+        subscription.Price = package.Price;
+
+        if (dto.TransactionId.HasValue)
+        {
+            var transaction = await _context.Transactions.FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
+            if (transaction == null)
+            {
+                throw new ArgumentException("Invalid Transaction ID");
+            }
+            subscription.TransactionId = transaction.Id;
+        }
+
+        subscription.Status = dto.Status.Trim();
         subscription.StartDate = dto.StartDate;
         subscription.EndDate = dto.EndDate;
-        subscription.Status = dto.Status.Trim();
-        subscription.TransactionId = dto.TransactionId;
         subscription.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();

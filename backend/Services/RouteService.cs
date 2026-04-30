@@ -15,59 +15,41 @@ public class RouteService : IRouteService
         _context = context;
     }
 
-    public async Task<List<RouteDto>> GetAllAsync(string? search = null, bool? isActive = null)
+    public async Task<List<RouteDto>> GetAllAsync(string? search = null, bool? isActive = null, int? transportLineId = null)
     {
-        var query = _context.Routes
-            .Include(r => r.TransportLine)
-            .Include(r => r.RouteStations)
-                .ThenInclude(rs => rs.Station)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(r => 
-                r.Origin.Contains(search) || 
-                r.Destination.Contains(search) ||
-                r.TransportLine!.Name.Contains(search) ||
-                r.TransportLine.LineNumber.Contains(search));
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(r => r.IsActive == isActive.Value);
-        }
+        var query = BuildFilteredQuery(search, isActive, transportLineId);
 
         var routes = await query
             .OrderBy(r => r.TransportLine!.LineNumber)
             .ThenBy(r => r.Origin)
             .ToListAsync();
 
-        return routes.Select(r => new RouteDto
+        return routes.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<RouteDto>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null, int? transportLineId = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, isActive, transportLineId);
+
+        var total = await query.CountAsync();
+        var routes = await query
+            .OrderBy(r => r.TransportLine!.LineNumber)
+            .ThenBy(r => r.Origin)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<RouteDto>
         {
-            Id = r.Id,
-            Name = $"{r.TransportLine!.LineNumber} - {r.Origin} - {r.Destination}",
-            Origin = r.Origin,
-            Destination = r.Destination,
-            TransportLineId = r.TransportLineId,
-            TransportLineName = r.TransportLine.Name,
-            TransportLineNumber = r.TransportLine.LineNumber,
-            Distance = r.Distance,
-            EstimatedDurationMinutes = r.EstimatedDurationMinutes,
-            IsActive = r.IsActive,
-            Stations = r.RouteStations
-                .OrderBy(rs => rs.Order)
-                .Select(rs => new RouteStationDto
-                {
-                    Id = rs.Id,
-                    StationId = rs.StationId,
-                    StationName = rs.Station!.Name,
-                    StationAddress = rs.Station.Address,
-                    Order = rs.Order,
-                    Latitude = rs.Station.Latitude,
-                    Longitude = rs.Station.Longitude
-                })
-                .ToList()
-        }).ToList();
+            Items = routes.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<RouteDto?> GetByIdAsync(int id)
@@ -94,6 +76,66 @@ public class RouteService : IRouteService
             EstimatedDurationMinutes = route.EstimatedDurationMinutes,
             IsActive = route.IsActive,
             Stations = route.RouteStations
+                .OrderBy(rs => rs.Order)
+                .Select(rs => new RouteStationDto
+                {
+                    Id = rs.Id,
+                    StationId = rs.StationId,
+                    StationName = rs.Station!.Name,
+                    StationAddress = rs.Station.Address,
+                    Order = rs.Order,
+                    Latitude = rs.Station.Latitude,
+                    Longitude = rs.Station.Longitude
+                })
+                .ToList()
+        };
+    }
+
+    private IQueryable<Route> BuildFilteredQuery(string? search, bool? isActive, int? transportLineId)
+    {
+        var query = _context.Routes
+            .Include(r => r.TransportLine)
+            .Include(r => r.RouteStations)
+                .ThenInclude(rs => rs.Station)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(r =>
+                r.Origin.Contains(search) ||
+                r.Destination.Contains(search) ||
+                r.TransportLine!.Name.Contains(search) ||
+                r.TransportLine.LineNumber.Contains(search));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(r => r.IsActive == isActive.Value);
+        }
+
+        if (transportLineId.HasValue)
+        {
+            query = query.Where(r => r.TransportLineId == transportLineId.Value);
+        }
+
+        return query;
+    }
+
+    private static RouteDto MapToDto(Route r)
+    {
+        return new RouteDto
+        {
+            Id = r.Id,
+            Name = $"{r.TransportLine!.LineNumber} - {r.Origin} - {r.Destination}",
+            Origin = r.Origin,
+            Destination = r.Destination,
+            TransportLineId = r.TransportLineId,
+            TransportLineName = r.TransportLine!.Name,
+            TransportLineNumber = r.TransportLine.LineNumber,
+            Distance = r.Distance,
+            EstimatedDurationMinutes = r.EstimatedDurationMinutes,
+            IsActive = r.IsActive,
+            Stations = r.RouteStations
                 .OrderBy(rs => rs.Order)
                 .Select(rs => new RouteStationDto
                 {

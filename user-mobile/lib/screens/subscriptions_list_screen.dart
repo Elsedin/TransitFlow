@@ -43,7 +43,7 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
               .first
           : null;
 
-      _availablePackages = _subscriptionService.getAvailablePackages();
+      _availablePackages = await _subscriptionService.fetchAvailablePackages();
 
       setState(() {
         _isLoading = false;
@@ -275,31 +275,11 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
                     ),
                   ),
                 ),
-                if (package.tag != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: package.tag == 'Najpopularnije'
-                          ? Colors.green[100]
-                          : Colors.orange[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      package.tag!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: package.tag == 'Najpopularnije'
-                            ? Colors.green[800]
-                            : Colors.orange[800],
-                      ),
-                    ),
-                  ),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              '${package.durationDays} dana • Neograničen broj vožnji',
+              '${package.durationDays} dana • Pokriva zone 1-${package.maxZoneId}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -329,40 +309,8 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
                     ),
                   ],
                 ),
-                if (package.savings != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      package.savings!,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                    ),
-                  ),
               ],
             ),
-            const SizedBox(height: 16),
-            ...package.benefits.map((benefit) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle, size: 20, color: Colors.green[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          benefit,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,

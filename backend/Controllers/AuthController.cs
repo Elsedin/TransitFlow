@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -9,10 +10,12 @@ namespace TransitFlow.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger)
     {
         _authService = authService;
+        _logger = logger;
     }
 
     [HttpPost("login")]
@@ -55,7 +58,8 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred during registration", error = ex.Message });
+            _logger.LogError(ex, "Registration failed");
+            return StatusCode(500, new { message = "An error occurred during registration", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

@@ -16,7 +16,7 @@ class UserService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/userprofile/me'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -35,7 +35,7 @@ class UserService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.put(
-      Uri.parse('${AppConfig.apiBaseUrl}/userprofile/me'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

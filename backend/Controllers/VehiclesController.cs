@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -7,22 +8,37 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class VehiclesController : ControllerBase
 {
     private readonly IVehicleService _vehicleService;
+    private readonly ILogger<VehiclesController> _logger;
 
-    public VehiclesController(IVehicleService vehicleService)
+    public VehiclesController(IVehicleService vehicleService, ILogger<VehiclesController> logger)
     {
         _vehicleService = vehicleService;
+        _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<VehicleDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<VehicleDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null)
     {
-        var vehicles = await _vehicleService.GetAllAsync(search, isActive);
+        var vehicles = await _vehicleService.GetPagedAsync(page, pageSize, search, isActive);
+        return Ok(vehicles);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<VehicleDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var vehicles = await _vehicleService.GetPagedAsync(page, pageSize, search, isActive);
         return Ok(vehicles);
     }
 
@@ -53,7 +69,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed creating vehicle");
+            return StatusCode(500, new { message = "An error occurred while creating the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -73,7 +90,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed updating vehicle {VehicleId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -97,7 +115,8 @@ public class VehiclesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the vehicle", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting vehicle {VehicleId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the vehicle", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

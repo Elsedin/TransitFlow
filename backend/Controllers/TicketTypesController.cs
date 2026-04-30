@@ -20,14 +20,32 @@ public class TicketTypesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TicketTypeDto>>> GetAll([FromQuery] string? search = null, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<TicketTypeDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TicketTypeDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.TicketTypes.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(t => 
-                t.Name.Contains(search) || 
+            query = query.Where(t =>
+                t.Name.Contains(search) ||
                 (t.Description != null && t.Description.Contains(search)));
         }
 
@@ -36,7 +54,8 @@ public class TicketTypesController : ControllerBase
             query = query.Where(t => t.IsActive == isActive.Value);
         }
 
-        var types = await query
+        var total = await query.CountAsync();
+        var items = await query
             .OrderBy(t => t.Name)
             .Select(t => new TicketTypeDto
             {
@@ -46,9 +65,17 @@ public class TicketTypesController : ControllerBase
                 ValidityDays = t.ValidityDays,
                 IsActive = t.IsActive
             })
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(types);
+        return Ok(new PagedResultDto<TicketTypeDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]
@@ -73,6 +100,7 @@ public class TicketTypesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<TicketTypeDto>> Create([FromBody] CreateTicketTypeDto dto)
     {
@@ -105,6 +133,7 @@ public class TicketTypesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = ticketType.Id }, result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TicketTypeDto>> Update(int id, [FromBody] UpdateTicketTypeDto dto)
     {
@@ -140,6 +169,7 @@ public class TicketTypesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/user_model.dart';
 import 'auth_service.dart';
 
@@ -36,43 +37,51 @@ class UserService {
     bool? isActive,
     String? sortBy,
   }) async {
-    try {
-      final token = await AuthService().getToken();
-      if (token == null) {
-        throw Exception('Not authenticated');
-      }
+    final result = await getPaged(
+      page: 1,
+      pageSize: 100,
+      search: search,
+      isActive: isActive,
+      sortBy: sortBy,
+    );
+    return result.items;
+  }
 
-      var queryParams = <String, String>{};
-      if (search != null && search.isNotEmpty) {
-        queryParams['search'] = search;
-      }
-      if (isActive != null) {
-        queryParams['isActive'] = isActive.toString();
-      }
-      if (sortBy != null && sortBy.isNotEmpty) {
-        queryParams['sortBy'] = sortBy;
-      }
-
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/users')
-          .replace(queryParameters: queryParams);
-
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => User.fromJson(json as Map<String, dynamic>)).toList();
-      } else {
-        throw Exception('Failed to load users');
-      }
-    } catch (e) {
-      throw Exception('Failed to load users: $e');
+  Future<PagedResult<User>> getPaged({
+    required int page,
+    required int pageSize,
+    String? search,
+    bool? isActive,
+    String? sortBy,
+  }) async {
+    final token = await AuthService().getToken();
+    if (token == null) {
+      throw Exception('Not authenticated');
     }
+
+    final queryParams = <String, String>{
+      'page': page.toString(),
+      'pageSize': pageSize.toString(),
+    };
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+    if (isActive != null) queryParams['isActive'] = isActive.toString();
+    if (sortBy != null && sortBy.isNotEmpty) queryParams['sortBy'] = sortBy;
+
+    final uri = Uri.parse('${AppConfig.apiBaseUrl}/users/paged').replace(queryParameters: queryParams);
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return PagedResult<User>.fromJson(data, (j) => User.fromJson(j));
+    }
+
+    throw Exception('Failed to load users');
   }
 
   Future<User?> getById(int id) async {

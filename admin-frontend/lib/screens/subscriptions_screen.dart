@@ -5,6 +5,7 @@ import '../services/user_service.dart';
 import '../models/subscription_model.dart';
 import '../models/user_model.dart';
 import '../widgets/metric_card_enhanced.dart';
+import '../widgets/pagination_bar.dart';
 
 class SubscriptionsScreen extends StatefulWidget {
   const SubscriptionsScreen({super.key});
@@ -15,10 +16,9 @@ class SubscriptionsScreen extends StatefulWidget {
 
 class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   final _subscriptionService = SubscriptionService();
-  final _userService = UserService();
   SubscriptionMetrics? _metrics;
   List<Subscription> _subscriptions = [];
-  List<Subscription> _filteredSubscriptions = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -27,7 +27,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   DateTime? _dateFrom;
   DateTime? _dateTo;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -49,7 +49,9 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
 
     try {
       final metrics = await _subscriptionService.getMetrics();
-      final subscriptions = await _subscriptionService.getAll(
+      final result = await _subscriptionService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         search: _searchController.text.isEmpty ? null : _searchController.text,
         status: _statusFilter,
         userId: _userIdFilter,
@@ -58,8 +60,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       );
       setState(() {
         _metrics = metrics;
-        _subscriptions = subscriptions;
-        _filteredSubscriptions = subscriptions;
+        _subscriptions = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -71,6 +73,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   void _applyFilters() {
+    setState(() => _currentPage = 0);
     _loadData();
   }
 
@@ -158,12 +161,10 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   }
 
   List<Subscription> get _paginatedSubscriptions {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredSubscriptions.length);
-    return _filteredSubscriptions.sublist(start, end);
+    return _subscriptions;
   }
 
-  int get _totalPages => (_filteredSubscriptions.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
@@ -360,8 +361,109 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
       return const Center(child: Text('Nema pronađenih pretplata'));
     }
 
-    return SingleChildScrollView(
-      child: Table(
+    final headerRow = TableRow(
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      children: const [
+        _TableHeaderCell('ID'),
+        _TableHeaderCell('Korisnik'),
+        _TableHeaderCell('Paket'),
+        _TableHeaderCell('Cijena'),
+        _TableHeaderCell('Početak'),
+        _TableHeaderCell('Kraj'),
+        _TableHeaderCell('Status'),
+        _TableHeaderCell('Akcije'),
+      ],
+    );
+
+    final bodyRows = _paginatedSubscriptions.asMap().entries.map((entry) {
+      final index = entry.key;
+      final subscription = entry.value;
+      return TableRow(
+        decoration: BoxDecoration(
+          color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+        ),
+        children: [
+          _TableCell(subscription.id.toString()),
+          _TableCell(subscription.userFullName?.isNotEmpty == true
+              ? '${subscription.userFullName}\n${subscription.userEmail}'
+              : subscription.userEmail),
+          _TableCell(subscription.packageName),
+          _TableCell('${NumberFormat('#,##0.00').format(subscription.price)} KM'),
+          _TableCell(DateFormat('dd.MM.yyyy').format(subscription.startDate)),
+          _TableCell(DateFormat('dd.MM.yyyy').format(subscription.endDate)),
+          _TableCell(
+            '',
+            child: Center(
+              child: Chip(
+                label: Text(
+                  _getStatusText(subscription.status),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.visible,
+                ),
+                backgroundColor: _getStatusColor(subscription.status),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          _TableCell(
+            '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => _showAddEditDialog(subscription: subscription),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Uredi'),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _deleteSubscription(subscription.id),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Obriši'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(1.0),
+            1: FlexColumnWidth(1.5),
+            2: FlexColumnWidth(1.2),
+            3: FlexColumnWidth(1.2),
+            4: FlexColumnWidth(1.2),
+            5: FlexColumnWidth(1.2),
+            6: FlexColumnWidth(1.3),
+            7: FlexColumnWidth(2.0),
+          },
+          children: [headerRow],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Table(
         columnWidths: const {
           0: FlexColumnWidth(1.0),
           1: FlexColumnWidth(1.5),
@@ -372,121 +474,39 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           6: FlexColumnWidth(1.3),
           7: FlexColumnWidth(2.0),
         },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.orange[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              children: bodyRows,
             ),
-            children: const [
-              _TableHeaderCell('ID'),
-              _TableHeaderCell('Korisnik'),
-              _TableHeaderCell('Paket'),
-              _TableHeaderCell('Cijena'),
-              _TableHeaderCell('Početak'),
-              _TableHeaderCell('Kraj'),
-              _TableHeaderCell('Status'),
-              _TableHeaderCell('Akcije'),
-            ],
           ),
-          ..._paginatedSubscriptions.asMap().entries.map((entry) {
-            final index = entry.key;
-            final subscription = entry.value;
-            return TableRow(
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.white : Colors.grey[50],
-              ),
-              children: [
-                _TableCell(subscription.id.toString()),
-                _TableCell(subscription.userFullName?.isNotEmpty == true
-                    ? '${subscription.userFullName}\n${subscription.userEmail}'
-                    : subscription.userEmail),
-                _TableCell(subscription.packageName),
-                _TableCell('${NumberFormat('#,##0.00').format(subscription.price)} KM'),
-                _TableCell(DateFormat('dd.MM.yyyy').format(subscription.startDate)),
-                _TableCell(DateFormat('dd.MM.yyyy').format(subscription.endDate)),
-                _TableCell(
-                  '',
-                  child: Center(
-                    child: Chip(
-                      label: Text(
-                        _getStatusText(subscription.status),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.visible,
-                      ),
-                      backgroundColor: _getStatusColor(subscription.status),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                _TableCell(
-                  '',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () => _showAddEditDialog(subscription: subscription),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Uredi'),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton(
-                        onPressed: () => _deleteSubscription(subscription.id),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Obriši'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPagination() {
-    if (_totalPages <= 1) return const SizedBox.shrink();
-
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: _currentPage > 0
-                ? () => setState(() => _currentPage--)
-                : null,
-          ),
-          Text(
-            'Stranica ${_currentPage + 1} od $_totalPages',
-            style: const TextStyle(fontSize: 16),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: _currentPage < _totalPages - 1
-                ? () => setState(() => _currentPage++)
-                : null,
-          ),
-        ],
-      ),
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _itemsPerPage = v;
+          _currentPage = 0;
+        });
+        _loadData();
+      },
     );
   }
 }

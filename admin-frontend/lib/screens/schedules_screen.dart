@@ -5,6 +5,7 @@ import '../services/vehicle_service.dart';
 import '../models/schedule_model.dart';
 import '../models/route_model.dart' as route_models;
 import '../models/vehicle_model.dart';
+import '../widgets/pagination_bar.dart';
 
 class SchedulesScreen extends StatefulWidget {
   const SchedulesScreen({super.key});
@@ -18,7 +19,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   final _routeService = RouteService();
   final _vehicleService = VehicleService();
   List<Schedule> _schedules = [];
-  List<Schedule> _filteredSchedules = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   int? _routeFilter;
@@ -26,7 +27,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   int? _dayOfWeekFilter;
   bool? _statusFilter;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -41,15 +42,17 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
     });
 
     try {
-      final schedules = await _scheduleService.getAll(
+      final result = await _scheduleService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         routeId: _routeFilter,
         vehicleId: _vehicleFilter,
         dayOfWeek: _dayOfWeekFilter,
         isActive: _statusFilter,
       );
       setState(() {
-        _schedules = schedules;
-        _filteredSchedules = schedules;
+        _schedules = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -61,24 +64,8 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   }
 
   void _applyFilters() {
-    setState(() {
-      _filteredSchedules = _schedules.where((schedule) {
-        if (_routeFilter != null && schedule.routeId != _routeFilter) {
-          return false;
-        }
-        if (_vehicleFilter != null && schedule.vehicleId != _vehicleFilter) {
-          return false;
-        }
-        if (_dayOfWeekFilter != null && schedule.dayOfWeek != _dayOfWeekFilter) {
-          return false;
-        }
-        if (_statusFilter != null && schedule.isActive != _statusFilter) {
-          return false;
-        }
-        return true;
-      }).toList();
-      _currentPage = 0;
-    });
+    setState(() => _currentPage = 0);
+    _loadSchedules();
   }
 
   Future<void> _deleteSchedule(int id) async {
@@ -146,12 +133,10 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
   }
 
   List<Schedule> get _paginatedSchedules {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredSchedules.length);
-    return _filteredSchedules.sublist(start, end);
+    return _schedules;
   }
 
-  int get _totalPages => (_filteredSchedules.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
 
   @override
   Widget build(BuildContext context) {
@@ -206,7 +191,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                     color: Colors.white,
                   ),
                   child: FutureBuilder<List<route_models.Route>>(
-                    future: _routeService.getAll(),
+                    future: _routeService.getPaged(page: 1, pageSize: 100).then((r) => r.items),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) {
                         return DropdownButtonHideUnderline(
@@ -234,7 +219,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             setState(() {
                               _routeFilter = value;
                             });
-                            _loadSchedules();
+                            _applyFilters();
                           },
                           style: const TextStyle(fontSize: 16, color: Colors.black87),
                         ),
@@ -281,7 +266,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                             setState(() {
                               _vehicleFilter = value;
                             });
-                            _loadSchedules();
+                            _applyFilters();
                           },
                           style: const TextStyle(fontSize: 16, color: Colors.black87),
                         ),
@@ -318,7 +303,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                         setState(() {
                           _dayOfWeekFilter = value;
                         });
-                        _loadSchedules();
+                        _applyFilters();
                       },
                       style: const TextStyle(fontSize: 16, color: Colors.black87),
                     ),
@@ -347,7 +332,7 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
                       setState(() {
                         _statusFilter = value;
                       });
-                      _loadSchedules();
+                      _applyFilters();
                     },
                     style: const TextStyle(fontSize: 16, color: Colors.black87),
                   ),
@@ -374,8 +359,106 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
       return const Center(child: Text('Nema pronađenih rasporeda'));
     }
 
-    return SingleChildScrollView(
-      child: Table(
+    final headerRow = TableRow(
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      children: const [
+        _TableHeaderCell('ID'),
+        _TableHeaderCell('Ruta'),
+        _TableHeaderCell('Vozilo'),
+        _TableHeaderCell('Vrijeme polaska'),
+        _TableHeaderCell('Vrijeme dolaska'),
+        _TableHeaderCell('Dan u nedjelji'),
+        _TableHeaderCell('Status'),
+        _TableHeaderCell('Akcije'),
+      ],
+    );
+
+    final bodyRows = _paginatedSchedules.asMap().entries.map((entry) {
+      final index = entry.key;
+      final schedule = entry.value;
+      return TableRow(
+        decoration: BoxDecoration(
+          color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+        ),
+        children: [
+          _TableCell(schedule.id.toString()),
+          _TableCell(schedule.routeName),
+          _TableCell(schedule.vehicleLicensePlate),
+          _TableCell(schedule.departureTime),
+          _TableCell(schedule.arrivalTime),
+          _TableCell(schedule.dayOfWeekName),
+          _TableCell(
+            '',
+            child: Center(
+              child: Chip(
+                label: Text(
+                  schedule.isActive ? 'Aktivno' : 'Neaktivno',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                backgroundColor: schedule.isActive ? Colors.green : Colors.red,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          _TableCell(
+            '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => _showAddEditDialog(schedule: schedule),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Uredi'),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _deleteSchedule(schedule.id),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Obriši'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(0.5),
+            1: FlexColumnWidth(2.0),
+            2: FlexColumnWidth(1.2),
+            3: FlexColumnWidth(1.0),
+            4: FlexColumnWidth(1.0),
+            5: FlexColumnWidth(1.2),
+            6: FlexColumnWidth(1.3),
+            7: FlexColumnWidth(2.0),
+          },
+          children: [headerRow],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Table(
         columnWidths: const {
           0: FlexColumnWidth(0.5),
           1: FlexColumnWidth(2.0),
@@ -386,129 +469,39 @@ class _SchedulesScreenState extends State<SchedulesScreen> {
           6: FlexColumnWidth(1.3),
           7: FlexColumnWidth(2.0),
         },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.orange[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              children: bodyRows,
             ),
-            children: const [
-              _TableHeaderCell('ID'),
-              _TableHeaderCell('Ruta'),
-              _TableHeaderCell('Vozilo'),
-              _TableHeaderCell('Vrijeme polaska'),
-              _TableHeaderCell('Vrijeme dolaska'),
-              _TableHeaderCell('Dan u nedjelji'),
-              _TableHeaderCell('Status'),
-              _TableHeaderCell('Akcije'),
-            ],
           ),
-          ..._paginatedSchedules.asMap().entries.map((entry) {
-            final index = entry.key;
-            final schedule = entry.value;
-            return TableRow(
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.white : Colors.grey[50],
-              ),
-              children: [
-                _TableCell(schedule.id.toString()),
-                _TableCell(schedule.routeName),
-                _TableCell(schedule.vehicleLicensePlate),
-                _TableCell(schedule.departureTime),
-                _TableCell(schedule.arrivalTime),
-                _TableCell(schedule.dayOfWeekName),
-                _TableCell(
-                  '',
-                  child: Center(
-                    child: Chip(
-                      label: Text(
-                        schedule.isActive ? 'Aktivno' : 'Neaktivno',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      backgroundColor: schedule.isActive ? Colors.green : Colors.red,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                _TableCell(
-                  '',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () => _showAddEditDialog(schedule: schedule),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Uredi'),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton(
-                        onPressed: () => _deleteSchedule(schedule.id),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Obriši'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Prikazano ${_paginatedSchedules.length} od ${_filteredSchedules.length} rasporeda',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Row(
-            children: [
-              TextButton(
-                onPressed: _currentPage > 0
-                    ? () {
-                        setState(() {
-                          _currentPage--;
-                        });
-                      }
-                    : null,
-                child: const Text('Prethodna'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _currentPage < _totalPages - 1
-                    ? () {
-                        setState(() {
-                          _currentPage++;
-                        });
-                      }
-                    : null,
-                child: const Text('Sljedeća'),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadSchedules();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadSchedules();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _itemsPerPage = v;
+          _currentPage = 0;
+        });
+        _loadSchedules();
+      },
     );
   }
 }
@@ -536,10 +529,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -555,7 +547,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }
@@ -613,7 +605,7 @@ class _ScheduleDialogState extends State<_ScheduleDialog> {
 
   Future<void> _loadData() async {
     try {
-      final routes = await _routeService.getAll();
+      final routes = (await _routeService.getPaged(page: 1, pageSize: 100)).items;
       final vehicles = await _vehicleService.getAll();
       setState(() {
         _routes = routes;

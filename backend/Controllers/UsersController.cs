@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -7,14 +8,16 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ILogger<UsersController> _logger;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, ILogger<UsersController> logger)
     {
         _userService = userService;
+        _logger = logger;
     }
 
     [HttpGet("metrics")]
@@ -25,13 +28,27 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<UserDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<UserDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null,
         [FromQuery] string? sortBy = null)
     {
-        var users = await _userService.GetAllAsync(search, isActive, sortBy);
-        return Ok(users);
+        var result = await _userService.GetPagedAsync(page, pageSize, search, isActive, sortBy);
+        return Ok(result);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<UserDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null,
+        [FromQuery] string? sortBy = null)
+    {
+        var result = await _userService.GetPagedAsync(page, pageSize, search, isActive, sortBy);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]
@@ -61,7 +78,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the user", error = ex.Message });
+            _logger.LogError(ex, "Failed creating user");
+            return StatusCode(500, new { message = "An error occurred while creating the user", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -85,7 +103,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the user", error = ex.Message });
+            _logger.LogError(ex, "Failed updating user {UserId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the user", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -105,7 +124,8 @@ public class UsersController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating user status", error = ex.Message });
+            _logger.LogError(ex, "Failed toggling active status for user {UserId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating user status", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

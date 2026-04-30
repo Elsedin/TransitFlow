@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
 import '../services/transport_line_service.dart';
 import '../services/favorite_service.dart';
 import '../services/recommendation_service.dart';
@@ -8,7 +8,6 @@ import '../services/notification_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
-import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
 import 'tickets_list_screen.dart';
 import 'favorite_lines_screen.dart';
@@ -24,28 +23,27 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-  final _authService = AuthService();
-
   int _previousIndex = 0;
+  final GlobalKey<_HomeTabState> _homeTabKey = GlobalKey<_HomeTabState>();
+  late final List<Widget> _screens;
 
-  List<Widget> get _screens => [
-    _HomeTab(
-      onNavigateToLines: () {
-        setState(() {
-          _currentIndex = 1;
-        });
-      },
-      onRefresh: () {
-        if (_currentIndex == 0) {
-          final homeTab = _screens[0] as _HomeTab;
-          homeTab.refresh();
-        }
-      },
-    ),
-    const _LinesTab(),
-    const _TicketsTab(),
-    const _ProfileTab(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      _HomeTab(
+        key: _homeTabKey,
+        onNavigateToLines: () {
+          setState(() {
+            _currentIndex = 1;
+          });
+        },
+      ),
+      const _LinesTab(),
+      const _TicketsTab(),
+      const _ProfileTab(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,8 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
         unselectedItemColor: Colors.grey,
         onTap: (index) {
           if (_previousIndex != index && index == 0) {
-            final homeTab = _screens[0] as _HomeTab;
-            homeTab.refresh();
+            _homeTabKey.currentState?.refresh();
           }
           setState(() {
             _previousIndex = _currentIndex;
@@ -91,32 +88,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _HomeTab extends StatefulWidget {
   final VoidCallback? onNavigateToLines;
-  final VoidCallback? onRefresh;
-  
-  const _HomeTab({this.onNavigateToLines, this.onRefresh});
-
-  void refresh() {
-    if (_HomeTabState._instance != null) {
-      _HomeTabState._instance!._loadLines();
-    }
-  }
+  const _HomeTab({super.key, this.onNavigateToLines});
 
   @override
-  State<_HomeTab> createState() {
-    final state = _HomeTabState();
-    _HomeTabState._instance = state;
-    return state;
-  }
+  State<_HomeTab> createState() => _HomeTabState();
 }
 
 class _HomeTabState extends State<_HomeTab> {
-  static _HomeTabState? _instance;
-  
   final _transportLineService = TransportLineService();
   final _favoriteService = FavoriteService();
   final _recommendationService = RecommendationService();
   final _notificationService = NotificationService();
-  List<models.TransportLine> _allLines = [];
   List<models.RecommendedLine> _recommendedLines = [];
   List<models.TransportLine> _favoriteLines = [];
   bool _isLoading = true;
@@ -127,7 +109,6 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   void initState() {
     super.initState();
-    _instance = this;
     _loadLines();
     _loadUnreadNotificationCount();
     _startNotificationTimer();
@@ -136,12 +117,10 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   void dispose() {
     _notificationTimer?.cancel();
-    if (_instance == this) {
-      _instance = null;
-    }
     super.dispose();
   }
 
+  Future<void> refresh() => _loadLines();
 
   Future<void> _loadLines() async {
     try {
@@ -153,12 +132,18 @@ class _HomeTabState extends State<_HomeTab> {
         final favoriteLineIds = favorites.map((f) => f.transportLineId).toSet();
         favoriteLinesList = lines.where((line) => favoriteLineIds.contains(line.id)).toList();
       } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Favorite lines load failed: $e');
+        }
       }
 
       List<models.RecommendedLine> recommendedLinesList = [];
       try {
         recommendedLinesList = await _recommendationService.getRecommendedLines(count: 3);
       } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Recommendation load failed, using fallback: $e');
+        }
         recommendedLinesList = lines.take(3).map((l) {
           return models.RecommendedLine(
             id: l.id,
@@ -186,7 +171,6 @@ class _HomeTabState extends State<_HomeTab> {
       }
 
       setState(() {
-        _allLines = lines;
         _recommendedLines = recommendedLinesList;
         _favoriteLines = favoriteLinesList;
         _feedbackStatus.clear();
@@ -265,6 +249,9 @@ class _HomeTabState extends State<_HomeTab> {
         });
       }
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Unread notification count failed: $e');
+      }
     }
   }
 

@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../widgets/metric_card_enhanced.dart';
+import '../widgets/pagination_bar.dart';
+import '../utils/validators.dart';
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
@@ -14,15 +16,15 @@ class UsersScreen extends StatefulWidget {
 class _UsersScreenState extends State<UsersScreen> {
   final _userService = UserService();
   UserMetrics? _metrics;
-  List<User> _users = [];
-  List<User> _filteredUsers = [];
+  List<User> _pagedUsers = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
   bool? _statusFilter;
   String? _sortBy;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -44,15 +46,16 @@ class _UsersScreenState extends State<UsersScreen> {
 
     try {
       final metrics = await _userService.getMetrics();
-      final users = await _userService.getAll(
-        search: _searchController.text.isEmpty ? null : _searchController.text,
-        isActive: _statusFilter,
-        sortBy: _sortBy,
-      );
+      final pageResult = await _userService.getPaged(
+          page: _currentPage + 1,
+          pageSize: _itemsPerPage,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+          isActive: _statusFilter,
+          sortBy: _sortBy);
       setState(() {
         _metrics = metrics;
-        _users = users;
-        _filteredUsers = users;
+        _pagedUsers = pageResult.items;
+        _totalCount = pageResult.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -64,6 +67,9 @@ class _UsersScreenState extends State<UsersScreen> {
   }
 
   void _applyFilters() {
+    setState(() {
+      _currentPage = 0;
+    });
     _loadData();
   }
 
@@ -173,13 +179,9 @@ class _UsersScreenState extends State<UsersScreen> {
     return NumberFormat('#,###').format(number);
   }
 
-  List<User> get _paginatedUsers {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredUsers.length);
-    return _filteredUsers.sublist(start, end);
-  }
+  List<User> get _paginatedUsers => _pagedUsers;
 
-  int get _totalPages => (_filteredUsers.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
 
   @override
   Widget build(BuildContext context) {
@@ -360,142 +362,150 @@ class _UsersScreenState extends State<UsersScreen> {
       return const Center(child: Text('Nema pronađenih korisnika'));
     }
 
-    return SingleChildScrollView(
-      child: Table(
-        columnWidths: const {
-          0: FlexColumnWidth(0.5),
-          1: FlexColumnWidth(1.5),
-          2: FlexColumnWidth(1.8),
-          3: FlexColumnWidth(1.2),
-          4: FlexColumnWidth(1.2),
-          5: FlexColumnWidth(1.0),
-          6: FlexColumnWidth(1.0),
-          7: FlexColumnWidth(2.0),
-        },
+    final headerRow = TableRow(
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      children: const [
+        _TableHeaderCell('ID'),
+        _TableHeaderCell('Full Naziv'),
+        _TableHeaderCell('Email'),
+        _TableHeaderCell('Telefon'),
+        _TableHeaderCell('Datum registracije'),
+        _TableHeaderCell('Broj kupovina'),
+        _TableHeaderCell('Status'),
+        _TableHeaderCell('Akcije'),
+      ],
+    );
+
+    final bodyRows = _paginatedUsers.asMap().entries.map((entry) {
+      final index = entry.key;
+      final user = entry.value;
+      return TableRow(
+        decoration: BoxDecoration(
+          color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+        ),
         children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.orange[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
+          _TableCell(user.id.toString()),
+          _TableCell(user.fullName.isNotEmpty ? user.fullName : user.username),
+          _TableCell(user.email),
+          _TableCell(user.phoneNumber ?? 'N/A'),
+          _TableCell(DateFormat('dd.MM.yyyy').format(user.createdAt)),
+          _TableCell(user.purchaseCount.toString()),
+          _TableCell(
+            '',
+            child: Center(
+              child: Chip(
+                label: Text(
+                  user.isActive ? 'Aktivan' : 'Neaktivan',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.visible,
+                ),
+                backgroundColor: user.isActive ? Colors.green : Colors.pink,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
               ),
             ),
-            children: const [
-              _TableHeaderCell('ID'),
-              _TableHeaderCell('Full Naziv'),
-              _TableHeaderCell('Email'),
-              _TableHeaderCell('Telefon'),
-              _TableHeaderCell('Datum registracije'),
-              _TableHeaderCell('Broj kupovina'),
-              _TableHeaderCell('Status'),
-              _TableHeaderCell('Akcije'),
-            ],
           ),
-          ..._paginatedUsers.asMap().entries.map((entry) {
-            final index = entry.key;
-            final user = entry.value;
-            return TableRow(
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.white : Colors.grey[50],
-              ),
+          _TableCell(
+            '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _TableCell(user.id.toString()),
-                _TableCell(user.fullName.isNotEmpty ? user.fullName : user.username),
-                _TableCell(user.email),
-                _TableCell(user.phoneNumber ?? 'N/A'),
-                _TableCell(DateFormat('dd.MM.yyyy').format(user.createdAt)),
-                _TableCell(user.purchaseCount.toString()),
-                _TableCell(
-                  '',
-                  child: Center(
-                    child: Chip(
-                      label: Text(
-                        user.isActive ? 'Aktivan' : 'Neaktivan',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.visible,
-                      ),
-                      backgroundColor: user.isActive ? Colors.green : Colors.pink,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
+                TextButton(
+                  onPressed: () => _showUserDetails(user),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   ),
+                  child: const Text('Detalji'),
                 ),
-                _TableCell(
-                  '',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () => _showUserDetails(user),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Detalji'),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton(
-                        onPressed: () => _toggleUserActive(user.id, user.isActive),
-                        style: TextButton.styleFrom(
-                          foregroundColor: user.isActive ? Colors.red : Colors.green,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: Text(user.isActive ? 'Blokiraj' : 'Aktiviraj'),
-                      ),
-                    ],
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _toggleUserActive(user.id, user.isActive),
+                  style: TextButton.styleFrom(
+                    foregroundColor: user.isActive ? Colors.red : Colors.green,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   ),
+                  child: Text(user.isActive ? 'Blokiraj' : 'Aktiviraj'),
                 ),
               ],
-            );
-          }),
+            ),
+          ),
         ],
-      ),
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(0.5),
+            1: FlexColumnWidth(1.5),
+            2: FlexColumnWidth(1.8),
+            3: FlexColumnWidth(1.2),
+            4: FlexColumnWidth(1.2),
+            5: FlexColumnWidth(1.0),
+            6: FlexColumnWidth(1.0),
+            7: FlexColumnWidth(2.0),
+          },
+          children: [headerRow],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Table(
+              columnWidths: const {
+                0: FlexColumnWidth(0.5),
+                1: FlexColumnWidth(1.5),
+                2: FlexColumnWidth(1.8),
+                3: FlexColumnWidth(1.2),
+                4: FlexColumnWidth(1.2),
+                5: FlexColumnWidth(1.0),
+                6: FlexColumnWidth(1.0),
+                7: FlexColumnWidth(2.0),
+              },
+              children: bodyRows,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Prikazano ${_paginatedUsers.length} od ${_filteredUsers.length} korisnika',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Row(
-            children: [
-              TextButton(
-                onPressed: _currentPage > 0
-                    ? () {
-                        setState(() {
-                          _currentPage--;
-                        });
-                      }
-                    : null,
-                child: const Text('Prethodna'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _currentPage < _totalPages - 1
-                    ? () {
-                        setState(() {
-                          _currentPage++;
-                        });
-                      }
-                    : null,
-                child: const Text('Sljedeća'),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _currentPage = 0;
+          _itemsPerPage = v;
+        });
+        _loadData();
+      },
     );
   }
 }
@@ -523,10 +533,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -542,7 +551,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }
@@ -687,7 +696,7 @@ class _UserDialogState extends State<_UserDialog> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Molimo unesite email';
                     }
-                    if (!value.contains('@')) {
+                    if (!Validators.isValidEmail(value)) {
                       return 'Molimo unesite validan email';
                     }
                     return null;
@@ -745,6 +754,13 @@ class _UserDialogState extends State<_UserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null) return null;
+                    if (!Validators.isValidPhone(value)) {
+                      return 'Unesite validan broj telefona (npr. +38761222333)';
+                    }
+                    return null;
+                  },
                 ),
                 if (widget.user != null) ...[
                   const SizedBox(height: 16),

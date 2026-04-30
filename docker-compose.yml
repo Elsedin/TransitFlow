@@ -2,16 +2,24 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: transitflow-rabbitmq
+    user: "999:999"
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-transitflow-cookie}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - transitflow-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
 
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
@@ -20,12 +28,18 @@ services:
       - "1433:1433"
     environment:
       ACCEPT_EULA: "Y"
-      SA_PASSWORD: "YourStrong@Passw0rd"
+      MSSQL_SA_PASSWORD: ${SQLSERVER_SA_PASSWORD}
       MSSQL_PID: "Express"
     volumes:
       - sqlserver_data:/var/opt/mssql
     networks:
       - transitflow-network
+    healthcheck:
+      test: ["CMD-SHELL", "SQLCMD=/opt/mssql-tools18/bin/sqlcmd; [ -x $$SQLCMD ] || SQLCMD=/opt/mssql-tools/bin/sqlcmd; $$SQLCMD -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"SELECT 1\" || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 25s
 
   api:
     build:
@@ -33,17 +47,28 @@ services:
       dockerfile: Dockerfile
     container_name: transitflow-api
     ports:
-      - "5000:80"
+      - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=IB210131;User Id=sa;Password=YourStrong@Passw0rd;TrustServerCertificate=True;MultipleActiveResultSets=true
-      - RabbitMQ__HostName=rabbitmq
-      - RabbitMQ__Port=5672
-      - RabbitMQ__UserName=guest
-      - RabbitMQ__Password=guest
+      - ConnectionStrings__DefaultConnection=${CONNECTIONSTRINGS__DEFAULTCONNECTION}
+      - Jwt__Key=${JWT__KEY}
+      - Jwt__Issuer=${JWT__ISSUER:-TransitFlowAPI}
+      - Jwt__Audience=${JWT__AUDIENCE:-TransitFlowUsers}
+      - Jwt__ExpirationMinutes=${JWT__EXPIRATIONMINUTES:-60}
+      - RabbitMQ__HostName=${RABBITMQ__HOSTNAME:-rabbitmq}
+      - RabbitMQ__Port=${RABBITMQ__PORT:-5672}
+      - RabbitMQ__UserName=${RABBITMQ__USERNAME:-guest}
+      - RabbitMQ__Password=${RABBITMQ__PASSWORD:-guest}
+      - Stripe__SecretKey=${STRIPE__SECRETKEY}
+      - PayPal__ClientId=${PAYPAL__CLIENTID}
+      - PayPal__ClientSecret=${PAYPAL__CLIENTSECRET}
+      - PayPal__IsSandbox=${PAYPAL__ISSANDBOX:-true}
+      - PayPal__BamToUsdRate=${PAYPAL__BAMTOUSDRATE:-1.95583}
     depends_on:
-      - sqlserver
-      - rabbitmq
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     networks:
       - transitflow-network
 
@@ -54,12 +79,22 @@ services:
     container_name: transitflow-worker
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - RabbitMQ__HostName=rabbitmq
-      - RabbitMQ__Port=5672
-      - RabbitMQ__UserName=guest
-      - RabbitMQ__Password=guest
+      - RabbitMQ__HostName=${RABBITMQ__HOSTNAME:-rabbitmq}
+      - RabbitMQ__Port=${RABBITMQ__PORT:-5672}
+      - RabbitMQ__UserName=${RABBITMQ__USERNAME:-guest}
+      - RabbitMQ__Password=${RABBITMQ__PASSWORD:-guest}
+      - Smtp__Host=${SMTP__HOST}
+      - Smtp__Port=${SMTP__PORT}
+      - Smtp__UseSsl=${SMTP__USESSL:-true}
+      - Smtp__UserName=${SMTP__USERNAME}
+      - Smtp__Password=${SMTP__PASSWORD}
+      - Smtp__FromEmail=${SMTP__FROMEMAIL}
+      - Smtp__FromName=${SMTP__FROMNAME:-TransitFlow}
+      - Smtp__FallbackToEmail=${SMTP__FALLBACKTOEMAIL}
+      - Smtp__MinIntervalMs=${SMTP__MININTERVALMS:-400}
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
     networks:
       - transitflow-network
 

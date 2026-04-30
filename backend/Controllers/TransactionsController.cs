@@ -7,7 +7,7 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class TransactionsController : ControllerBase
 {
     private readonly ITransactionService _transactionService;
@@ -25,7 +25,9 @@ public class TransactionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TransactionDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TransactionDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
         [FromQuery] int? userId = null,
@@ -33,8 +35,23 @@ public class TransactionsController : ControllerBase
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] string? sortBy = null)
     {
-        var transactions = await _transactionService.GetAllAsync(search, status, userId, dateFrom, dateTo, sortBy);
-        return Ok(transactions);
+        var result = await _transactionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
+        return Ok(result);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TransactionDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int? userId = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] string? sortBy = null)
+    {
+        var result = await _transactionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]

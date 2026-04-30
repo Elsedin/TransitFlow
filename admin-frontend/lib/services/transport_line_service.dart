@@ -1,11 +1,22 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/transport_line_model.dart';
 import 'auth_service.dart';
 
 class TransportLineService {
   Future<List<TransportLine>> getAll({
+    String? search,
+    bool? isActive,
+  }) async {
+    final result = await getPaged(page: 1, pageSize: 100, search: search, isActive: isActive);
+    return result.items;
+  }
+
+  Future<PagedResult<TransportLine>> getPaged({
+    required int page,
+    required int pageSize,
     String? search,
     bool? isActive,
   }) async {
@@ -15,15 +26,14 @@ class TransportLineService {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
-      if (search != null && search.isNotEmpty) {
-        queryParams['search'] = search;
-      }
-      if (isActive != null) {
-        queryParams['isActive'] = isActive.toString();
-      }
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
+      if (search != null && search.isNotEmpty) queryParams['search'] = search;
+      if (isActive != null) queryParams['isActive'] = isActive.toString();
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/transportlines')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/transportlines/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -35,8 +45,11 @@ class TransportLineService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => TransportLine.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<TransportLine>.fromJson(
+          data,
+          (json) => TransportLine.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load transport lines');
       }

@@ -26,67 +26,44 @@ public class NotificationService : INotificationService
         DateTime? dateTo = null,
         string? search = null)
     {
-        var query = _context.Notifications
-            .Include(n => n.User)
-            .AsQueryable();
-
-        if (userId.HasValue)
-        {
-            query = query.Where(n => n.UserId == userId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(type))
-        {
-            query = query.Where(n => n.Type == type);
-        }
-
-        if (isRead.HasValue)
-        {
-            query = query.Where(n => n.IsRead == isRead.Value);
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(n => n.IsActive == isActive.Value);
-        }
-
-        if (dateFrom.HasValue)
-        {
-            query = query.Where(n => n.CreatedAt >= dateFrom.Value);
-        }
-
-        if (dateTo.HasValue)
-        {
-            query = query.Where(n => n.CreatedAt <= dateTo.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.ToLower();
-            query = query.Where(n =>
-                n.Title.ToLower().Contains(searchLower) ||
-                n.Message.ToLower().Contains(searchLower) ||
-                (n.User != null && n.User.Email.ToLower().Contains(searchLower)));
-        }
-
+        var query = BuildFilteredQuery(userId, type, isRead, isActive, dateFrom, dateTo, search);
         var notifications = await query
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();
 
-        return notifications.Select(n => new NotificationDto
+        return notifications.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<NotificationDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        int? userId = null,
+        string? type = null,
+        bool? isRead = null,
+        bool? isActive = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        string? search = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(userId, type, isRead, isActive, dateFrom, dateTo, search);
+        var total = await query.CountAsync();
+        var notifications = await query
+            .OrderByDescending(n => n.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<NotificationDto>
         {
-            Id = n.Id,
-            UserId = n.UserId,
-            UserEmail = n.User?.Email,
-            UserName = n.User != null ? $"{n.User.FirstName} {n.User.LastName}".Trim() : null,
-            Title = n.Title,
-            Message = n.Message,
-            Type = n.Type,
-            IsRead = n.IsRead,
-            CreatedAt = n.CreatedAt,
-            ReadAt = n.ReadAt,
-            IsActive = n.IsActive,
-        }).ToList();
+            Items = notifications.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<NotificationDto?> GetByIdAsync(int id)
@@ -131,6 +108,79 @@ public class NotificationService : INotificationService
         };
     }
 
+    private IQueryable<Notification> BuildFilteredQuery(
+        int? userId,
+        string? type,
+        bool? isRead,
+        bool? isActive,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        string? search)
+    {
+        var query = _context.Notifications
+            .Include(n => n.User)
+            .AsQueryable();
+
+        if (userId.HasValue)
+        {
+            query = query.Where(n => n.UserId == userId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(type))
+        {
+            query = query.Where(n => n.Type == type);
+        }
+
+        if (isRead.HasValue)
+        {
+            query = query.Where(n => n.IsRead == isRead.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(n => n.IsActive == isActive.Value);
+        }
+
+        if (dateFrom.HasValue)
+        {
+            query = query.Where(n => n.CreatedAt >= dateFrom.Value);
+        }
+
+        if (dateTo.HasValue)
+        {
+            query = query.Where(n => n.CreatedAt <= dateTo.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(n =>
+                n.Title.ToLower().Contains(searchLower) ||
+                n.Message.ToLower().Contains(searchLower) ||
+                (n.User != null && n.User.Email.ToLower().Contains(searchLower)));
+        }
+
+        return query;
+    }
+
+    private static NotificationDto MapToDto(Notification n)
+    {
+        return new NotificationDto
+        {
+            Id = n.Id,
+            UserId = n.UserId,
+            UserEmail = n.User?.Email,
+            UserName = n.User != null ? $"{n.User.FirstName} {n.User.LastName}".Trim() : null,
+            Title = n.Title,
+            Message = n.Message,
+            Type = n.Type,
+            IsRead = n.IsRead,
+            CreatedAt = n.CreatedAt,
+            ReadAt = n.ReadAt,
+            IsActive = n.IsActive,
+        };
+    }
+
     public async Task<NotificationDto> CreateAsync(CreateNotificationDto dto)
     {
         if (dto.SendToAllUsers)
@@ -155,12 +205,14 @@ public class NotificationService : INotificationService
 
             foreach (var notification in notifications)
             {
+                var email = activeUsers.FirstOrDefault(u => u.Id == notification.UserId)?.Email;
                 _rabbitMQService.PublishNotificationCreated(
                     notification.Id,
                     notification.Title,
                     notification.Message,
                     notification.Type,
-                    notification.UserId);
+                    notification.UserId,
+                    email);
             }
 
             var firstNotification = notifications.First();
@@ -192,12 +244,20 @@ public class NotificationService : INotificationService
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
+            var email = notification.UserId.HasValue
+                ? await _context.Users
+                    .Where(u => u.Id == notification.UserId.Value)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync()
+                : null;
+
             _rabbitMQService.PublishNotificationCreated(
                 notification.Id,
                 notification.Title,
                 notification.Message,
                 notification.Type,
-                notification.UserId);
+                notification.UserId,
+                email);
 
             var user = notification.UserId.HasValue
                 ? await _context.Users.FindAsync(notification.UserId.Value)
@@ -260,10 +320,18 @@ public class NotificationService : INotificationService
         return true;
     }
 
-    public async Task<bool> MarkAsReadAsync(int id)
+    public async Task<bool> MarkAsReadAsync(int id, int requestingUserId, bool isAdmin)
     {
         var notification = await _context.Notifications.FindAsync(id);
         if (notification == null) return false;
+
+        if (!isAdmin)
+        {
+            if (!notification.UserId.HasValue || notification.UserId.Value != requestingUserId)
+            {
+                return false;
+            }
+        }
 
         notification.IsRead = true;
         notification.ReadAt = DateTime.UtcNow;

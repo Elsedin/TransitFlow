@@ -69,8 +69,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
         period: _period,
         dateFrom: _dateFrom,
         dateTo: _dateTo,
-        transportLineId: _selectedTransportLineId,
-        ticketTypeId: _selectedTicketTypeId,
+        transportLineId: (_reportType == 'ticket_sales' || _reportType == 'popular_lines') ? _selectedTransportLineId : null,
+        ticketTypeId: _reportType == 'ticket_sales' ? _selectedTicketTypeId : null,
       );
 
       final report = await _reportService.generateReport(request);
@@ -84,6 +84,239 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _errorMessage = 'Greška: $e';
         _isGenerating = false;
       });
+    }
+  }
+
+  Future<void> _downloadCurrentPdf() async {
+    switch (_reportType) {
+      case 'ticket_sales':
+        await _downloadTicketSalesPdf();
+        return;
+      case 'refund_requests':
+        await _downloadRefundRequestsPdf();
+        return;
+      case 'revenue':
+        await _downloadRevenuePdf();
+        return;
+      case 'popular_lines':
+        await _downloadPopularLinesPdf();
+        return;
+      case 'user_activity':
+        await _downloadUserActivityPdf();
+        return;
+      case 'subscriptions':
+        await _downloadSubscriptionsPdf();
+        return;
+    }
+  }
+
+  Future<void> _downloadTicketSalesPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'ticket_sales',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: _selectedTransportLineId,
+        ticketTypeId: _selectedTicketTypeId,
+      );
+
+      final bytes = await _reportService.downloadTicketSalesPdf(request);
+      final fileName = 'izvjestaj_prodaja_karata_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadRefundRequestsPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'refund_requests',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: null,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadRefundRequestsPdf(request);
+      final fileName = 'izvjestaj_refund_zahtjevi_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadRevenuePdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'revenue',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: null,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadRevenuePdf(request);
+      final fileName = 'izvjestaj_prihodi_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadPopularLinesPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'popular_lines',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: _selectedTransportLineId,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadPopularLinesPdf(request);
+      final fileName = 'izvjestaj_popularne_linije_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadUserActivityPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'user_activity',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: null,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadUserActivityPdf(request);
+      final fileName = 'izvjestaj_aktivnost_korisnika_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadSubscriptionsPdf() async {
+    try {
+      final request = ReportRequest(
+        reportType: 'subscriptions',
+        period: _period,
+        dateFrom: _dateFrom,
+        dateTo: _dateTo,
+        transportLineId: null,
+        ticketTypeId: null,
+      );
+
+      final bytes = await _reportService.downloadSubscriptionsPdf(request);
+      final fileName = 'izvjestaj_pretplate_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final path = await ExportService.saveBytesAsFile(fileName, bytes);
+
+      if (path != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF je uspješno sačuvan: $path'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Greška pri preuzimanju PDF-a: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -162,151 +395,166 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            DropdownButtonFormField<String>(
-              value: _reportType,
-              decoration: InputDecoration(
-                labelText: 'Tip izvještaja',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(color: Colors.orange[700]!, width: 2),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem(value: 'ticket_sales', child: Text('Prodaja karata')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _reportType = value!;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String?>(
-              value: _period,
-              decoration: InputDecoration(
-                labelText: 'Period',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              items: const [
-                DropdownMenuItem<String?>(value: null, child: Text('Prilagođeno')),
-                DropdownMenuItem<String?>(value: 'danas', child: Text('Danas')),
-                DropdownMenuItem<String?>(value: 'ovaj tjedan', child: Text('Ovaj tjedan')),
-                DropdownMenuItem<String?>(value: 'ovaj mjesec', child: Text('Ovaj mjesec')),
-                DropdownMenuItem<String?>(value: 'ovaj godina', child: Text('Ovaj godina')),
-              ],
-              onChanged: _handlePeriodChange,
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _selectDateFrom,
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Od datuma',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: const Icon(Icons.calendar_today),
-                ),
-                child: Text(
-                  _dateFrom != null
-                      ? DateFormat('dd.MM.yyyy').format(_dateFrom!)
-                      : 'dd.mm.gggg',
-                  style: TextStyle(
-                    color: _dateFrom != null ? Colors.black87 : Colors.grey[600],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            InkWell(
-              onTap: _selectDateTo,
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  labelText: 'Do datuma',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: const Icon(Icons.calendar_today),
-                ),
-                child: Text(
-                  _dateTo != null
-                      ? DateFormat('dd.MM.yyyy').format(_dateTo!)
-                      : 'dd.mm.gggg',
-                  style: TextStyle(
-                    color: _dateTo != null ? Colors.black87 : Colors.grey[600],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int?>(
-              value: _selectedTransportLineId,
-              decoration: InputDecoration(
-                labelText: 'Linija (opciono)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              items: [
-                const DropdownMenuItem<int?>(value: null, child: Text('Sve linije')),
-                ..._transportLines.map((line) => DropdownMenuItem<int?>(
-                      value: line.id,
-                      child: Text('${line.lineNumber} - ${line.name}'),
-                    )),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedTransportLineId = value;
-                });
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<int?>(
-              value: _selectedTicketTypeId,
-              decoration: InputDecoration(
-                labelText: 'Tip karte (opciono)',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              items: [
-                const DropdownMenuItem<int?>(value: null, child: Text('Svi tipovi')),
-                ..._ticketTypes.map((type) => DropdownMenuItem<int?>(
-                      value: type.id,
-                      child: Text(type.name),
-                    )),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedTicketTypeId = value;
-                });
-              },
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isGenerating ? null : _generateReport,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: _isGenerating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _reportType,
+                      decoration: InputDecoration(
+                        labelText: 'Tip izvještaja',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      )
-                    : const Text('Generiši izvještaj'),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'ticket_sales', child: Text('Prodaja karata')),
+                        DropdownMenuItem(value: 'revenue', child: Text('Prihodi')),
+                        DropdownMenuItem(value: 'popular_lines', child: Text('Popularne linije i rute')),
+                        DropdownMenuItem(value: 'user_activity', child: Text('Aktivnost korisnika')),
+                        DropdownMenuItem(value: 'subscriptions', child: Text('Pretplate')),
+                        DropdownMenuItem(value: 'refund_requests', child: Text('Refund zahtjevi')),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _reportType = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String?>(
+                      value: _period,
+                      decoration: InputDecoration(
+                        labelText: 'Period',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: const [
+                        DropdownMenuItem<String?>(value: null, child: Text('Prilagođeno')),
+                        DropdownMenuItem<String?>(value: 'danas', child: Text('Danas')),
+                        DropdownMenuItem<String?>(value: 'ovaj tjedan', child: Text('Ovaj tjedan')),
+                        DropdownMenuItem<String?>(value: 'ovaj mjesec', child: Text('Ovaj mjesec')),
+                        DropdownMenuItem<String?>(value: 'ovaj godina', child: Text('Ovaj godina')),
+                      ],
+                      onChanged: _handlePeriodChange,
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: _selectDateFrom,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Od datuma',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          suffixIcon: const Icon(Icons.calendar_today),
+                        ),
+                        child: Text(
+                          _dateFrom != null
+                              ? DateFormat('dd.MM.yyyy').format(_dateFrom!)
+                              : 'dd.mm.gggg',
+                          style: TextStyle(
+                            color: _dateFrom != null ? Colors.black87 : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    InkWell(
+                      onTap: _selectDateTo,
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: 'Do datuma',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          suffixIcon: const Icon(Icons.calendar_today),
+                        ),
+                        child: Text(
+                          _dateTo != null
+                              ? DateFormat('dd.MM.yyyy').format(_dateTo!)
+                              : 'dd.mm.gggg',
+                          style: TextStyle(
+                            color: _dateTo != null ? Colors.black87 : Colors.grey[600],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int?>(
+                      value: _selectedTransportLineId,
+                      decoration: InputDecoration(
+                        labelText: 'Linija (opciono)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(value: null, child: Text('Sve linije')),
+                        ..._transportLines.map((line) => DropdownMenuItem<int?>(
+                              value: line.id,
+                              child: Text('${line.lineNumber} - ${line.name}'),
+                            )),
+                      ],
+                      onChanged: (_reportType == 'ticket_sales' || _reportType == 'popular_lines')
+                          ? (value) {
+                        setState(() {
+                          _selectedTransportLineId = value;
+                        });
+                      }
+                          : null,
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<int?>(
+                      value: _selectedTicketTypeId,
+                      decoration: InputDecoration(
+                        labelText: 'Tip karte (opciono)',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int?>(value: null, child: Text('Svi tipovi')),
+                        ..._ticketTypes.map((type) => DropdownMenuItem<int?>(
+                              value: type.id,
+                              child: Text(type.name),
+                            )),
+                      ],
+                      onChanged: _reportType == 'ticket_sales'
+                          ? (value) {
+                        setState(() {
+                          _selectedTicketTypeId = value;
+                        });
+                      }
+                          : null,
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isGenerating ? null : _generateReport,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: _isGenerating
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text('Generiši izvještaj'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -400,7 +648,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
               try {
                 String? path;
                 if (label == 'PDF') {
-                  path = await ExportService.exportReportToPDF(_currentReport!);
+                  await _downloadCurrentPdf();
+                  return;
                 } else if (label == 'Excel') {
                   path = await ExportService.exportReportToExcel(_currentReport!);
                 } else if (label == 'CSV') {
@@ -451,11 +700,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              _currentReport!.reportTitle,
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                _currentReport!.reportTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -475,47 +728,129 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildSummaryCard(
-                'Ukupan broj karata',
-                _currentReport!.summary.totalTickets.toString(),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSummaryCard(
-                'Ukupan prihod',
-                '${NumberFormat('#,##0.00').format(_currentReport!.summary.totalRevenue)} KM',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSummaryCard(
-                'Prosječna cijena',
-                '${NumberFormat('#,##0.00').format(_currentReport!.summary.averagePrice)} KM',
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: _buildSummaryCard(
-                'Aktivna Korisnici',
-                _currentReport!.summary.activeUsers.toString(),
-              ),
-            ),
-          ],
-        ),
+        _buildSummaryRow(),
         const SizedBox(height: 32),
-        const Text(
-          'Prodaja po tipovima karata',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
+        ..._buildSections(),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow() {
+    final items = _currentReport!.summaryItems;
+    if (items.isNotEmpty) {
+      final cards = items.map((it) => _buildSummaryCard(it.label, it.value)).toList();
+      return LayoutBuilder(builder: (context, constraints) {
+        const spacing = 16.0;
+        const cardMinWidth = 170.0;
+        final perRow = (constraints.maxWidth / (cardMinWidth + spacing)).floor().clamp(1, 4);
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final card in cards)
+              SizedBox(width: (constraints.maxWidth - spacing * (perRow - 1)) / perRow, child: card),
+          ],
+        );
+      });
+    }
+
+    return Row(
+      children: [
+        Expanded(child: _buildSummaryCard('Ukupan broj karata', _currentReport!.summary.totalTickets.toString())),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildSummaryCard(
+            'Ukupan prihod',
+            '${NumberFormat('#,##0.00').format(_currentReport!.summary.totalRevenue)} KM',
           ),
         ),
-        const SizedBox(height: 16),
-        _buildSalesTable(),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildSummaryCard(
+            'Prosječna cijena',
+            '${NumberFormat('#,##0.00').format(_currentReport!.summary.averagePrice)} KM',
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(child: _buildSummaryCard('Aktivna Korisnici', _currentReport!.summary.activeUsers.toString())),
+      ],
+    );
+  }
+
+  List<Widget> _buildSections() {
+    final sections = _currentReport!.sections;
+    if (sections.isNotEmpty) {
+      return sections
+          .map((s) => Padding(
+                padding: const EdgeInsets.only(bottom: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      s.title,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildGenericTable(s),
+                  ],
+                ),
+              ))
+          .toList();
+    }
+
+    return [
+      const Text(
+        'Prodaja po tipovima karata',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 16),
+      _buildSalesTable(),
+    ];
+  }
+
+  Widget _buildGenericTable(ReportSection section) {
+    if (section.rows.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32.0),
+          child: Text('Nema podataka'),
+        ),
+      );
+    }
+
+    final colCount = section.columns.isEmpty ? section.rows.first.length : section.columns.length;
+    final widths = <int, TableColumnWidth>{};
+    for (int i = 0; i < colCount; i++) {
+      widths[i] = const FlexColumnWidth(1.0);
+    }
+
+    return Table(
+      columnWidths: widths,
+      children: [
+        if (section.columns.isNotEmpty)
+          TableRow(
+            decoration: BoxDecoration(
+              color: Colors.orange[700],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(8),
+                topRight: Radius.circular(8),
+              ),
+            ),
+            children: section.columns.map((c) => _TableHeaderCell(c)).toList(),
+          ),
+        ...section.rows.asMap().entries.map((entry) {
+          final index = entry.key;
+          final row = entry.value;
+          return TableRow(
+            decoration: BoxDecoration(
+              color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+            ),
+            children: row.take(colCount).map((c) => _TableCell(c)).toList(),
+          );
+        }),
       ],
     );
   }

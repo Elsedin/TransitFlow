@@ -14,4 +14,8 @@ public class TransactionDto
     public DateTime? CompletedAt { get; set; }
     public string? Notes { get; set; }
     public int TicketCount { get; set; }
+
+    public string RefundStatus { get; set; } = string.Empty;
+    public DateTime? RefundedAt { get; set; }
+    public string? RefundReason { get; set; }
 }

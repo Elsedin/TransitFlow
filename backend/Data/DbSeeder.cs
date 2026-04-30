@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.Models;
 using TransitFlow.API.Services;
 
@@ -6,7 +7,7 @@ namespace TransitFlow.API.Data;
 
 public static class DbSeeder
 {
-    public static async Task SeedAsync(ApplicationDbContext context)
+    public static async Task SeedAsync(ApplicationDbContext context, ILogger logger)
     {
         var existingAdmin = await context.Administrators
             .FirstOrDefaultAsync(a => a.Username == "admin");
@@ -14,7 +15,7 @@ public static class DbSeeder
         if (existingAdmin == null)
         {
             var passwordHash = AuthService.HashPassword("admin123");
-            Console.WriteLine($"[DbSeeder] Creating admin user with password hash: {passwordHash}");
+            logger.LogInformation("Creating default admin user");
             
             var admin = new Administrator
             {
@@ -29,11 +30,11 @@ public static class DbSeeder
 
             context.Administrators.Add(admin);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Admin user created successfully!");
+            logger.LogInformation("Default admin user created");
         }
         else
         {
-            Console.WriteLine($"[DbSeeder] Admin user already exists. Password hash: {existingAdmin.PasswordHash}");
+            logger.LogInformation("Default admin user already exists");
         }
 
         var existingDesktop = await context.Administrators
@@ -56,7 +57,7 @@ public static class DbSeeder
 
             context.Administrators.Add(desktop);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Desktop user created successfully!");
+            logger.LogInformation("Desktop admin user created");
         }
 
         var existingMobile = await context.Users
@@ -80,7 +81,7 @@ public static class DbSeeder
 
             context.Users.Add(mobile);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Mobile user created successfully!");
+            logger.LogInformation("Mobile demo user created");
         }
 
         if (context.Users.Count() < 3)
@@ -116,7 +117,7 @@ public static class DbSeeder
 
             context.Users.AddRange(testUsers);
             await context.SaveChangesAsync();
-            Console.WriteLine("[DbSeeder] Test users created successfully!");
+            logger.LogInformation("Test users created");
         }
 
         if (!context.Countries.Any())
@@ -179,10 +180,8 @@ public static class DbSeeder
         {
             var ticketTypes = new[]
             {
-                new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 0, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
                 new TicketType { Name = "Dnevna", Description = "Karta za jedan dan", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new TicketType { Name = "Mjesečna", Description = "Karta za jedan mjesec", ValidityDays = 30, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new TicketType { Name = "Godišnja", Description = "Karta za jednu godinu", ValidityDays = 365, IsActive = true, CreatedAt = DateTime.UtcNow }
             };
 
             context.TicketTypes.AddRange(ticketTypes);
@@ -217,6 +216,7 @@ public static class DbSeeder
         if (!context.TransportLines.Any())
         {
             var busType = await context.TransportTypes.FirstAsync(t => t.Name == "Autobus");
+            var tramType = await context.TransportTypes.FirstAsync(t => t.Name == "Tramvaj");
             
             var transportLines = new[]
             {
@@ -224,7 +224,7 @@ public static class DbSeeder
                 {
                     LineNumber = "1",
                     Name = "Baščaršija - Ilidža",
-                    TransportTypeId = busType.Id,
+                    TransportTypeId = tramType.Id,
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 },
@@ -389,8 +389,6 @@ public static class DbSeeder
         {
             var jednokratna = await context.TicketTypes.FirstAsync(t => t.Name == "Jednokratna");
             var dnevna = await context.TicketTypes.FirstAsync(t => t.Name == "Dnevna");
-            var mjesecna = await context.TicketTypes.FirstAsync(t => t.Name == "Mjesečna");
-            var godisnja = await context.TicketTypes.FirstAsync(t => t.Name == "Godišnja");
             
             var zone1 = await context.Zones.FirstAsync(z => z.Name == "Zona 1");
             var zone2 = await context.Zones.FirstAsync(z => z.Name == "Zona 2");
@@ -404,13 +402,7 @@ public static class DbSeeder
                 new TicketPrice { TicketTypeId = jednokratna.Id, ZoneId = zone3.Id, Price = 2.50m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
                 new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone1.Id, Price = 3.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
                 new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone2.Id, Price = 4.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone3.Id, Price = 5.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone1.Id, Price = 40.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone2.Id, Price = 50.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = mjesecna.Id, ZoneId = zone3.Id, Price = 60.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone1.Id, Price = 400.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone2.Id, Price = 500.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now },
-                new TicketPrice { TicketTypeId = godisnja.Id, ZoneId = zone3.Id, Price = 600.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now }
+                new TicketPrice { TicketTypeId = dnevna.Id, ZoneId = zone3.Id, Price = 5.00m, ValidFrom = now, ValidTo = null, IsActive = true, CreatedAt = now }
             };
 
             context.TicketPrices.AddRange(ticketPrices);
@@ -465,7 +457,6 @@ public static class DbSeeder
             
             var jednokratna = await context.TicketTypes.FirstAsync(t => t.Name == "Jednokratna");
             var dnevna = await context.TicketTypes.FirstAsync(t => t.Name == "Dnevna");
-            var mjesecna = await context.TicketTypes.FirstAsync(t => t.Name == "Mjesečna");
             
             var zone1 = await context.Zones.FirstAsync(z => z.Name == "Zona 1");
             var zone2 = await context.Zones.FirstAsync(z => z.Name == "Zona 2");
@@ -491,6 +482,7 @@ public static class DbSeeder
                 {
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -505,6 +497,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -518,6 +511,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = dnevna.Id,
@@ -531,6 +525,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -544,19 +539,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
-                        TicketNumber = GenerateTicketNumber(),
-                        UserId = testUser1.Id,
-                        TicketTypeId = mjesecna.Id,
-                        RouteId = null,
-                        ZoneId = zone1.Id,
-                        Price = 40.00m,
-                        ValidFrom = now.AddDays(-15).Date,
-                        ValidTo = now.AddDays(15).Date,
-                        PurchasedAt = now.AddDays(-15),
-                        IsUsed = false
-                    },
-                    new Ticket
-                    {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser1.Id,
                         TicketTypeId = jednokratna.Id,
@@ -579,6 +562,7 @@ public static class DbSeeder
                 {
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -593,6 +577,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = dnevna.Id,
@@ -606,6 +591,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -619,6 +605,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -632,19 +619,7 @@ public static class DbSeeder
                     },
                     new Ticket
                     {
-                        TicketNumber = GenerateTicketNumber(),
-                        UserId = testUser2.Id,
-                        TicketTypeId = mjesecna.Id,
-                        RouteId = null,
-                        ZoneId = zone2.Id,
-                        Price = 50.00m,
-                        ValidFrom = now.AddDays(-10).Date,
-                        ValidTo = now.AddDays(20).Date,
-                        PurchasedAt = now.AddDays(-10),
-                        IsUsed = false
-                    },
-                    new Ticket
-                    {
+                        PublicId = Guid.NewGuid(),
                         TicketNumber = GenerateTicketNumber(),
                         UserId = testUser2.Id,
                         TicketTypeId = jednokratna.Id,
@@ -665,6 +640,7 @@ public static class DbSeeder
             {
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -679,6 +655,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = dnevna.Id,
@@ -692,6 +669,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -705,6 +683,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -718,19 +697,7 @@ public static class DbSeeder
                 },
                 new Ticket
                 {
-                    TicketNumber = GenerateTicketNumber(),
-                    UserId = mobileUser.Id,
-                    TicketTypeId = mjesecna.Id,
-                    RouteId = null,
-                    ZoneId = zone1.Id,
-                    Price = 40.00m,
-                    ValidFrom = now.AddDays(-12).Date,
-                    ValidTo = now.AddDays(18).Date,
-                    PurchasedAt = now.AddDays(-12),
-                    IsUsed = false
-                },
-                new Ticket
-                {
+                    PublicId = Guid.NewGuid(),
                     TicketNumber = GenerateTicketNumber(),
                     UserId = mobileUser.Id,
                     TicketTypeId = jednokratna.Id,
@@ -746,9 +713,30 @@ public static class DbSeeder
             };
             tickets.AddRange(mobileTickets);
 
+            foreach (var ticket in tickets)
+            {
+                if (ticket.TransactionId == null)
+                {
+                    var txn = new Models.Transaction
+                    {
+                        TransactionNumber = $"SEED-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString()[..8].ToUpperInvariant()}",
+                        UserId = ticket.UserId,
+                        Amount = ticket.Price,
+                        PaymentMethod = "Seed",
+                        Status = "completed",
+                        CreatedAt = ticket.PurchasedAt,
+                        CompletedAt = ticket.PurchasedAt,
+                        Notes = "Seeded transaction for testing"
+                    };
+                    context.Transactions.Add(txn);
+                    await context.SaveChangesAsync();
+                    ticket.TransactionId = txn.Id;
+                }
+            }
+
             context.Tickets.AddRange(tickets);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[DbSeeder] {tickets.Count} test tickets created successfully!");
+            logger.LogInformation("Test tickets created ({Count})", tickets.Count);
         }
 
         if (!context.Notifications.Any())
@@ -770,7 +758,143 @@ public static class DbSeeder
 
             context.Notifications.AddRange(welcomeNotifications);
             await context.SaveChangesAsync();
-            Console.WriteLine($"[DbSeeder] {welcomeNotifications.Count} welcome notifications created successfully!");
+            logger.LogInformation("Welcome notifications created ({Count})", welcomeNotifications.Count);
+        }
+
+        if (!context.SubscriptionPackages.Any())
+        {
+            var now = DateTime.UtcNow;
+            var packages = new[]
+            {
+                new SubscriptionPackage { Key = "monthly_zone1", DisplayName = "Mjesečna (Zona 1)", DurationDays = 30, Price = 45.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone2", DisplayName = "Mjesečna (Zona 1-2)", DurationDays = 30, Price = 55.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone3", DisplayName = "Mjesečna (Zona 1-3)", DurationDays = 30, Price = 65.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone1", DisplayName = "Godišnja (Zona 1)", DurationDays = 365, Price = 450.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone2", DisplayName = "Godišnja (Zona 1-2)", DurationDays = 365, Price = 550.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone3", DisplayName = "Godišnja (Zona 1-3)", DurationDays = 365, Price = 650.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone1", DisplayName = "Studentska mjesečna (Zona 1)", DurationDays = 30, Price = 30.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone2", DisplayName = "Studentska mjesečna (Zona 1-2)", DurationDays = 30, Price = 40.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone3", DisplayName = "Studentska mjesečna (Zona 1-3)", DurationDays = 30, Price = 50.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now }
+            };
+
+            context.SubscriptionPackages.AddRange(packages);
+            await context.SaveChangesAsync();
+        }
+
+        if (!context.Subscriptions.Any())
+        {
+            var now = DateTime.UtcNow;
+            var user2 = await context.Users.FirstOrDefaultAsync(u => u.Id == 2);
+            var user3 = await context.Users.FirstOrDefaultAsync(u => u.Id == 3);
+
+            var annual = await context.SubscriptionPackages.FirstOrDefaultAsync(p => p.Key == "annual_zone1");
+            var student = await context.SubscriptionPackages.FirstOrDefaultAsync(p => p.Key == "student_monthly_zone1");
+
+            var subs = new List<Subscription>();
+            if (user2 != null && annual != null)
+            {
+                subs.Add(new Subscription
+                {
+                    UserId = user2.Id,
+                    SubscriptionPackageId = annual.Id,
+                    PackageName = annual.DisplayName,
+                    Price = annual.Price,
+                    StartDate = now.Date.AddDays(-10),
+                    EndDate = now.Date.AddDays(-10).AddDays(annual.DurationDays),
+                    Status = "active",
+                    CreatedAt = now.AddDays(-10)
+                });
+            }
+
+            if (user3 != null && student != null)
+            {
+                subs.Add(new Subscription
+                {
+                    UserId = user3.Id,
+                    SubscriptionPackageId = student.Id,
+                    PackageName = student.DisplayName,
+                    Price = student.Price,
+                    StartDate = now.Date.AddDays(-5),
+                    EndDate = now.Date.AddDays(-5).AddDays(student.DurationDays),
+                    Status = "active",
+                    CreatedAt = now.AddDays(-5)
+                });
+            }
+
+            if (subs.Count > 0)
+            {
+                context.Subscriptions.AddRange(subs);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        if (!context.RefundRequests.Any())
+        {
+            var now = DateTime.UtcNow;
+            var admin = await context.Administrators.FirstOrDefaultAsync(a => a.Username == "admin");
+
+            var tickets = await context.Tickets
+                .OrderByDescending(t => t.PurchasedAt)
+                .Take(10)
+                .ToListAsync();
+
+            var candidates = tickets
+                .Where(t => !t.IsRefunded)
+                .Take(3)
+                .ToList();
+
+            if (candidates.Count >= 3)
+            {
+                var approved1 = candidates[0];
+                approved1.IsRefunded = true;
+                approved1.RefundedAt = now.AddDays(-2);
+
+                var approved2 = candidates[1];
+                approved2.IsRefunded = true;
+                approved2.RefundedAt = now.AddDays(-1);
+
+                var rejected = candidates[2];
+
+                var requests = new[]
+                {
+                    new RefundRequest
+                    {
+                        UserId = approved1.UserId,
+                        TicketId = approved1.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "approved",
+                        CreatedAt = now.AddDays(-3),
+                        ResolvedAt = now.AddDays(-2),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odobreno (seed)"
+                    },
+                    new RefundRequest
+                    {
+                        UserId = approved2.UserId,
+                        TicketId = approved2.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "approved",
+                        CreatedAt = now.AddDays(-2),
+                        ResolvedAt = now.AddDays(-1),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odobreno (seed)"
+                    },
+                    new RefundRequest
+                    {
+                        UserId = rejected.UserId,
+                        TicketId = rejected.Id,
+                        Message = "Refund zahtjev (seed) - testiranje admin panela",
+                        Status = "rejected",
+                        CreatedAt = now.AddDays(-2),
+                        ResolvedAt = now.AddDays(-1),
+                        ResolvedByAdminId = admin?.Id,
+                        AdminNote = "Odbijeno (seed)"
+                    }
+                };
+
+                context.RefundRequests.AddRange(requests);
+                await context.SaveChangesAsync();
+            }
         }
     }
 }

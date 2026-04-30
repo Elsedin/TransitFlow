@@ -28,24 +28,59 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
   String? _paymentMethod;
   bool _isPurchasing = false;
   String? _errorMessage;
+  SubscriptionPackage? _package;
+  bool _isLoadingPackage = false;
 
-  SubscriptionPackage? get _package {
-    if (widget.package != null) return widget.package;
-    if (widget.existingSubscription != null) {
-      final packages = _subscriptionService.getAvailablePackages();
-      try {
-        return packages.firstWhere(
-          (p) => p.displayName == widget.existingSubscription!.packageName,
-        );
-      } catch (e) {
-        return packages.isNotEmpty ? packages.first : null;
+  @override
+  void initState() {
+    super.initState();
+    _loadPackage();
+  }
+
+  Future<void> _loadPackage() async {
+    if (widget.package != null) {
+      _package = widget.package;
+      return;
+    }
+
+    if (widget.existingSubscription == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoadingPackage = true;
+    });
+
+    try {
+      final packages = await _subscriptionService.fetchAvailablePackages();
+      _package = packages.firstWhere(
+        (p) => p.displayName == widget.existingSubscription!.packageName,
+        orElse: () => packages.isNotEmpty ? packages.first : throw Exception('No packages'),
+      );
+    } catch (_) {
+      _package = null;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingPackage = false;
+        });
       }
     }
-    return null;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingPackage) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Kupovina pretplate'),
+          backgroundColor: Colors.orange[700],
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     if (_package == null) {
       return Scaffold(
         appBar: AppBar(
@@ -122,28 +157,12 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              '${_package!.durationDays} dana • Neograničen broj vožnji',
+              '${_package!.durationDays} dana • Pokriva zone 1-${_package!.maxZoneId}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
               ),
             ),
-            const SizedBox(height: 16),
-            ..._package!.benefits.map((benefit) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle, size: 20, color: Colors.green[700]),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          benefit,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                )),
           ],
         ),
       ),
@@ -438,15 +457,8 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
 
   Future<void> _createSubscriptionAfterPayment(int transactionId) async {
     try {
-      final startDate = DateTime.now();
-      final endDate = startDate.add(Duration(days: _package!.durationDays));
-
       final subscription = await _subscriptionService.purchaseSubscription(
-        packageName: _package!.displayName,
-        price: _package!.price,
-        startDate: startDate,
-        endDate: endDate,
-        status: 'Active',
+        packageKey: _package!.key,
         transactionId: transactionId,
       );
 

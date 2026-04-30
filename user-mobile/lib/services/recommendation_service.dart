@@ -16,7 +16,7 @@ class RecommendationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/recommendations/lines?count=$count'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/recommendations/lines?count=$count'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ class RecommendationService {
     };
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/recommendations/feedback'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/recommendations/feedback'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -60,7 +60,7 @@ class RecommendationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/recommendations/feedback/$transportLineId'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/recommendations/feedback/$transportLineId'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

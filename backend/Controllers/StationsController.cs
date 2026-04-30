@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Station = TransitFlow.API.Models.Station;
@@ -9,19 +10,39 @@ namespace TransitFlow.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = "Administrator")]
 public class StationsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<StationsController> _logger;
 
-    public StationsController(ApplicationDbContext context)
+    public StationsController(ApplicationDbContext context, ILogger<StationsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<StationDto>>> GetAll([FromQuery] string? search, [FromQuery] bool? isActive = null)
+    public async Task<ActionResult<PagedResultDto<StationDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
     {
+        return await GetPaged(page, pageSize, search, isActive);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<StationDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
         var query = _context.Stations
             .Include(s => s.City)
             .Include(s => s.Zone)
@@ -29,8 +50,8 @@ public class StationsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(s => 
-                s.Name.Contains(search) || 
+            query = query.Where(s =>
+                s.Name.Contains(search) ||
                 (s.Address != null && s.Address.Contains(search)));
         }
 
@@ -39,11 +60,14 @@ public class StationsController : ControllerBase
             query = query.Where(s => s.IsActive == isActive.Value);
         }
 
+        var total = await query.CountAsync();
         var stations = await query
             .OrderBy(s => s.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        var result = stations.Select(s => new StationDto
+        var items = stations.Select(s => new StationDto
         {
             Id = s.Id,
             Name = s.Name,
@@ -57,7 +81,13 @@ public class StationsController : ControllerBase
             IsActive = s.IsActive
         }).ToList();
 
-        return Ok(result);
+        return Ok(new PagedResultDto<StationDto>
+        {
+            Items = items,
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
     [HttpGet("{id}")]
@@ -158,7 +188,8 @@ public class StationsController : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    return BadRequest(new { message = $"Invalid latitude format: {ex.Message}" });
+                    _logger.LogWarning(ex, "Invalid latitude value");
+                    return BadRequest(new { message = "Invalid latitude value" });
                 }
             }
 
@@ -175,7 +206,8 @@ public class StationsController : ControllerBase
                 }
                 catch (Exception ex)
                 {
-                    return BadRequest(new { message = $"Invalid longitude format: {ex.Message}" });
+                    _logger.LogWarning(ex, "Invalid longitude value");
+                    return BadRequest(new { message = "Invalid longitude value" });
                 }
             }
 
@@ -225,8 +257,7 @@ public class StationsController : ControllerBase
         catch (DbUpdateException dbEx)
         {
             var errorMessage = dbEx.InnerException?.Message ?? dbEx.Message;
-            Console.WriteLine($"[StationsController] Database error: {errorMessage}");
-            Console.WriteLine($"[StationsController] Stack trace: {dbEx.StackTrace}");
+            _logger.LogError(dbEx, "Database error while creating station");
             
             if (errorMessage.Contains("FK_Stations_Cities") || errorMessage.Contains("CityId"))
             {
@@ -238,13 +269,12 @@ public class StationsController : ControllerBase
                 return BadRequest(new { message = "Invalid Zone ID. The zone does not exist or is inactive." });
             }
             
-            return StatusCode(500, new { message = "Database error occurred while creating the station", error = errorMessage });
+            return StatusCode(500, new { message = "Database error occurred while creating the station", traceId = HttpContext.TraceIdentifier });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[StationsController] Error: {ex.Message}");
-            Console.WriteLine($"[StationsController] Stack trace: {ex.StackTrace}");
-            return StatusCode(500, new { message = "An error occurred while creating the station", error = ex.Message });
+            _logger.LogError(ex, "Unexpected error while creating station");
+            return StatusCode(500, new { message = "An error occurred while creating the station", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -304,7 +334,8 @@ public class StationsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the station", error = ex.Message });
+            _logger.LogError(ex, "Unexpected error while updating station {StationId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the station", traceId = HttpContext.TraceIdentifier });
         }
     }
 

@@ -18,11 +18,24 @@ public class TransportLinesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TransportLineDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TransportLineDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] bool? isActive = null)
     {
-        var lines = await _transportLineService.GetAllAsync(search, isActive);
+        var lines = await _transportLineService.GetPagedAsync(page, pageSize, search, isActive);
+        return Ok(lines);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TransportLineDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var lines = await _transportLineService.GetPagedAsync(page, pageSize, search, isActive);
         return Ok(lines);
     }
 
@@ -39,6 +52,7 @@ public class TransportLinesController : ControllerBase
         return Ok(line);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<TransportLineDto>> Create([FromBody] CreateTransportLineDto dto)
     {
@@ -46,6 +60,7 @@ public class TransportLinesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = line.Id }, line);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TransportLineDto>> Update(int id, [FromBody] UpdateTransportLineDto dto)
     {
@@ -59,6 +74,7 @@ public class TransportLinesController : ControllerBase
         return Ok(line);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

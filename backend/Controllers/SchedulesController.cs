@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,20 +12,37 @@ namespace TransitFlow.API.Controllers;
 public class SchedulesController : ControllerBase
 {
     private readonly IScheduleService _scheduleService;
+    private readonly ILogger<SchedulesController> _logger;
 
-    public SchedulesController(IScheduleService scheduleService)
+    public SchedulesController(IScheduleService scheduleService, ILogger<SchedulesController> logger)
     {
         _scheduleService = scheduleService;
+        _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<ScheduleDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<ScheduleDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] int? routeId = null,
         [FromQuery] int? vehicleId = null,
         [FromQuery] int? dayOfWeek = null,
         [FromQuery] bool? isActive = null)
     {
-        var schedules = await _scheduleService.GetAllAsync(routeId, vehicleId, dayOfWeek, isActive);
+        var schedules = await _scheduleService.GetPagedAsync(page, pageSize, routeId, vehicleId, dayOfWeek, isActive);
+        return Ok(schedules);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<ScheduleDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? routeId = null,
+        [FromQuery] int? vehicleId = null,
+        [FromQuery] int? dayOfWeek = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var schedules = await _scheduleService.GetPagedAsync(page, pageSize, routeId, vehicleId, dayOfWeek, isActive);
         return Ok(schedules);
     }
 
@@ -41,6 +59,7 @@ public class SchedulesController : ControllerBase
         return Ok(schedule);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<ScheduleDto>> Create([FromBody] CreateScheduleDto dto)
     {
@@ -59,10 +78,12 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed creating schedule");
+            return StatusCode(500, new { message = "An error occurred while creating the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<ScheduleDto>> Update(int id, [FromBody] UpdateScheduleDto dto)
     {
@@ -87,10 +108,12 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed updating schedule {ScheduleId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -107,7 +130,8 @@ public class SchedulesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the schedule", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting schedule {ScheduleId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the schedule", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

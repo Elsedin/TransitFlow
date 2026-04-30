@@ -78,23 +78,35 @@ class Subscription {
 }
 
 class SubscriptionPackage {
-  final String name;
+  final int id;
+  final String key;
   final String displayName;
   final int durationDays;
   final double price;
-  final List<String> benefits;
-  final String? tag;
-  final String? savings;
+  final int maxZoneId;
+  final bool isActive;
 
   SubscriptionPackage({
-    required this.name,
+    required this.id,
+    required this.key,
     required this.displayName,
     required this.durationDays,
     required this.price,
-    required this.benefits,
-    this.tag,
-    this.savings,
+    required this.maxZoneId,
+    required this.isActive,
   });
+
+  factory SubscriptionPackage.fromJson(Map<String, dynamic> json) {
+    return SubscriptionPackage(
+      id: json['id'] as int,
+      key: json['key'] as String,
+      displayName: json['displayName'] as String,
+      durationDays: json['durationDays'] as int,
+      price: (json['price'] as num).toDouble(),
+      maxZoneId: json['maxZoneId'] as int,
+      isActive: json['isActive'] as bool,
+    );
+  }
 
   double get pricePerDay => price / durationDays;
 }

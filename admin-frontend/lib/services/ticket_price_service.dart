@@ -1,11 +1,29 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/ticket_price_model.dart';
 import 'auth_service.dart';
 
 class TicketPriceService {
   Future<List<TicketPrice>> getAll({
+    int? ticketTypeId,
+    int? zoneId,
+    bool? isActive,
+  }) async {
+    final result = await getPaged(
+      page: 1,
+      pageSize: 100,
+      ticketTypeId: ticketTypeId,
+      zoneId: zoneId,
+      isActive: isActive,
+    );
+    return result.items;
+  }
+
+  Future<PagedResult<TicketPrice>> getPaged({
+    required int page,
+    required int pageSize,
     int? ticketTypeId,
     int? zoneId,
     bool? isActive,
@@ -16,18 +34,15 @@ class TicketPriceService {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
-      if (ticketTypeId != null) {
-        queryParams['ticketTypeId'] = ticketTypeId.toString();
-      }
-      if (zoneId != null) {
-        queryParams['zoneId'] = zoneId.toString();
-      }
-      if (isActive != null) {
-        queryParams['isActive'] = isActive.toString();
-      }
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
+      if (ticketTypeId != null) queryParams['ticketTypeId'] = ticketTypeId.toString();
+      if (zoneId != null) queryParams['zoneId'] = zoneId.toString();
+      if (isActive != null) queryParams['isActive'] = isActive.toString();
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/ticketprices')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/ticketprices/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -39,8 +54,11 @@ class TicketPriceService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => TicketPrice.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<TicketPrice>.fromJson(
+          data,
+          (json) => TicketPrice.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load ticket prices');
       }

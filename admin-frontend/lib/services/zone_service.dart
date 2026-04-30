@@ -1,18 +1,32 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import '../models/paged_result.dart';
 import '../models/station_model.dart';
 import 'auth_service.dart';
 
 class ZoneService {
   Future<List<Zone>> getAll({String? search, bool? isActive}) async {
+    final result = await getPaged(page: 1, pageSize: 100, search: search, isActive: isActive);
+    return result.items;
+  }
+
+  Future<PagedResult<Zone>> getPaged({
+    required int page,
+    required int pageSize,
+    String? search,
+    bool? isActive,
+  }) async {
     try {
       final token = await AuthService().getToken();
       if (token == null) {
         throw Exception('Not authenticated');
       }
 
-      var queryParams = <String, String>{};
+      final queryParams = <String, String>{
+        'page': page.toString(),
+        'pageSize': pageSize.toString(),
+      };
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
       }
@@ -20,7 +34,7 @@ class ZoneService {
         queryParams['isActive'] = isActive.toString();
       }
 
-      final uri = Uri.parse('${AppConfig.apiBaseUrl}/zones')
+      final uri = Uri.parse('${AppConfig.apiBaseUrl}/zones/paged')
           .replace(queryParameters: queryParams);
 
       final response = await http.get(
@@ -32,8 +46,11 @@ class ZoneService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Zone.fromJson(json as Map<String, dynamic>)).toList();
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return PagedResult<Zone>.fromJson(
+          data,
+          (json) => Zone.fromJson(json),
+        );
       } else {
         throw Exception('Failed to load zones');
       }

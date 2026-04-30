@@ -16,38 +16,32 @@ public class VehicleService : IVehicleService
 
     public async Task<List<VehicleDto>> GetAllAsync(string? search = null, bool? isActive = null)
     {
-        var query = _context.Vehicles
-            .Include(v => v.TransportType)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.ToLower();
-            query = query.Where(v =>
-                v.LicensePlate.ToLower().Contains(searchLower) ||
-                (v.Make != null && v.Make.ToLower().Contains(searchLower)) ||
-                (v.Model != null && v.Model.ToLower().Contains(searchLower)));
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(v => v.IsActive == isActive.Value);
-        }
-
+        var query = BuildFilteredQuery(search, isActive);
         var vehicles = await query.OrderBy(v => v.LicensePlate).ToListAsync();
+        return vehicles.Select(MapToDto).ToList();
+    }
 
-        return vehicles.Select(v => new VehicleDto
+    public async Task<PagedResultDto<VehicleDto>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, isActive);
+        var total = await query.CountAsync();
+        var vehicles = await query
+            .OrderBy(v => v.LicensePlate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<VehicleDto>
         {
-            Id = v.Id,
-            LicensePlate = v.LicensePlate,
-            Make = v.Make,
-            Model = v.Model,
-            Year = v.Year,
-            Capacity = v.Capacity,
-            TransportTypeId = v.TransportTypeId,
-            TransportTypeName = v.TransportType?.Name ?? string.Empty,
-            IsActive = v.IsActive
-        }).ToList();
+            Items = vehicles.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<VehicleDto?> GetByIdAsync(int id)
@@ -70,6 +64,45 @@ public class VehicleService : IVehicleService
             TransportTypeId = vehicle.TransportTypeId,
             TransportTypeName = vehicle.TransportType?.Name ?? string.Empty,
             IsActive = vehicle.IsActive
+        };
+    }
+
+    private IQueryable<Vehicle> BuildFilteredQuery(string? search, bool? isActive)
+    {
+        var query = _context.Vehicles
+            .Include(v => v.TransportType)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(v =>
+                v.LicensePlate.ToLower().Contains(searchLower) ||
+                (v.Make != null && v.Make.ToLower().Contains(searchLower)) ||
+                (v.Model != null && v.Model.ToLower().Contains(searchLower)));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(v => v.IsActive == isActive.Value);
+        }
+
+        return query;
+    }
+
+    private static VehicleDto MapToDto(Vehicle v)
+    {
+        return new VehicleDto
+        {
+            Id = v.Id,
+            LicensePlate = v.LicensePlate,
+            Make = v.Make,
+            Model = v.Model,
+            Year = v.Year,
+            Capacity = v.Capacity,
+            TransportTypeId = v.TransportTypeId,
+            TransportTypeName = v.TransportType?.Name ?? string.Empty,
+            IsActive = v.IsActive
         };
     }
 

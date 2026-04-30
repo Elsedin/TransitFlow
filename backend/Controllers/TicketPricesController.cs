@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,19 +12,35 @@ namespace TransitFlow.API.Controllers;
 public class TicketPricesController : ControllerBase
 {
     private readonly ITicketPriceService _ticketPriceService;
+    private readonly ILogger<TicketPricesController> _logger;
 
-    public TicketPricesController(ITicketPriceService ticketPriceService)
+    public TicketPricesController(ITicketPriceService ticketPriceService, ILogger<TicketPricesController> logger)
     {
         _ticketPriceService = ticketPriceService;
+        _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TicketPriceDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<TicketPriceDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] int? ticketTypeId = null,
         [FromQuery] int? zoneId = null,
         [FromQuery] bool? isActive = null)
     {
-        var ticketPrices = await _ticketPriceService.GetAllAsync(ticketTypeId, zoneId, isActive);
+        var ticketPrices = await _ticketPriceService.GetPagedAsync(page, pageSize, ticketTypeId, zoneId, isActive);
+        return Ok(ticketPrices);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<TicketPriceDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] int? ticketTypeId = null,
+        [FromQuery] int? zoneId = null,
+        [FromQuery] bool? isActive = null)
+    {
+        var ticketPrices = await _ticketPriceService.GetPagedAsync(page, pageSize, ticketTypeId, zoneId, isActive);
         return Ok(ticketPrices);
     }
 
@@ -40,6 +57,7 @@ public class TicketPricesController : ControllerBase
         return Ok(ticketPrice);
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPost]
     public async Task<ActionResult<TicketPriceDto>> Create([FromBody] CreateTicketPriceDto dto)
     {
@@ -54,10 +72,12 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed creating ticket price");
+            return StatusCode(500, new { message = "An error occurred while creating the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TicketPriceDto>> Update(int id, [FromBody] UpdateTicketPriceDto dto)
     {
@@ -78,10 +98,12 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed updating ticket price {TicketPriceId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 
+    [Authorize(Policy = "Administrator")]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -98,7 +120,8 @@ public class TicketPricesController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the ticket price", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting ticket price {TicketPriceId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the ticket price", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

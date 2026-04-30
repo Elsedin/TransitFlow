@@ -3,6 +3,7 @@ namespace TransitFlow.API.DTOs;
 public class TicketDto
 {
     public int Id { get; set; }
+    public Guid PublicId { get; set; }
     public string TicketNumber { get; set; } = string.Empty;
     public int UserId { get; set; }
     public string UserEmail { get; set; } = string.Empty;
@@ -18,6 +19,8 @@ public class TicketDto
     public DateTime PurchasedAt { get; set; }
     public bool IsUsed { get; set; }
     public DateTime? UsedAt { get; set; }
+    public bool IsRefunded { get; set; }
+    public DateTime? RefundedAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string? PaymentMethod { get; set; }

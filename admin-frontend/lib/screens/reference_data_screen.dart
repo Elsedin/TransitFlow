@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../services/zone_service.dart';
 import '../services/city_service.dart';
+import '../services/country_service.dart';
 import '../services/ticket_type_service.dart';
 import '../services/transport_type_service.dart';
 import '../services/station_service.dart';
 import '../models/station_model.dart';
+import '../models/country_model.dart';
 import '../models/ticket_type_model.dart';
 import '../models/transport_type_model.dart';
+import '../widgets/pagination_bar.dart';
 
 class ReferenceDataScreen extends StatefulWidget {
   const ReferenceDataScreen({super.key});
@@ -68,6 +71,13 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
           'cities',
           Colors.amber,
           'Upravljanje gradovima',
+        ),
+        _buildCategoryCard(
+          'Države',
+          Icons.public,
+          'countries',
+          Colors.teal,
+          'Upravljanje državama',
         ),
         _buildCategoryCard(
           'Tipovi vozila',
@@ -151,6 +161,8 @@ class _ReferenceDataScreenState extends State<ReferenceDataScreen> {
         return TransportTypesTable();
       case 'cities':
         return CitiesTable();
+      case 'countries':
+        return CountriesTable();
       case 'stations':
         return StationsTable();
       default:
@@ -167,7 +179,7 @@ class ZonesTable extends StatefulWidget {
 class _ZonesTableState extends State<ZonesTable> {
   final _zoneService = ZoneService();
   List<Zone> _zones = [];
-  List<Zone> _filteredZones = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -194,13 +206,17 @@ class _ZonesTableState extends State<ZonesTable> {
     });
 
     try {
-      final zones = await _zoneService.getAll();
+      final result = await _zoneService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _zones = zones;
-        _filteredZones = zones;
+        _zones = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -210,36 +226,21 @@ class _ZonesTableState extends State<ZonesTable> {
   }
 
   void _applyFilters() {
-    List<Zone> filtered = List.from(_zones);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((zone) {
-        return zone.name.toLowerCase().contains(search) ||
-            (zone.description != null && zone.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((zone) => zone.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredZones = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<Zone> get _paginatedZones {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredZones.length);
-    return _filteredZones.sublist(start, end);
+    return _zones;
   }
 
   Future<void> _showAddEditDialog({Zone? zone}) async {
     final nameController = TextEditingController(text: zone?.name ?? '');
     final descriptionController = TextEditingController(text: zone?.description ?? '');
     bool isActive = zone?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -247,38 +248,50 @@ class _ZonesTableState extends State<ZonesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(zone == null ? 'Dodaj zonu' : 'Uredi zonu'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                if (zone != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  if (zone != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -288,10 +301,7 @@ class _ZonesTableState extends State<ZonesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
@@ -540,26 +550,24 @@ class _ZonesTableState extends State<ZonesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredZones.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -616,11 +624,11 @@ class TicketTypesTable extends StatefulWidget {
 class _TicketTypesTableState extends State<TicketTypesTable> {
   final _ticketTypeService = TicketTypeService();
   List<TicketType> _ticketTypes = [];
-  List<TicketType> _filteredTicketTypes = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
-  bool? _statusFilter;
+  bool? _statusFilter = true;
   int _currentPage = 0;
   final int _itemsPerPage = 5;
 
@@ -643,13 +651,17 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
     });
 
     try {
-      final ticketTypes = await _ticketTypeService.getAll();
+      final result = await _ticketTypeService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _ticketTypes = ticketTypes;
-        _filteredTicketTypes = ticketTypes;
+        _ticketTypes = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -659,30 +671,14 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
   }
 
   void _applyFilters() {
-    List<TicketType> filtered = List.from(_ticketTypes);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((type) {
-        return type.name.toLowerCase().contains(search) ||
-            (type.description != null && type.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((type) => type.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredTicketTypes = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<TicketType> get _paginatedTicketTypes {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTicketTypes.length);
-    return _filteredTicketTypes.sublist(start, end);
+    return _ticketTypes;
   }
 
   Future<void> _showAddEditDialog({TicketType? ticketType}) async {
@@ -690,6 +686,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
     final descriptionController = TextEditingController(text: ticketType?.description ?? '');
     final validityDaysController = TextEditingController(text: ticketType?.validityDays.toString() ?? '30');
     bool isActive = ticketType?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -697,47 +694,72 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(ticketType == null ? 'Dodaj tip karte' : 'Uredi tip karte'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: validityDaysController,
-                  decoration: const InputDecoration(
-                    labelText: 'Broj dana važenja *',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                if (ticketType != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: validityDaysController,
+                    decoration: const InputDecoration(
+                      labelText: 'Broj dana važenja *',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Broj dana važenja je obavezan';
+                      }
+                      final n = int.tryParse(value.trim());
+                      if (n == null || n <= 0) {
+                        return 'Unesite pozitivan broj';
+                      }
+                      if (n > 3650) {
+                        return 'Maksimalno 3650 dana';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (ticketType != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -747,20 +769,11 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
-                final validityDays = int.tryParse(validityDaysController.text.trim());
-                if (validityDays == null || validityDays <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Broj dana važenja mora biti pozitivan broj')),
-                  );
-                  return;
-                }
+                final validityDays = int.parse(validityDaysController.text.trim());
 
                 try {
                   if (ticketType == null) {
@@ -908,7 +921,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
                         setState(() {
                           _statusFilter = value;
                         });
-                        _applyFilters();
+                        _loadData();
                       },
                     ),
                   ),
@@ -1006,26 +1019,24 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredTicketTypes.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -1038,7 +1049,7 @@ class TransportTypesTable extends StatefulWidget {
 class _TransportTypesTableState extends State<TransportTypesTable> {
   final _transportTypeService = TransportTypeService();
   List<TransportType> _transportTypes = [];
-  List<TransportType> _filteredTransportTypes = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -1065,13 +1076,17 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
     });
 
     try {
-      final transportTypes = await _transportTypeService.getAll();
+      final result = await _transportTypeService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _transportTypes = transportTypes;
-        _filteredTransportTypes = transportTypes;
+        _transportTypes = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1081,36 +1096,21 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
   }
 
   void _applyFilters() {
-    List<TransportType> filtered = List.from(_transportTypes);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((type) {
-        return type.name.toLowerCase().contains(search) ||
-            (type.description != null && type.description!.toLowerCase().contains(search));
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((type) => type.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredTransportTypes = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<TransportType> get _paginatedTransportTypes {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTransportTypes.length);
-    return _filteredTransportTypes.sublist(start, end);
+    return _transportTypes;
   }
 
   Future<void> _showAddEditDialog({TransportType? transportType}) async {
     final nameController = TextEditingController(text: transportType?.name ?? '');
     final descriptionController = TextEditingController(text: transportType?.description ?? '');
     bool isActive = transportType?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -1118,38 +1118,50 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(transportType == null ? 'Dodaj tip vozila' : 'Uredi tip vozila'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                if (transportType != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  if (transportType != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -1159,10 +1171,7 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
@@ -1405,39 +1414,37 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredTransportTypes.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
 
-class CitiesTable extends StatefulWidget {
+class CountriesTable extends StatefulWidget {
   @override
-  State<CitiesTable> createState() => _CitiesTableState();
+  State<CountriesTable> createState() => _CountriesTableState();
 }
 
-class _CitiesTableState extends State<CitiesTable> {
-  final _cityService = CityService();
-  List<City> _cities = [];
-  List<City> _filteredCities = [];
+class _CountriesTableState extends State<CountriesTable> {
+  final _countryService = CountryService();
+  List<Country> _countries = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -1464,13 +1471,17 @@ class _CitiesTableState extends State<CitiesTable> {
     });
 
     try {
-      final cities = await _cityService.getAll();
+      final result = await _countryService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
       setState(() {
-        _cities = cities;
-        _filteredCities = cities;
+        _countries = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1480,99 +1491,77 @@ class _CitiesTableState extends State<CitiesTable> {
   }
 
   void _applyFilters() {
-    List<City> filtered = List.from(_cities);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((city) {
-        return city.name.toLowerCase().contains(search) ||
-            (city.postalCode != null && city.postalCode!.toLowerCase().contains(search)) ||
-            city.countryName.toLowerCase().contains(search);
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((city) => city.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredCities = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
-  List<City> get _paginatedCities {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredCities.length);
-    return _filteredCities.sublist(start, end);
+  List<Country> get _paginatedCountries {
+    return _countries;
   }
 
-  Future<void> _showAddEditDialog({City? city}) async {
-    final nameController = TextEditingController(text: city?.name ?? '');
-    final postalCodeController = TextEditingController(text: city?.postalCode ?? '');
-    int? selectedCountryId = city?.countryId;
-    bool isActive = city?.isActive ?? true;
+  Future<void> _showAddEditDialog({Country? country}) async {
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: country?.name ?? '');
+    final codeController = TextEditingController(text: country?.code ?? '');
+    bool isActive = country?.isActive ?? true;
 
     await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(city == null ? 'Dodaj grad' : 'Uredi grad'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: postalCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Poštanski broj',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedCountryId,
-                  decoration: const InputDecoration(
-                    labelText: 'Država',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('Nije odabrano'),
+          title: Text(country == null ? 'Dodaj državu' : 'Uredi državu'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
                     ),
-                    const DropdownMenuItem<int>(
-                      value: 1,
-                      child: Text('Bosna i Hercegovina'),
-                    ),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedCountryId = value;
-                    });
-                  },
-                ),
-                if (city != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length > 100) {
+                        return 'Maksimalno 100 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: codeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Kod (npr. BIH)',
+                      border: OutlineInputBorder(),
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) return null;
+                      if (value.trim().length > 3) return 'Maksimalno 3 karaktera';
+                      return null;
+                    },
+                  ),
+                  if (country != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -1582,12 +1571,400 @@ class _CitiesTableState extends State<CitiesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
-                  return;
+                if (!(formKey.currentState?.validate() ?? false)) return;
+
+                try {
+                  if (country == null) {
+                    await _countryService.create(
+                      CreateCountryRequest(
+                        name: nameController.text.trim(),
+                        code: codeController.text.trim().isEmpty ? null : codeController.text.trim(),
+                      ),
+                    );
+                  } else {
+                    await _countryService.update(
+                      country.id,
+                      UpdateCountryRequest(
+                        name: nameController.text.trim(),
+                        code: codeController.text.trim().isEmpty ? null : codeController.text.trim(),
+                        isActive: isActive,
+                      ),
+                    );
+                  }
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    _loadData();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(country == null ? 'Država je uspješno dodana' : 'Država je uspješno ažurirana'),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Greška: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
                 }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Sačuvaj'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteCountry(Country country) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda brisanja'),
+        content: Text('Da li ste sigurni da želite obrisati državu "${country.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Otkaži'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Obriši'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _countryService.delete(country.id);
+        if (mounted) {
+          _loadData();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Država je uspješno obrisana')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Greška: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                decoration: const InputDecoration(
+                  hintText: 'Pretraži države...',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) => _applyFilters(),
+              ),
+            ),
+            const SizedBox(width: 16),
+            DropdownButton<bool?>(
+              value: _statusFilter,
+              hint: const Text('Status'),
+              items: const [
+                DropdownMenuItem<bool?>(value: null, child: Text('Sve')),
+                DropdownMenuItem<bool?>(value: true, child: Text('Aktivne')),
+                DropdownMenuItem<bool?>(value: false, child: Text('Neaktivne')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _statusFilter = value;
+                });
+                _applyFilters();
+              },
+            ),
+            const SizedBox(width: 16),
+            ElevatedButton.icon(
+              onPressed: () => _showAddEditDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Dodaj državu'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange[700],
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _errorMessage != null
+                ? Center(child: Text(_errorMessage!))
+                : Column(
+                    children: [
+                      _buildTable(),
+                      const SizedBox(height: 20),
+                      _buildPagination(),
+                    ],
+                  ),
+      ],
+    );
+  }
+
+  Widget _buildTable() {
+    if (_paginatedCountries.isEmpty) {
+      return const Center(child: Text('Nema pronađenih država'));
+    }
+
+    return Table(
+      columnWidths: const {
+        0: FlexColumnWidth(0.6),
+        1: FlexColumnWidth(2.5),
+        2: FlexColumnWidth(1.0),
+        3: FlexColumnWidth(1.0),
+        4: FlexColumnWidth(1.2),
+      },
+      children: [
+        TableRow(
+          decoration: BoxDecoration(
+            color: Colors.orange[700],
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(8),
+              topRight: Radius.circular(8),
+            ),
+          ),
+          children: const [
+            _TableHeaderCell('ID'),
+            _TableHeaderCell('Naziv'),
+            _TableHeaderCell('Kod'),
+            _TableHeaderCell('Gradova'),
+            _TableHeaderCell('Akcije'),
+          ],
+        ),
+        ..._paginatedCountries.map((c) => TableRow(
+              children: [
+                _TableCell(c.id.toString()),
+                _TableCell('${c.name}${c.isActive ? '' : ' (neaktivna)'}'),
+                _TableCell(c.code ?? ''),
+                _TableCell(c.cityCount.toString()),
+                _TableCell(
+                  '',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () => _showAddEditDialog(country: c),
+                        child: const Text('Uredi'),
+                      ),
+                      TextButton(
+                        onPressed: () => _deleteCountry(c),
+                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        child: const Text('Obriši'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )),
+      ],
+    );
+  }
+
+  Widget _buildPagination() {
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
+    );
+  }
+}
+
+class CitiesTable extends StatefulWidget {
+  @override
+  State<CitiesTable> createState() => _CitiesTableState();
+}
+
+class _CitiesTableState extends State<CitiesTable> {
+  final _cityService = CityService();
+  final _countryService = CountryService();
+  List<City> _cities = [];
+  List<Country> _countries = [];
+  int _totalCount = 0;
+  bool _isLoading = true;
+  String? _errorMessage;
+  final _searchController = TextEditingController();
+  bool? _statusFilter;
+  int _currentPage = 0;
+  final int _itemsPerPage = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final countries = await _countryService.getAll();
+      final result = await _cityService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
+        search: _searchController.text.isEmpty ? null : _searchController.text,
+        isActive: _statusFilter,
+      );
+      setState(() {
+        _countries = countries;
+        _cities = result.items;
+        _totalCount = result.totalCount;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Greška: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _applyFilters() {
+    setState(() {
+      _currentPage = 0;
+    });
+    _loadData();
+  }
+
+  List<City> get _paginatedCities {
+    return _cities;
+  }
+
+  Future<void> _showAddEditDialog({City? city}) async {
+    final nameController = TextEditingController(text: city?.name ?? '');
+    final postalCodeController = TextEditingController(text: city?.postalCode ?? '');
+    int? selectedCountryId = city?.countryId;
+    bool isActive = city?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(city == null ? 'Dodaj grad' : 'Uredi grad'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: postalCodeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Poštanski broj',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedCountryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Država',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        value: null,
+                        child: Text('Nije odabrano'),
+                      ),
+                      ..._buildCountryDropdownItems(selectedCountryId),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedCountryId = value;
+                      });
+                    },
+                  ),
+                  if (city != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Otkaži'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (!(formKey.currentState?.validate() ?? false)) return;
 
                 try {
                   if (city == null) {
@@ -1638,6 +2015,35 @@ class _CitiesTableState extends State<CitiesTable> {
         ),
       ),
     );
+  }
+
+  List<DropdownMenuItem<int>> _buildCountryDropdownItems(int? selectedCountryId) {
+    final activeCountries = _countries.where((c) => c.isActive).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+
+    Country? selected;
+    if (selectedCountryId != null) {
+      for (final c in _countries) {
+        if (c.id == selectedCountryId) {
+          selected = c;
+          break;
+        }
+      }
+    }
+
+    final all = <Country>[...activeCountries];
+    final selectedId = selected?.id;
+    if (selectedId != null && all.every((c) => c.id != selectedId)) {
+      all.insert(0, selected!);
+    }
+
+    return all.map((c) {
+      final suffix = c.isActive ? '' : ' (neaktivna)';
+      return DropdownMenuItem<int>(
+        value: c.id,
+        child: Text('${c.name}$suffix'),
+      );
+    }).toList();
   }
 
   Future<void> _deleteCity(City city) async {
@@ -1833,26 +2239,24 @@ class _CitiesTableState extends State<CitiesTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredCities.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }
@@ -1867,7 +2271,7 @@ class _StationsTableState extends State<StationsTable> {
   final _cityService = CityService();
   final _zoneService = ZoneService();
   List<Station> _stations = [];
-  List<Station> _filteredStations = [];
+  int _totalCount = 0;
   List<City> _cities = [];
   List<Zone> _zones = [];
   bool _isLoading = true;
@@ -1896,20 +2300,21 @@ class _StationsTableState extends State<StationsTable> {
     });
 
     try {
-      final stations = await _stationService.getAll(
+      final result = await _stationService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         search: _searchController.text.isEmpty ? null : _searchController.text,
         isActive: _statusFilter,
       );
       final cities = await _cityService.getAll(isActive: true);
       final zones = await _zoneService.getAll();
       setState(() {
-        _stations = stations;
-        _filteredStations = stations;
+        _stations = result.items;
+        _totalCount = result.totalCount;
         _cities = cities;
         _zones = zones;
         _isLoading = false;
       });
-      _applyFilters();
     } catch (e) {
       setState(() {
         _errorMessage = 'Greška: $e';
@@ -1919,32 +2324,14 @@ class _StationsTableState extends State<StationsTable> {
   }
 
   void _applyFilters() {
-    List<Station> filtered = List.from(_stations);
-
-    if (_searchController.text.isNotEmpty) {
-      final search = _searchController.text.toLowerCase();
-      filtered = filtered.where((station) {
-        return station.name.toLowerCase().contains(search) ||
-            (station.address != null && station.address!.toLowerCase().contains(search)) ||
-            station.cityName.toLowerCase().contains(search) ||
-            station.zoneName.toLowerCase().contains(search);
-      }).toList();
-    }
-
-    if (_statusFilter != null) {
-      filtered = filtered.where((station) => station.isActive == _statusFilter).toList();
-    }
-
     setState(() {
-      _filteredStations = filtered;
       _currentPage = 0;
     });
+    _loadData();
   }
 
   List<Station> get _paginatedStations {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredStations.length);
-    return _filteredStations.sublist(start, end);
+    return _stations;
   }
 
   Future<void> _showAddEditDialog({Station? station}) async {
@@ -1955,6 +2342,7 @@ class _StationsTableState extends State<StationsTable> {
     int? selectedCityId = station?.cityId ?? (_cities.isNotEmpty ? _cities.first.id : null);
     int? selectedZoneId = station?.zoneId ?? (_zones.isNotEmpty ? _zones.first.id : null);
     bool isActive = station?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -1962,101 +2350,133 @@ class _StationsTableState extends State<StationsTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(station == null ? 'Dodaj stajalište' : 'Uredi stajalište'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Adresa',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: latitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: longitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedCityId,
-                  decoration: const InputDecoration(
-                    labelText: 'Grad *',
-                    border: OutlineInputBorder(),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
+                    },
                   ),
-                  items: _cities.map((city) {
-                    return DropdownMenuItem<int>(
-                      value: city.id,
-                      child: Text(city.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedCityId = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedZoneId,
-                  decoration: const InputDecoration(
-                    labelText: 'Zona *',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _zones.map((zone) {
-                    return DropdownMenuItem<int>(
-                      value: zone.id,
-                      child: Text(zone.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedZoneId = value;
-                    });
-                  },
-                ),
-                if (station != null) ...[
                   const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
+                  TextFormField(
+                    controller: addressController,
+                    decoration: const InputDecoration(
+                      labelText: 'Adresa',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: latitudeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Latitude',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return null;
+                            final n = double.tryParse(v);
+                            if (n == null || n < -90 || n > 90) {
+                              return 'Vrijednost mora biti između -90 i 90';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: longitudeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Longitude',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return null;
+                            final n = double.tryParse(v);
+                            if (n == null || n < -180 || n > 180) {
+                              return 'Vrijednost mora biti između -180 i 180';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedCityId,
+                    decoration: const InputDecoration(
+                      labelText: 'Grad *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value == null ? 'Grad je obavezan' : null,
+                    items: _cities.map((city) {
+                      return DropdownMenuItem<int>(
+                        value: city.id,
+                        child: Text(city.name),
+                      );
+                    }).toList(),
                     onChanged: (value) {
                       setDialogState(() {
-                        isActive = value ?? true;
+                        selectedCityId = value;
                       });
                     },
                   ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedZoneId,
+                    decoration: const InputDecoration(
+                      labelText: 'Zona *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value == null ? 'Zona je obavezna' : null,
+                    items: _zones.map((zone) {
+                      return DropdownMenuItem<int>(
+                        value: zone.id,
+                        child: Text(zone.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedZoneId = value;
+                      });
+                    },
+                  ),
+                  if (station != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -2066,47 +2486,18 @@ class _StationsTableState extends State<StationsTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
-                  return;
-                }
-
-                if (selectedCityId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Grad je obavezan')),
-                  );
-                  return;
-                }
-
-                if (selectedZoneId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Zona je obavezna')),
-                  );
-                  return;
-                }
+                if (!(formKey.currentState?.validate() ?? false)) return;
 
                 double? latitude;
-                if (latitudeController.text.trim().isNotEmpty) {
-                  latitude = double.tryParse(latitudeController.text.trim());
-                  if (latitude == null || latitude < -90 || latitude > 90) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Latitude mora biti između -90 i 90')),
-                    );
-                    return;
-                  }
+                final latRaw = latitudeController.text.trim();
+                if (latRaw.isNotEmpty) {
+                  latitude = double.tryParse(latRaw);
                 }
 
                 double? longitude;
-                if (longitudeController.text.trim().isNotEmpty) {
-                  longitude = double.tryParse(longitudeController.text.trim());
-                  if (longitude == null || longitude < -180 || longitude > 180) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Longitude mora biti između -180 i 180')),
-                    );
-                    return;
-                  }
+                final lonRaw = longitudeController.text.trim();
+                if (lonRaw.isNotEmpty) {
+                  longitude = double.tryParse(lonRaw);
                 }
 
                 try {
@@ -2236,7 +2627,7 @@ class _StationsTableState extends State<StationsTable> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    onChanged: (_) => _loadData(),
+                    onChanged: (_) => _applyFilters(),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -2261,7 +2652,7 @@ class _StationsTableState extends State<StationsTable> {
                         setState(() {
                           _statusFilter = value;
                         });
-                        _loadData();
+                        _applyFilters();
                       },
                     ),
                   ),
@@ -2378,26 +2769,24 @@ class _StationsTableState extends State<StationsTable> {
   }
 
   Widget _buildPagination() {
-    final totalPages = (_filteredStations.length / _itemsPerPage).ceil();
-    if (totalPages <= 1) return const SizedBox.shrink();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        IconButton(
-          onPressed: _currentPage > 0
-              ? () => setState(() => _currentPage--)
-              : null,
-          icon: const Icon(Icons.chevron_left),
-        ),
-        Text('Stranica ${_currentPage + 1} od $totalPages'),
-        IconButton(
-          onPressed: _currentPage < totalPages - 1
-              ? () => setState(() => _currentPage++)
-              : null,
-          icon: const Icon(Icons.chevron_right),
-        ),
-      ],
+    final totalPages = (_totalCount / _itemsPerPage).ceil();
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -12,7 +13,7 @@ class AuthService {
 
   Future<LoginResponse> login(LoginRequest request) async {
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/auth/user/login'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/login'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode(request.toJson()),
     );
@@ -29,7 +30,7 @@ class AuthService {
 
   Future<RegisterResponse> register(RegisterRequest request) async {
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/auth/user/register'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/register'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode(request.toJson()),
     );
@@ -105,7 +106,9 @@ class AuthService {
 
       return true;
     } catch (e) {
-      print('isAuthenticated error: $e');
+      if (kDebugMode) {
+        debugPrint('isAuthenticated error: $e');
+      }
       return false;
     }
   }

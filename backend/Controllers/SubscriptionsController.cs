@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,13 +13,16 @@ namespace TransitFlow.API.Controllers;
 public class SubscriptionsController : ControllerBase
 {
     private readonly ISubscriptionService _subscriptionService;
+    private readonly ILogger<SubscriptionsController> _logger;
 
-    public SubscriptionsController(ISubscriptionService subscriptionService)
+    public SubscriptionsController(ISubscriptionService subscriptionService, ILogger<SubscriptionsController> logger)
     {
         _subscriptionService = subscriptionService;
+        _logger = logger;
     }
 
     [HttpGet("metrics")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<SubscriptionMetricsDto>> GetMetrics()
     {
         var metrics = await _subscriptionService.GetMetricsAsync();
@@ -26,13 +30,21 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<SubscriptionDto>>> GetAll(
+    public async Task<ActionResult<PagedResultDto<SubscriptionDto>>> GetAll(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
         [FromQuery] string? search = null,
         [FromQuery] string? status = null,
         [FromQuery] DateTime? dateFrom = null,
         [FromQuery] DateTime? dateTo = null,
         [FromQuery] string? sortBy = null)
     {
+        if (User.IsInRole("Administrator"))
+        {
+            var subscriptionsAdmin = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, null, dateFrom, dateTo, sortBy);
+            return Ok(subscriptionsAdmin);
+        }
+
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         int? userId = null;
         if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
@@ -40,7 +52,34 @@ public class SubscriptionsController : ControllerBase
             userId = parsedUserId;
         }
 
-        var subscriptions = await _subscriptionService.GetAllAsync(search, status, userId, dateFrom, dateTo, sortBy);
+        var subscriptions = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
+        return Ok(subscriptions);
+    }
+
+    [HttpGet("paged")]
+    public async Task<ActionResult<PagedResultDto<SubscriptionDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null,
+        [FromQuery] string? status = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] string? sortBy = null)
+    {
+        if (User.IsInRole("Administrator"))
+        {
+            var subscriptionsAdmin = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, null, dateFrom, dateTo, sortBy);
+            return Ok(subscriptionsAdmin);
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        int? userId = null;
+        if (userIdClaim != null && int.TryParse(userIdClaim.Value, out var parsedUserId))
+        {
+            userId = parsedUserId;
+        }
+
+        var subscriptions = await _subscriptionService.GetPagedAsync(page, pageSize, search, status, userId, dateFrom, dateTo, sortBy);
         return Ok(subscriptions);
     }
 
@@ -94,9 +133,14 @@ public class SubscriptionsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while creating the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed creating subscription for user {UserId}", dto.UserId);
+            return StatusCode(500, new { message = "An error occurred while creating the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -118,9 +162,14 @@ public class SubscriptionsController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed updating subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -144,7 +193,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while cancelling the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed cancelling subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while cancelling the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -164,7 +214,8 @@ public class SubscriptionsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while deleting the subscription", error = ex.Message });
+            _logger.LogError(ex, "Failed deleting subscription {SubscriptionId}", id);
+            return StatusCode(500, new { message = "An error occurred while deleting the subscription", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

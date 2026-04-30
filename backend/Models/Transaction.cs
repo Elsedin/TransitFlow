@@ -31,6 +31,23 @@ public class Transaction
     
     [MaxLength(500)]
     public string? Notes { get; set; }
+
+    [MaxLength(100)]
+    public string? ExternalTransactionId { get; set; }
+
+    [MaxLength(100)]
+    public string? PayPalCaptureId { get; set; }
+
+    [MaxLength(50)]
+    public string RefundStatus { get; set; } = "none";
+
+    public DateTime? RefundedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? RefundReason { get; set; }
+
+    [MaxLength(100)]
+    public string? ExternalRefundId { get; set; }
     
     public virtual ICollection<Ticket> Tickets { get; set; } = new List<Ticket>();
 }

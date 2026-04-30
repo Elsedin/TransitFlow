@@ -9,6 +9,9 @@ public class Ticket
     public int Id { get; set; }
     
     [Required]
+    public Guid PublicId { get; set; }
+    
+    [Required]
     [MaxLength(50)]
     public string TicketNumber { get; set; } = string.Empty;
     
@@ -40,6 +43,10 @@ public class Ticket
     public bool IsUsed { get; set; } = false;
     
     public DateTime? UsedAt { get; set; }
+
+    public bool IsRefunded { get; set; } = false;
+
+    public DateTime? RefundedAt { get; set; }
     
     public int? TransactionId { get; set; }
     

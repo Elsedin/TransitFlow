@@ -210,3 +210,32 @@ class Schedule {
     );
   }
 }
+
+class NextDeparture {
+  final int routeId;
+  final int dayOfWeek;
+  final String dayOfWeekName;
+  final String departureTime;
+  final String arrivalTime;
+  final int minutesUntilDeparture;
+
+  NextDeparture({
+    required this.routeId,
+    required this.dayOfWeek,
+    required this.dayOfWeekName,
+    required this.departureTime,
+    required this.arrivalTime,
+    required this.minutesUntilDeparture,
+  });
+
+  factory NextDeparture.fromJson(Map<String, dynamic> json) {
+    return NextDeparture(
+      routeId: json['routeId'] as int,
+      dayOfWeek: json['dayOfWeek'] as int,
+      dayOfWeekName: json['dayOfWeekName'] as String,
+      departureTime: json['departureTime'] as String,
+      arrivalTime: json['arrivalTime'] as String,
+      minutesUntilDeparture: json['minutesUntilDeparture'] as int,
+    );
+  }
+}

@@ -16,54 +16,45 @@ public class ScheduleService : IScheduleService
 
     public async Task<List<ScheduleDto>> GetAllAsync(int? routeId = null, int? vehicleId = null, int? dayOfWeek = null, bool? isActive = null)
     {
-        var query = _context.Schedules
-            .Include(s => s.Route)
-                .ThenInclude(r => r!.TransportLine)
-            .Include(s => s.Vehicle)
-            .AsQueryable();
-
-        if (routeId.HasValue)
-        {
-            query = query.Where(s => s.RouteId == routeId.Value);
-        }
-
-        if (vehicleId.HasValue)
-        {
-            query = query.Where(s => s.VehicleId == vehicleId.Value);
-        }
-
-        if (dayOfWeek.HasValue)
-        {
-            query = query.Where(s => (int)s.DayOfWeek == dayOfWeek.Value);
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(s => s.IsActive == isActive.Value);
-        }
+        var query = BuildFilteredQuery(routeId, vehicleId, dayOfWeek, isActive);
 
         var schedules = await query
             .OrderBy(s => s.DayOfWeek)
             .ThenBy(s => s.DepartureTime)
             .ToListAsync();
 
-        return schedules.Select(s => new ScheduleDto
+        return schedules.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<ScheduleDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        int? routeId = null,
+        int? vehicleId = null,
+        int? dayOfWeek = null,
+        bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(routeId, vehicleId, dayOfWeek, isActive);
+
+        var total = await query.CountAsync();
+        var schedules = await query
+            .OrderBy(s => s.DayOfWeek)
+            .ThenBy(s => s.DepartureTime)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<ScheduleDto>
         {
-            Id = s.Id,
-            RouteId = s.RouteId,
-            RouteName = s.Route != null 
-                ? $"{s.Route.TransportLine?.LineNumber ?? ""} - {s.Route.Origin} - {s.Route.Destination}"
-                : string.Empty,
-            RouteOrigin = s.Route?.Origin ?? string.Empty,
-            RouteDestination = s.Route?.Destination ?? string.Empty,
-            VehicleId = s.VehicleId,
-            VehicleLicensePlate = s.Vehicle?.LicensePlate ?? string.Empty,
-            DepartureTime = s.DepartureTime.ToString("HH:mm"),
-            ArrivalTime = s.ArrivalTime.ToString("HH:mm"),
-            DayOfWeek = (int)s.DayOfWeek,
-            DayOfWeekName = GetDayOfWeekName(s.DayOfWeek),
-            IsActive = s.IsActive
-        }).ToList();
+            Items = schedules.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<ScheduleDto?> GetByIdAsync(int id)
@@ -198,6 +189,58 @@ public class ScheduleService : IScheduleService
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    private IQueryable<Schedule> BuildFilteredQuery(int? routeId, int? vehicleId, int? dayOfWeek, bool? isActive)
+    {
+        var query = _context.Schedules
+            .Include(s => s.Route)
+                .ThenInclude(r => r!.TransportLine)
+            .Include(s => s.Vehicle)
+            .AsQueryable();
+
+        if (routeId.HasValue)
+        {
+            query = query.Where(s => s.RouteId == routeId.Value);
+        }
+
+        if (vehicleId.HasValue)
+        {
+            query = query.Where(s => s.VehicleId == vehicleId.Value);
+        }
+
+        if (dayOfWeek.HasValue)
+        {
+            query = query.Where(s => (int)s.DayOfWeek == dayOfWeek.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(s => s.IsActive == isActive.Value);
+        }
+
+        return query;
+    }
+
+    private static ScheduleDto MapToDto(Schedule s)
+    {
+        return new ScheduleDto
+        {
+            Id = s.Id,
+            RouteId = s.RouteId,
+            RouteName = s.Route != null
+                ? $"{s.Route.TransportLine?.LineNumber ?? ""} - {s.Route.Origin} - {s.Route.Destination}"
+                : string.Empty,
+            RouteOrigin = s.Route?.Origin ?? string.Empty,
+            RouteDestination = s.Route?.Destination ?? string.Empty,
+            VehicleId = s.VehicleId,
+            VehicleLicensePlate = s.Vehicle?.LicensePlate ?? string.Empty,
+            DepartureTime = s.DepartureTime.ToString("HH:mm"),
+            ArrivalTime = s.ArrivalTime.ToString("HH:mm"),
+            DayOfWeek = (int)s.DayOfWeek,
+            DayOfWeekName = GetDayOfWeekName(s.DayOfWeek),
+            IsActive = s.IsActive
+        };
     }
 
     private static string GetDayOfWeekName(DayOfWeek dayOfWeek)

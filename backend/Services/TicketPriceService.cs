@@ -16,47 +16,44 @@ public class TicketPriceService : ITicketPriceService
 
     public async Task<List<TicketPriceDto>> GetAllAsync(int? ticketTypeId = null, int? zoneId = null, bool? isActive = null)
     {
-        var query = _context.TicketPrices
-            .Include(tp => tp.TicketType)
-            .Include(tp => tp.Zone)
-            .AsQueryable();
-
-        if (ticketTypeId.HasValue)
-        {
-            query = query.Where(tp => tp.TicketTypeId == ticketTypeId.Value);
-        }
-
-        if (zoneId.HasValue)
-        {
-            query = query.Where(tp => tp.ZoneId == zoneId.Value);
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(tp => tp.IsActive == isActive.Value);
-        }
-
+        var query = BuildFilteredQuery(ticketTypeId, zoneId, isActive);
         var ticketPrices = await query
             .OrderByDescending(tp => tp.ValidFrom)
             .ThenBy(tp => tp.TicketType!.Name)
             .ThenBy(tp => tp.Zone!.Name)
             .ToListAsync();
 
-        return ticketPrices.Select(tp => new TicketPriceDto
+        return ticketPrices.Select(MapToDto).ToList();
+    }
+
+    public async Task<PagedResultDto<TicketPriceDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        int? ticketTypeId = null,
+        int? zoneId = null,
+        bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(ticketTypeId, zoneId, isActive);
+        var total = await query.CountAsync();
+        var ticketPrices = await query
+            .OrderByDescending(tp => tp.ValidFrom)
+            .ThenBy(tp => tp.TicketType!.Name)
+            .ThenBy(tp => tp.Zone!.Name)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<TicketPriceDto>
         {
-            Id = tp.Id,
-            TicketTypeId = tp.TicketTypeId,
-            TicketTypeName = tp.TicketType?.Name ?? string.Empty,
-            ZoneId = tp.ZoneId,
-            ZoneName = tp.Zone?.Name ?? string.Empty,
-            Price = tp.Price,
-            ValidityDays = tp.TicketType?.ValidityDays ?? 0,
-            ValidityDescription = GetValidityDescription(tp.TicketType?.ValidityDays ?? 0),
-            ValidFrom = tp.ValidFrom,
-            ValidTo = tp.ValidTo,
-            CreatedAt = tp.CreatedAt,
-            IsActive = tp.IsActive
-        }).ToList();
+            Items = ticketPrices.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<TicketPriceDto?> GetByIdAsync(int id)
@@ -169,6 +166,50 @@ public class TicketPriceService : ITicketPriceService
             30 => "30 dana",
             365 => "365 dana",
             _ => $"{validityDays} dana"
+        };
+    }
+
+    private IQueryable<TicketPrice> BuildFilteredQuery(int? ticketTypeId, int? zoneId, bool? isActive)
+    {
+        var query = _context.TicketPrices
+            .Include(tp => tp.TicketType)
+            .Include(tp => tp.Zone)
+            .AsQueryable();
+
+        if (ticketTypeId.HasValue)
+        {
+            query = query.Where(tp => tp.TicketTypeId == ticketTypeId.Value);
+        }
+
+        if (zoneId.HasValue)
+        {
+            query = query.Where(tp => tp.ZoneId == zoneId.Value);
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(tp => tp.IsActive == isActive.Value);
+        }
+
+        return query;
+    }
+
+    private static TicketPriceDto MapToDto(TicketPrice tp)
+    {
+        return new TicketPriceDto
+        {
+            Id = tp.Id,
+            TicketTypeId = tp.TicketTypeId,
+            TicketTypeName = tp.TicketType?.Name ?? string.Empty,
+            ZoneId = tp.ZoneId,
+            ZoneName = tp.Zone?.Name ?? string.Empty,
+            Price = tp.Price,
+            ValidityDays = tp.TicketType?.ValidityDays ?? 0,
+            ValidityDescription = GetValidityDescription(tp.TicketType?.ValidityDays ?? 0),
+            ValidFrom = tp.ValidFrom,
+            ValidTo = tp.ValidTo,
+            CreatedAt = tp.CreatedAt,
+            IsActive = tp.IsActive
         };
     }
 }

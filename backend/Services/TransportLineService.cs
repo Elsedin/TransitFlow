@@ -15,42 +15,32 @@ public class TransportLineService : ITransportLineService
 
     public async Task<List<TransportLineDto>> GetAllAsync(string? search = null, bool? isActive = null)
     {
-        var query = _context.TransportLines
-            .Include(tl => tl.TransportType)
-            .Include(tl => tl.Routes)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.ToLower();
-            query = query.Where(tl =>
-                tl.LineNumber.ToLower().Contains(searchLower) ||
-                tl.Name.ToLower().Contains(searchLower) ||
-                tl.Routes.Any(r => r.Origin.ToLower().Contains(searchLower) ||
-                                   r.Destination.ToLower().Contains(searchLower)));
-        }
-
-        if (isActive.HasValue)
-        {
-            query = query.Where(tl => tl.IsActive == isActive.Value);
-        }
-
+        var query = BuildFilteredQuery(search, isActive);
         var lines = await query.ToListAsync();
+        return lines.Select(MapToDto).ToList();
+    }
 
-        return lines.Select(tl =>
+    public async Task<PagedResultDto<TransportLineDto>> GetPagedAsync(int page, int pageSize, string? search = null, bool? isActive = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var query = BuildFilteredQuery(search, isActive);
+        var total = await query.CountAsync();
+        var lines = await query
+            .OrderBy(tl => tl.LineNumber)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<TransportLineDto>
         {
-            var firstRoute = tl.Routes.FirstOrDefault();
-            return new TransportLineDto
-            {
-                Id = tl.Id,
-                LineNumber = tl.LineNumber,
-                Name = tl.Name,
-                Origin = firstRoute?.Origin ?? string.Empty,
-                Destination = firstRoute?.Destination ?? string.Empty,
-                TransportTypeName = tl.TransportType?.Name ?? string.Empty,
-                IsActive = tl.IsActive
-            };
-        }).ToList();
+            Items = lines.Select(MapToDto).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
     }
 
     public async Task<TransportLineDto?> GetByIdAsync(int id)
@@ -172,5 +162,45 @@ public class TransportLineService : ITransportLineService
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    private IQueryable<Models.TransportLine> BuildFilteredQuery(string? search, bool? isActive)
+    {
+        var query = _context.TransportLines
+            .Include(tl => tl.TransportType)
+            .Include(tl => tl.Routes)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(tl =>
+                tl.LineNumber.ToLower().Contains(searchLower) ||
+                tl.Name.ToLower().Contains(searchLower) ||
+                tl.Routes.Any(r => r.Origin.ToLower().Contains(searchLower) ||
+                                   r.Destination.ToLower().Contains(searchLower)));
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(tl => tl.IsActive == isActive.Value);
+        }
+
+        return query;
+    }
+
+    private static TransportLineDto MapToDto(Models.TransportLine tl)
+    {
+        var firstRoute = tl.Routes.FirstOrDefault();
+        return new TransportLineDto
+        {
+            Id = tl.Id,
+            LineNumber = tl.LineNumber,
+            Name = tl.Name,
+            Origin = firstRoute?.Origin ?? string.Empty,
+            Destination = firstRoute?.Destination ?? string.Empty,
+            TransportTypeName = tl.TransportType?.Name ?? string.Empty,
+            IsActive = tl.IsActive
+        };
     }
 }

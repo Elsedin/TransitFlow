@@ -15,12 +15,15 @@ class NotificationService {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
-    final queryParams = <String, String>{};
+    final queryParams = <String, String>{
+      'page': '1',
+      'pageSize': '100',
+    };
     if (isRead != null) {
       queryParams['isRead'] = isRead.toString();
     }
 
-    final uri = Uri.parse('${AppConfig.apiBaseUrl}/notifications/my')
+    final uri = Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/my')
         .replace(queryParameters: queryParams);
 
     final response = await http.get(
@@ -32,8 +35,9 @@ class NotificationService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => models.Notification.fromJson(json)).toList();
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
+      return items.map((json) => models.Notification.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load notifications: ${response.statusCode}');
     }
@@ -44,7 +48,7 @@ class NotificationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.get(
-      Uri.parse('${AppConfig.apiBaseUrl}/notifications/my/unread-count'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/my/unread-count'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
@@ -63,7 +67,7 @@ class NotificationService {
     if (token == null) throw Exception('Not authenticated');
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/notifications/$id/mark-read'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/notifications/$id/mark-read'),
       headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',

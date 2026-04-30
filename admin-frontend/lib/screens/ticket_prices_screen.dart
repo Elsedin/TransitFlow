@@ -6,6 +6,7 @@ import '../services/zone_service.dart';
 import '../models/ticket_price_model.dart';
 import '../models/ticket_type_model.dart';
 import '../models/station_model.dart';
+import '../widgets/pagination_bar.dart';
 
 class TicketPricesScreen extends StatefulWidget {
   const TicketPricesScreen({super.key});
@@ -19,14 +20,14 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
   final _ticketTypeService = TicketTypeService();
   final _zoneService = ZoneService();
   List<TicketPrice> _ticketPrices = [];
-  List<TicketPrice> _filteredTicketPrices = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   int? _ticketTypeFilter;
   int? _zoneFilter;
   bool? _statusFilter;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -41,14 +42,16 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
     });
 
     try {
-      final ticketPrices = await _ticketPriceService.getAll(
+      final result = await _ticketPriceService.getPaged(
+        page: _currentPage + 1,
+        pageSize: _itemsPerPage,
         ticketTypeId: _ticketTypeFilter,
         zoneId: _zoneFilter,
         isActive: _statusFilter,
       );
       setState(() {
-        _ticketPrices = ticketPrices;
-        _filteredTicketPrices = ticketPrices;
+        _ticketPrices = result.items;
+        _totalCount = result.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -60,21 +63,8 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
   }
 
   void _applyFilters() {
-    setState(() {
-      _filteredTicketPrices = _ticketPrices.where((price) {
-        if (_ticketTypeFilter != null && price.ticketTypeId != _ticketTypeFilter) {
-          return false;
-        }
-        if (_zoneFilter != null && price.zoneId != _zoneFilter) {
-          return false;
-        }
-        if (_statusFilter != null && price.isActive != _statusFilter) {
-          return false;
-        }
-        return true;
-      }).toList();
-      _currentPage = 0;
-    });
+    setState(() => _currentPage = 0);
+    _loadTicketPrices();
   }
 
   Future<void> _deleteTicketPrice(int id) async {
@@ -142,12 +132,10 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
   }
 
   List<TicketPrice> get _paginatedTicketPrices {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTicketPrices.length);
-    return _filteredTicketPrices.sublist(start, end);
+    return _ticketPrices;
   }
 
-  int get _totalPages => (_filteredTicketPrices.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
 
   @override
   Widget build(BuildContext context) {
@@ -230,7 +218,7 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
                             setState(() {
                               _ticketTypeFilter = value;
                             });
-                            _loadTicketPrices();
+                            _applyFilters();
                           },
                           style: const TextStyle(fontSize: 16, color: Colors.black87),
                         ),
@@ -277,7 +265,7 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
                             setState(() {
                               _zoneFilter = value;
                             });
-                            _loadTicketPrices();
+                            _applyFilters();
                           },
                           style: const TextStyle(fontSize: 16, color: Colors.black87),
                         ),
@@ -308,7 +296,7 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
                       setState(() {
                         _statusFilter = value;
                       });
-                      _loadTicketPrices();
+                      _applyFilters();
                     },
                     style: const TextStyle(fontSize: 16, color: Colors.black87),
                   ),
@@ -335,8 +323,106 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
       return const Center(child: Text('Nema pronađenih cijena'));
     }
 
-    return SingleChildScrollView(
-      child: Table(
+    final headerRow = TableRow(
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      children: const [
+        _TableHeaderCell('ID'),
+        _TableHeaderCell('Tip karte'),
+        _TableHeaderCell('Zona'),
+        _TableHeaderCell('Cijena (KM)'),
+        _TableHeaderCell('Važenje'),
+        _TableHeaderCell('Status'),
+        _TableHeaderCell('Datum kreiranja'),
+        _TableHeaderCell('Akcije'),
+      ],
+    );
+
+    final bodyRows = _paginatedTicketPrices.asMap().entries.map((entry) {
+      final index = entry.key;
+      final price = entry.value;
+      return TableRow(
+        decoration: BoxDecoration(
+          color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+        ),
+        children: [
+          _TableCell(price.id.toString()),
+          _TableCell(price.ticketTypeName),
+          _TableCell(price.zoneName),
+          _TableCell('${price.price.toStringAsFixed(2)} KM'),
+          _TableCell(price.validityDescription),
+          _TableCell(
+            '',
+            child: Center(
+              child: Chip(
+                label: Text(
+                  price.isActive ? 'Aktivna' : 'Neaktivna',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                backgroundColor: price.isActive ? Colors.green : Colors.red,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          _TableCell(DateFormat('dd.MM.yyyy').format(price.createdAt)),
+          _TableCell(
+            '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => _showAddEditDialog(ticketPrice: price),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Uredi'),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => _deleteTicketPrice(price.id),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Obriši'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(0.5),
+            1: FlexColumnWidth(1.5),
+            2: FlexColumnWidth(1.0),
+            3: FlexColumnWidth(1.0),
+            4: FlexColumnWidth(1.2),
+            5: FlexColumnWidth(1.3),
+            6: FlexColumnWidth(1.2),
+            7: FlexColumnWidth(2.0),
+          },
+          children: [headerRow],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Table(
         columnWidths: const {
           0: FlexColumnWidth(0.5),
           1: FlexColumnWidth(1.5),
@@ -347,129 +433,39 @@ class _TicketPricesScreenState extends State<TicketPricesScreen> {
           6: FlexColumnWidth(1.2),
           7: FlexColumnWidth(2.0),
         },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.orange[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              children: bodyRows,
             ),
-            children: const [
-              _TableHeaderCell('ID'),
-              _TableHeaderCell('Tip karte'),
-              _TableHeaderCell('Zona'),
-              _TableHeaderCell('Cijena (KM)'),
-              _TableHeaderCell('Važenje'),
-              _TableHeaderCell('Status'),
-              _TableHeaderCell('Datum kreiranja'),
-              _TableHeaderCell('Akcije'),
-            ],
           ),
-          ..._paginatedTicketPrices.asMap().entries.map((entry) {
-            final index = entry.key;
-            final price = entry.value;
-            return TableRow(
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.white : Colors.grey[50],
-              ),
-              children: [
-                _TableCell(price.id.toString()),
-                _TableCell(price.ticketTypeName),
-                _TableCell(price.zoneName),
-                _TableCell('${price.price.toStringAsFixed(2)} KM'),
-                _TableCell(price.validityDescription),
-                _TableCell(
-                  '',
-                  child: Center(
-                    child: Chip(
-                      label: Text(
-                        price.isActive ? 'Aktivna' : 'Neaktivna',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      backgroundColor: price.isActive ? Colors.green : Colors.red,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                _TableCell(DateFormat('dd.MM.yyyy').format(price.createdAt)),
-                _TableCell(
-                  '',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () => _showAddEditDialog(ticketPrice: price),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Uredi'),
-                      ),
-                      const SizedBox(width: 4),
-                      TextButton(
-                        onPressed: () => _deleteTicketPrice(price.id),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Obriši'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Prikazano ${_paginatedTicketPrices.length} od ${_filteredTicketPrices.length} cijena',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Row(
-            children: [
-              TextButton(
-                onPressed: _currentPage > 0
-                    ? () {
-                        setState(() {
-                          _currentPage--;
-                        });
-                      }
-                    : null,
-                child: const Text('Prethodna'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _currentPage < _totalPages - 1
-                    ? () {
-                        setState(() {
-                          _currentPage++;
-                        });
-                      }
-                    : null,
-                child: const Text('Sljedeća'),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadTicketPrices();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadTicketPrices();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _itemsPerPage = v;
+          _currentPage = 0;
+        });
+        _loadTicketPrices();
+      },
     );
   }
 }
@@ -497,10 +493,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -516,7 +511,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }

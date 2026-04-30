@@ -13,7 +13,7 @@ class PaymentService {
       }
 
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/payments/stripe/create-intent'),
+        Uri.parse('${AppConfig.resolvedApiBaseUrl}/payments/stripe/create-intent'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -51,7 +51,7 @@ class PaymentService {
 
     try {
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/payments/stripe/confirm'),
+        Uri.parse('${AppConfig.resolvedApiBaseUrl}/payments/stripe/confirm'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -88,7 +88,7 @@ class PaymentService {
     }
 
     final response = await http.post(
-      Uri.parse('${AppConfig.apiBaseUrl}/payments/paypal/create-order'),
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/payments/paypal/create-order'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -123,7 +123,7 @@ class PaymentService {
 
     try {
       final response = await http.post(
-        Uri.parse('${AppConfig.apiBaseUrl}/payments/paypal/capture'),
+        Uri.parse('${AppConfig.resolvedApiBaseUrl}/payments/paypal/capture'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

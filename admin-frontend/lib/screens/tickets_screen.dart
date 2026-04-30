@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../services/ticket_service.dart';
 import '../services/ticket_type_service.dart';
 import '../services/export_service.dart';
 import '../models/ticket_model.dart';
 import '../models/ticket_type_model.dart';
 import '../widgets/metric_card_enhanced.dart';
+import '../widgets/pagination_bar.dart';
 
 class TicketsScreen extends StatefulWidget {
   const TicketsScreen({super.key});
@@ -19,8 +20,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
   final _ticketService = TicketService();
   final _ticketTypeService = TicketTypeService();
   TicketMetrics? _metrics;
-  List<Ticket> _tickets = [];
-  List<Ticket> _filteredTickets = [];
+  List<Ticket> _pagedTickets = [];
+  int _totalCount = 0;
   bool _isLoading = true;
   String? _errorMessage;
   final _searchController = TextEditingController();
@@ -29,7 +30,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
   DateTime? _dateFrom;
   DateTime? _dateTo;
   int _currentPage = 0;
-  final int _itemsPerPage = 5;
+  int _itemsPerPage = 5;
 
   @override
   void initState() {
@@ -51,17 +52,18 @@ class _TicketsScreenState extends State<TicketsScreen> {
 
     try {
       final metrics = await _ticketService.getMetrics();
-      final tickets = await _ticketService.getAll(
-        search: _searchController.text.isEmpty ? null : _searchController.text,
-        status: _statusFilter,
-        ticketTypeId: _ticketTypeFilter,
-        dateFrom: _dateFrom,
-        dateTo: _dateTo,
-      );
+      final pageResult = await _ticketService.getPaged(
+          page: _currentPage + 1,
+          pageSize: _itemsPerPage,
+          search: _searchController.text.isEmpty ? null : _searchController.text,
+          status: _statusFilter,
+          ticketTypeId: _ticketTypeFilter,
+          dateFrom: _dateFrom,
+          dateTo: _dateTo);
       setState(() {
         _metrics = metrics;
-        _tickets = tickets;
-        _filteredTickets = tickets;
+        _pagedTickets = pageResult.items;
+        _totalCount = pageResult.totalCount;
         _isLoading = false;
       });
     } catch (e) {
@@ -73,6 +75,9 @@ class _TicketsScreenState extends State<TicketsScreen> {
   }
 
   void _applyFilters() {
+    setState(() {
+      _currentPage = 0;
+    });
     _loadData();
   }
 
@@ -98,13 +103,9 @@ class _TicketsScreenState extends State<TicketsScreen> {
     return NumberFormat('#,###').format(number);
   }
 
-  List<Ticket> get _paginatedTickets {
-    final start = _currentPage * _itemsPerPage;
-    final end = (start + _itemsPerPage).clamp(0, _filteredTickets.length);
-    return _filteredTickets.sublist(start, end);
-  }
+  List<Ticket> get _paginatedTickets => _pagedTickets;
 
-  int get _totalPages => (_filteredTickets.length / _itemsPerPage).ceil();
+  int get _totalPages => (_totalCount / _itemsPerPage).ceil();
 
   @override
   Widget build(BuildContext context) {
@@ -183,12 +184,20 @@ class _TicketsScreenState extends State<TicketsScreen> {
                   
                   try {
                     String? path;
+                    final exportItems = await _ticketService.getAll(
+                      search: _searchController.text.isEmpty ? null : _searchController.text,
+                      status: _statusFilter,
+                      ticketTypeId: _ticketTypeFilter,
+                      dateFrom: _dateFrom,
+                      dateTo: _dateTo,
+                    );
+
                     if (value == 'excel') {
-                      path = await ExportService.exportTicketsToExcel(_filteredTickets);
+                      path = await ExportService.exportTicketsToExcel(exportItems);
                     } else if (value == 'csv') {
-                      path = await ExportService.exportTicketsToCSV(_filteredTickets);
+                      path = await ExportService.exportTicketsToCSV(exportItems);
                     } else if (value == 'pdf') {
-                      path = await ExportService.exportTicketsToPDF(_filteredTickets);
+                      path = await ExportService.exportTicketsToPDF(exportItems);
                     }
 
                     if (path != null && mounted) {
@@ -412,151 +421,160 @@ class _TicketsScreenState extends State<TicketsScreen> {
       return const Center(child: Text('Nema pronađenih karata'));
     }
 
-    return SingleChildScrollView(
-      child: Table(
+    final headerRow = TableRow(
+      decoration: BoxDecoration(
+        color: Colors.orange[700],
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(8),
+        ),
+      ),
+      children: const [
+        _TableHeaderCell('ID karte'),
+        _TableHeaderCell('Korisnik'),
+        _TableHeaderCell('Tip karte'),
+        _TableHeaderCell('Linija'),
+        _TableHeaderCell('QR'),
+        _TableHeaderCell('Datum kupovine'),
+        _TableHeaderCell('Važi do'),
+        _TableHeaderCell('Status'),
+        _TableHeaderCell('Akcije'),
+      ],
+    );
+
+    final bodyRows = _paginatedTickets.asMap().entries.map((entry) {
+      final index = entry.key;
+      final ticket = entry.value;
+      return TableRow(
+        decoration: BoxDecoration(
+          color: index % 2 == 0 ? Colors.white : Colors.grey[50],
+        ),
+        children: [
+          _TableCell('#${ticket.ticketNumber}'),
+          _TableCell(ticket.userEmail),
+          _TableCell(ticket.ticketTypeName),
+          _TableCell(ticket.routeName ?? 'Sve linije'),
+          _TableCell(
+            '',
+            child: Center(
+              child: QrImageView(
+                data: ticket.publicId,
+                size: 40,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ),
+          _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.purchasedAt)),
+          _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.validTo)),
+          _TableCell(
+            '',
+            child: Center(
+              child: Chip(
+                label: Text(
+                  ticket.status,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.visible,
+                ),
+                backgroundColor: ticket.status == 'Aktivna'
+                    ? Colors.green
+                    : ticket.status == 'Korištena'
+                        ? Colors.red
+                        : Colors.grey,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          _TableCell(
+            '',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    _showTicketDetails(ticket);
+                  },
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                  child: const Text('Detalji'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }).toList();
+
+    return Column(
+      children: [
+        Table(
+          columnWidths: const {
+            0: FlexColumnWidth(1.2),
+            1: FlexColumnWidth(1.8),
+            2: FlexColumnWidth(1.2),
+            3: FlexColumnWidth(1.5),
+            4: FlexColumnWidth(0.8),
+            5: FlexColumnWidth(1.2),
+            6: FlexColumnWidth(1.2),
+            7: FlexColumnWidth(1.3),
+            8: FlexColumnWidth(2.0),
+          },
+          children: [headerRow],
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Table(
         columnWidths: const {
           0: FlexColumnWidth(1.2),
           1: FlexColumnWidth(1.8),
           2: FlexColumnWidth(1.2),
           3: FlexColumnWidth(1.5),
-          4: FlexColumnWidth(1.2),
+          4: FlexColumnWidth(0.8),
           5: FlexColumnWidth(1.2),
-          6: FlexColumnWidth(1.3),
-          7: FlexColumnWidth(2.0),
+          6: FlexColumnWidth(1.2),
+          7: FlexColumnWidth(1.3),
+          8: FlexColumnWidth(2.0),
         },
-        children: [
-          TableRow(
-            decoration: BoxDecoration(
-              color: Colors.orange[700],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-              ),
+              children: bodyRows,
             ),
-            children: const [
-              _TableHeaderCell('ID karte'),
-              _TableHeaderCell('Korisnik'),
-              _TableHeaderCell('Tip karte'),
-              _TableHeaderCell('Linija'),
-              _TableHeaderCell('Datum kupovine'),
-              _TableHeaderCell('Važi do'),
-              _TableHeaderCell('Status'),
-              _TableHeaderCell('Akcije'),
-            ],
           ),
-          ..._paginatedTickets.asMap().entries.map((entry) {
-            final index = entry.key;
-            final ticket = entry.value;
-            return TableRow(
-              decoration: BoxDecoration(
-                color: index % 2 == 0 ? Colors.white : Colors.grey[50],
-              ),
-              children: [
-                _TableCell('#${ticket.ticketNumber}'),
-                _TableCell(ticket.userEmail),
-                _TableCell(ticket.ticketTypeName),
-                _TableCell(ticket.routeName ?? 'Sve linije'),
-                _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.purchasedAt)),
-                _TableCell(DateFormat('dd.MM.yyyy HH:mm').format(ticket.validTo)),
-                _TableCell(
-                  '',
-                  child: Center(
-                    child: Chip(
-                      label: Text(
-                        ticket.status,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        overflow: TextOverflow.visible,
-                      ),
-                      backgroundColor: ticket.status == 'Aktivna'
-                          ? Colors.green
-                          : ticket.status == 'Korištena'
-                              ? Colors.red
-                              : Colors.grey,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                ),
-                _TableCell(
-                  '',
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          _showTicketDetails(ticket);
-                        },
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        ),
-                        child: const Text('Detalji'),
-                      ),
-                      if (ticket.isActive) ...[
-                        const SizedBox(width: 4),
-                        TextButton(
-                          onPressed: () {
-                            _showQRCode(ticket);
-                          },
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          ),
-                          child: const Text('QR kod'),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildPagination() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'Prikazano ${_paginatedTickets.length} od ${_filteredTickets.length} karata',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Row(
-            children: [
-              TextButton(
-                onPressed: _currentPage > 0
-                    ? () {
-                        setState(() {
-                          _currentPage--;
-                        });
-                      }
-                    : null,
-                child: const Text('Prethodna'),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: _currentPage < _totalPages - 1
-                    ? () {
-                        setState(() {
-                          _currentPage++;
-                        });
-                      }
-                    : null,
-                child: const Text('Sljedeća'),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return PaginationBar(
+      page: _currentPage + 1,
+      pageSize: _itemsPerPage,
+      totalCount: _totalCount,
+      totalPages: _totalPages,
+      onPrev: _currentPage > 0
+          ? () {
+              setState(() => _currentPage--);
+              _loadData();
+            }
+          : null,
+      onNext: _currentPage < _totalPages - 1
+          ? () {
+              setState(() => _currentPage++);
+              _loadData();
+            }
+          : null,
+      onPageSizeChanged: (v) {
+        setState(() {
+          _currentPage = 0;
+          _itemsPerPage = v;
+        });
+        _loadData();
+      },
     );
   }
 
@@ -615,42 +633,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
     );
   }
 
-  void _showQRCode(Ticket ticket) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('QR kod - #${ticket.ticketNumber}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.qr_code,
-                size: 200,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'QR kod za kartu #${ticket.ticketNumber}',
-              style: const TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Zatvori'),
-          ),
-        ],
-      ),
-    );
-  }
+  // QR dialog removed for Windows stability.
 }
 
 class _TableHeaderCell extends StatelessWidget {
@@ -676,10 +659,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -695,7 +677,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }

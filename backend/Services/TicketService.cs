@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Ticket = TransitFlow.API.Models.Ticket;
@@ -23,6 +24,56 @@ public class TicketService : ITicketService
         int? userId = null)
     {
         var now = DateTime.UtcNow;
+        var query = BuildFilteredQuery(now, search, status, ticketTypeId, dateFrom, dateTo, userId);
+
+        var tickets = await query
+            .OrderByDescending(t => t.PurchasedAt)
+            .ToListAsync();
+        return tickets.Select(t => MapToDto(t, now)).ToList();
+    }
+
+    public async Task<PagedResultDto<TicketDto>> GetPagedAsync(
+        int page,
+        int pageSize,
+        string? search = null,
+        string? status = null,
+        int? ticketTypeId = null,
+        DateTime? dateFrom = null,
+        DateTime? dateTo = null,
+        int? userId = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 10;
+        if (pageSize > 100) pageSize = 100;
+
+        var now = DateTime.UtcNow;
+        var query = BuildFilteredQuery(now, search, status, ticketTypeId, dateFrom, dateTo, userId);
+        var total = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(t => t.PurchasedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedResultDto<TicketDto>
+        {
+            Items = items.Select(t => MapToDto(t, now)).ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        };
+    }
+
+    private IQueryable<Ticket> BuildFilteredQuery(
+        DateTime now,
+        string? search,
+        string? status,
+        int? ticketTypeId,
+        DateTime? dateFrom,
+        DateTime? dateTo,
+        int? userId)
+    {
         var query = _context.Tickets
             .Include(t => t.User)
             .Include(t => t.TicketType)
@@ -39,7 +90,7 @@ public class TicketService : ITicketService
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var searchLower = search.ToLower();
+            var searchLower = search.Trim().ToLower();
             query = query.Where(t =>
                 t.TicketNumber.ToLower().Contains(searchLower) ||
                 t.User!.Email.ToLower().Contains(searchLower) ||
@@ -48,9 +99,9 @@ public class TicketService : ITicketService
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            query = status.ToLower() switch
+            query = status.Trim().ToLower() switch
             {
-                "aktivna" => query.Where(t => !t.IsUsed && t.ValidTo >= now),
+                "aktivna" => query.Where(t => !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now),
                 "korištena" => query.Where(t => t.IsUsed),
                 "istekla" => query.Where(t => !t.IsUsed && t.ValidTo < now),
                 _ => query
@@ -72,12 +123,15 @@ public class TicketService : ITicketService
             query = query.Where(t => t.PurchasedAt <= dateTo.Value.AddDays(1).AddTicks(-1));
         }
 
-        var tickets = await query
-            .OrderByDescending(t => t.PurchasedAt)
-            .ToListAsync();
-        return tickets.Select(t => new TicketDto
+        return query;
+    }
+
+    private static TicketDto MapToDto(Ticket t, DateTime now)
+    {
+        return new TicketDto
         {
             Id = t.Id,
+            PublicId = t.PublicId,
             TicketNumber = t.TicketNumber,
             UserId = t.UserId,
             UserEmail = t.User?.Email ?? string.Empty,
@@ -92,15 +146,17 @@ public class TicketService : ITicketService
             ZoneId = t.ZoneId,
             ZoneName = t.Zone?.Name ?? string.Empty,
             Price = t.Price,
-            ValidFrom = t.ValidFrom,
-            ValidTo = t.ValidTo,
-            PurchasedAt = t.PurchasedAt,
+            ValidFrom = DateTime.SpecifyKind(t.ValidFrom, DateTimeKind.Utc),
+            ValidTo = DateTime.SpecifyKind(t.ValidTo, DateTimeKind.Utc),
+            PurchasedAt = DateTime.SpecifyKind(t.PurchasedAt, DateTimeKind.Utc),
             IsUsed = t.IsUsed,
-            UsedAt = t.UsedAt,
+            UsedAt = t.UsedAt.HasValue ? DateTime.SpecifyKind(t.UsedAt.Value, DateTimeKind.Utc) : null,
+            IsRefunded = t.IsRefunded,
+            RefundedAt = t.RefundedAt.HasValue ? DateTime.SpecifyKind(t.RefundedAt.Value, DateTimeKind.Utc) : null,
             Status = GetTicketStatus(t, now),
-            IsActive = !t.IsUsed && t.ValidTo >= now,
+            IsActive = !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now,
             PaymentMethod = t.Transaction?.PaymentMethod
-        }).ToList();
+        };
     }
 
     public async Task<TicketDto?> GetByIdAsync(int id)
@@ -121,6 +177,7 @@ public class TicketService : ITicketService
         return new TicketDto
         {
             Id = ticket.Id,
+            PublicId = ticket.PublicId,
             TicketNumber = ticket.TicketNumber,
             UserId = ticket.UserId,
             UserEmail = ticket.User?.Email ?? string.Empty,
@@ -135,13 +192,15 @@ public class TicketService : ITicketService
             ZoneId = ticket.ZoneId,
             ZoneName = ticket.Zone?.Name ?? string.Empty,
             Price = ticket.Price,
-            ValidFrom = ticket.ValidFrom,
-            ValidTo = ticket.ValidTo,
-            PurchasedAt = ticket.PurchasedAt,
+            ValidFrom = DateTime.SpecifyKind(ticket.ValidFrom, DateTimeKind.Utc),
+            ValidTo = DateTime.SpecifyKind(ticket.ValidTo, DateTimeKind.Utc),
+            PurchasedAt = DateTime.SpecifyKind(ticket.PurchasedAt, DateTimeKind.Utc),
             IsUsed = ticket.IsUsed,
-            UsedAt = ticket.UsedAt,
+            UsedAt = ticket.UsedAt.HasValue ? DateTime.SpecifyKind(ticket.UsedAt.Value, DateTimeKind.Utc) : null,
+            IsRefunded = ticket.IsRefunded,
+            RefundedAt = ticket.RefundedAt.HasValue ? DateTime.SpecifyKind(ticket.RefundedAt.Value, DateTimeKind.Utc) : null,
             Status = GetTicketStatus(ticket, now),
-            IsActive = !ticket.IsUsed && ticket.ValidTo >= now,
+            IsActive = !ticket.IsUsed && ticket.ValidFrom <= now && ticket.ValidTo >= now,
             PaymentMethod = ticket.Transaction?.PaymentMethod
         };
     }
@@ -189,41 +248,18 @@ public class TicketService : ITicketService
             throw new InvalidOperationException("Zone not found");
         }
 
-        var ticketValidFrom = dto.ValidFrom.ToUniversalTime();
+        var ticketValidFrom = DateTime.SpecifyKind(dto.ValidFrom, DateTimeKind.Utc).ToUniversalTime();
         var ticketValidFromDate = ticketValidFrom.Date;
+        var dayStart = ticketValidFromDate;
+        var dayEnd = ticketValidFromDate.AddDays(1).AddTicks(-1);
         
-        var allPrices = await _context.TicketPrices
-            .Where(tp => tp.TicketTypeId == dto.TicketTypeId 
-                && tp.ZoneId == dto.ZoneId 
+        var ticketPrice = await _context.TicketPrices
+            .Where(tp => tp.TicketTypeId == dto.TicketTypeId
+                && tp.ZoneId == dto.ZoneId
                 && tp.IsActive)
-            .ToListAsync();
-        
-        var ticketPrice = allPrices
-            .Where(tp => 
-            {
-                var priceValidFrom = tp.ValidFrom.Kind == DateTimeKind.Unspecified 
-                    ? DateTime.SpecifyKind(tp.ValidFrom, DateTimeKind.Utc) 
-                    : tp.ValidFrom.ToUniversalTime();
-                var priceValidFromDate = priceValidFrom.Date;
-                
-                if (priceValidFromDate > ticketValidFromDate)
-                    return false;
-                
-                if (tp.ValidTo.HasValue)
-                {
-                    var priceValidTo = tp.ValidTo.Value.Kind == DateTimeKind.Unspecified 
-                        ? DateTime.SpecifyKind(tp.ValidTo.Value, DateTimeKind.Utc) 
-                        : tp.ValidTo.Value.ToUniversalTime();
-                    var priceValidToDate = priceValidTo.Date;
-                    
-                    if (priceValidToDate < ticketValidFromDate)
-                        return false;
-                }
-                
-                return true;
-            })
+            .Where(tp => tp.ValidFrom <= dayEnd && (!tp.ValidTo.HasValue || tp.ValidTo.Value >= dayStart))
             .OrderByDescending(tp => tp.ValidFrom)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync();
 
         if (ticketPrice == null)
         {
@@ -248,27 +284,77 @@ public class TicketService : ITicketService
         }
 
         var now = DateTime.UtcNow;
-        var hasActiveSubscription = await _context.Subscriptions
-            .AnyAsync(s => s.UserId == userId 
-                && s.Status.ToLower() == "active" 
-                && s.StartDate <= now 
-                && s.EndDate >= now);
 
-        var ticketNumber = GenerateTicketNumber();
+        var activeSubscription = await _context.Subscriptions
+            .Include(s => s.SubscriptionPackage)
+            .Where(s => s.UserId == userId
+                && s.Status.ToLower() == "active"
+                && s.StartDate <= now
+                && s.EndDate >= now)
+            .OrderByDescending(s => s.EndDate)
+            .FirstOrDefaultAsync();
+
+        var subscriptionAllowsFreeTicket = activeSubscription?.SubscriptionPackage != null &&
+                                           activeSubscription.SubscriptionPackage.IsActive &&
+                                           activeSubscription.SubscriptionPackage.MaxZoneId >= dto.ZoneId;
+
+        var expectedAmount = ticketPrice.Price;
+        Models.Transaction? transaction = null;
+
+        if (!subscriptionAllowsFreeTicket)
+        {
+            if (!dto.TransactionId.HasValue)
+            {
+                throw new InvalidOperationException("Transaction is required for paid ticket purchase");
+            }
+
+            transaction = await _context.Transactions
+                .FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
+
+            if (transaction == null)
+            {
+                throw new InvalidOperationException("Transaction not found");
+            }
+
+            if (transaction.UserId != userId)
+            {
+                throw new InvalidOperationException("Transaction does not belong to the user");
+            }
+
+            if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Transaction is not completed");
+            }
+
+            if (transaction.Amount != expectedAmount)
+            {
+                throw new InvalidOperationException("Transaction amount does not match ticket price");
+            }
+
+            var transactionUsedByTicket = await _context.Tickets.AnyAsync(t => t.TransactionId == transaction.Id);
+            var transactionUsedBySubscription = await _context.Subscriptions.AnyAsync(s => s.TransactionId == transaction.Id);
+            if (transactionUsedByTicket || transactionUsedBySubscription)
+            {
+                throw new InvalidOperationException("Transaction has already been used");
+            }
+        }
+
+        var ticketNumber = await GenerateTicketNumberAsync();
 
         var ticket = new Ticket
         {
+            PublicId = Guid.NewGuid(),
             TicketNumber = ticketNumber,
             UserId = userId,
             TicketTypeId = dto.TicketTypeId,
             RouteId = dto.RouteId,
             ZoneId = dto.ZoneId,
-            Price = hasActiveSubscription ? 0 : ticketPrice.Price,
-            ValidFrom = dto.ValidFrom,
-            ValidTo = dto.ValidTo,
+            Price = subscriptionAllowsFreeTicket ? 0 : expectedAmount,
+            ValidFrom = ticketValidFrom,
+            ValidTo = DateTime.SpecifyKind(dto.ValidTo, DateTimeKind.Utc).ToUniversalTime(),
             PurchasedAt = DateTime.UtcNow,
             IsUsed = false,
-            TransactionId = hasActiveSubscription ? null : dto.TransactionId
+            TransactionId = subscriptionAllowsFreeTicket ? null : transaction!.Id
         };
 
         _context.Tickets.Add(ticket);
@@ -277,12 +363,151 @@ public class TicketService : ITicketService
         return await GetByIdAsync(ticket.Id) ?? throw new Exception("Failed to retrieve created ticket");
     }
 
-    private static string GenerateTicketNumber()
+    public async Task<TicketValidationResultDto> ValidateAsync(Guid publicId)
+    {
+        var ticket = await _context.Tickets
+            .Include(t => t.User)
+            .Include(t => t.TicketType)
+            .Include(t => t.Route)
+                .ThenInclude(r => r!.TransportLine)
+            .Include(t => t.Zone)
+            .FirstOrDefaultAsync(t => t.PublicId == publicId);
+
+        if (ticket == null)
+        {
+            return new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "NotFound",
+                Message = "Karta nije pronađena."
+            };
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (ticket.IsRefunded)
+        {
+            return new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "Refunded",
+                Message = "Karta je refundovana i ne može se koristiti.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
+        if (ticket.ValidFrom > now)
+        {
+            var remaining = ticket.ValidFrom - now;
+            var remainingText = FormatRemaining(remaining);
+            return new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "NotActiveYet",
+                Message = $"Karta još nije aktivna. Aktivira se za {remainingText}.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
+        if (ticket.ValidTo < now)
+        {
+            return new TicketValidationResultDto
+            {
+                IsValid = false,
+                Status = "Expired",
+                Message = "Karta je istekla.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
+        if (ticket.TicketTypeId == 1)
+        {
+            if (ticket.IsUsed)
+            {
+                return new TicketValidationResultDto
+                {
+                    IsValid = false,
+                    Status = "AlreadyUsed",
+                    Message = "Jednokratna karta je već iskorištena.",
+                    Ticket = await GetByIdAsync(ticket.Id)
+                };
+            }
+
+            ticket.IsUsed = true;
+            ticket.UsedAt = now;
+            await _context.SaveChangesAsync();
+
+            return new TicketValidationResultDto
+            {
+                IsValid = true,
+                Status = "Used",
+                Message = "Karta je uspješno validirana i označena kao iskorištena.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
+        if (ticket.TicketTypeId == 2)
+        {
+            if (!ticket.UsedAt.HasValue)
+            {
+                ticket.UsedAt = now;
+                await _context.SaveChangesAsync();
+            }
+            return new TicketValidationResultDto
+            {
+                IsValid = true,
+                Status = "Valid",
+                Message = "Dnevna karta je validna u ovom periodu.",
+                Ticket = await GetByIdAsync(ticket.Id)
+            };
+        }
+
+        return new TicketValidationResultDto
+        {
+            IsValid = true,
+            Status = "Valid",
+            Message = "Karta je validna.",
+            Ticket = await GetByIdAsync(ticket.Id)
+        };
+    }
+
+    private static string FormatRemaining(TimeSpan remaining)
+    {
+        if (remaining.TotalSeconds < 60)
+        {
+            return $"{Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds))} s";
+        }
+
+        if (remaining.TotalMinutes < 60)
+        {
+            return $"{Math.Max(0, (int)Math.Ceiling(remaining.TotalMinutes))} min";
+        }
+
+        var hours = Math.Max(0, (int)remaining.TotalHours);
+        var minutes = Math.Max(0, remaining.Minutes);
+        if (minutes == 0)
+        {
+            return $"{hours} h";
+        }
+
+        return $"{hours} h {minutes} min";
+    }
+
+    private async Task<string> GenerateTicketNumberAsync()
     {
         var year = DateTime.UtcNow.Year;
-        var random = new Random();
-        var number = random.Next(100000, 999999);
-        return $"TKT-{year}-{number:D6}";
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var number = RandomNumberGenerator.GetInt32(0, 1_000_000);
+            var candidate = $"TKT-{year}-{number:D6}";
+            var exists = await _context.Tickets.AnyAsync(t => t.TicketNumber == candidate);
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException("Failed to generate unique ticket number");
     }
 
     private static string GetTicketStatus(Ticket ticket, DateTime now)
@@ -290,6 +515,11 @@ public class TicketService : ITicketService
         if (ticket.IsUsed)
         {
             return "Korištena";
+        }
+
+        if (ticket.ValidFrom > now)
+        {
+            return "Neaktivna";
         }
 
         if (ticket.ValidTo < now)

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../models/auth_model.dart';
 import 'home_screen.dart';
+import '../utils/validators.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -141,7 +142,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Molimo unesite email';
                     }
-                    if (!value.contains('@')) {
+                    if (!Validators.isValidEmail(value)) {
                       return 'Molimo unesite validan email';
                     }
                     return null;
@@ -257,6 +258,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   textInputAction: TextInputAction.done,
                   keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null) return null;
+                    if (!Validators.isValidPhone(value)) {
+                      return 'Unesite validan broj telefona (npr. +38761222333)';
+                    }
+                    return null;
+                  },
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 16),

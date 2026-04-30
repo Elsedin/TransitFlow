@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
@@ -12,10 +13,12 @@ namespace TransitFlow.API.Controllers;
 public class UserProfileController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ILogger<UserProfileController> _logger;
 
-    public UserProfileController(IUserService userService)
+    public UserProfileController(IUserService userService, ILogger<UserProfileController> logger)
     {
         _userService = userService;
+        _logger = logger;
     }
 
     [HttpGet("me")]
@@ -81,7 +84,8 @@ public class UserProfileController : ControllerBase
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "An error occurred while updating profile", error = ex.Message });
+            _logger.LogError(ex, "Profile update failed for user {Username}", username);
+            return StatusCode(500, new { message = "An error occurred while updating profile", traceId = HttpContext.TraceIdentifier });
         }
     }
 }
