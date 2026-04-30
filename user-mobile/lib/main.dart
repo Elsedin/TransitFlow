@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'screens/login_screen.dart';
@@ -19,7 +20,9 @@ void main() async {
     Stripe.publishableKey = pk;
     await Stripe.instance.applySettings();
   } catch (e) {
-    print('Stripe initialization error: $e');
+    if (kDebugMode) {
+      debugPrint('Stripe initialization error: $e');
+    }
   }
   runApp(const MyApp());
 }
@@ -93,7 +96,9 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
       final authenticated = await _authService.isAuthenticated().timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          print('Auth check timeout');
+          if (kDebugMode) {
+            debugPrint('Auth check timeout');
+          }
           return false;
         },
       );
@@ -104,7 +109,9 @@ class _AuthWrapperState extends State<AuthWrapper> with WidgetsBindingObserver {
         });
       }
     } catch (e) {
-      print('Auth check error: $e');
+      if (kDebugMode) {
+        debugPrint('Auth check error: $e');
+      }
       if (mounted) {
         setState(() {
           _isAuthenticated = false;

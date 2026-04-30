@@ -17,12 +17,9 @@ Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj s
     git clone <repository-url>
     cd TransitFlow
   ```
-2. Konfiguracija (2026 upute)
+2. Konfiguracija 
 
-Konfiguracijske vrijednosti i tajne se ne drže u kodu niti u `appsettings.json`, već u `.env` fajlu.
-
-- Kopirajte `.env.example` u `.env` i popunite vrijednosti (Stripe/PayPal/JWT/DB).
-- `.env` se ne commit-uje. Za predaju se `.env` zipuje (šifra `fit`) prema uputama.
+- SMTP (Mailtrap/sandbox): free plan ima rate limit za broj emailova u sekundi. Ako broadcast notifikacija ide sporije, to je očekivano. Podešava se preko `SMTP__MININTERVALMS` (npr. 400–1000).
 
 1. Pokretanje servisa (Docker)
   ```
@@ -53,13 +50,60 @@ API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:500
 
 ## Kredencijali za prijavu
 
-### Desktop aplikacija
+### Desktop aplikacija (Admin)
 
-- Administrator
+Seed korisnik:
 
-### Mobilna aplikacija
+- **Username**: `desktop`
+- **Password**: `test`
 
-- Korisnik
+### Mobilna aplikacija (User)
+
+Seed korisnik:
+
+- **Username**: `mobile`
+- **Password**: `test`
+
+## Recommender dokumentacija
+
+Dokumentacija sistema preporuke nalazi se na putanji:
+
+- `docs/recommender/recommender_dokumentacija.pdf`
+
+### Build Android (APK)
+
+Web API adresa za AVD treba biti `10.0.2.2`.
+
+```
+cd user-mobile
+flutter clean
+flutter pub get
+flutter build apk --release --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+APK će biti na:
+
+- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+
+### Build Windows (EXE)
+
+Web API adresa treba biti `localhost`.
+
+```
+cd admin-frontend
+flutter clean
+flutter pub get
+flutter build windows --release
+```
+
+Build folder će biti na:
+
+- `admin-frontend/build/windows/x64/runner/Release/`
+
+### .env (tajne)
+
+- `.env` se ne commit-uje.
+- Za predaju se `.env` zipuje šifrom `fit` (npr. `.env-tajne.zip`) i šifra se navodi u DL sistemu.
 
 ## KARTICA ZA PLAĆANJE
 

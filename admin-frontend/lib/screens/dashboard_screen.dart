@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../services/auth_service.dart';
 import '../services/dashboard_service.dart';
 import '../models/dashboard_model.dart';
 import '../widgets/metric_card_enhanced.dart';
@@ -17,7 +16,6 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   final _dashboardService = DashboardService();
-  final _authService = AuthService();
   DashboardMetrics? _metrics;
   bool _isLoading = true;
   String? _errorMessage;

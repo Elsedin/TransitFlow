@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Ticket = TransitFlow.API.Models.Ticket;
@@ -249,39 +250,16 @@ public class TicketService : ITicketService
 
         var ticketValidFrom = DateTime.SpecifyKind(dto.ValidFrom, DateTimeKind.Utc).ToUniversalTime();
         var ticketValidFromDate = ticketValidFrom.Date;
+        var dayStart = ticketValidFromDate;
+        var dayEnd = ticketValidFromDate.AddDays(1).AddTicks(-1);
         
-        var allPrices = await _context.TicketPrices
-            .Where(tp => tp.TicketTypeId == dto.TicketTypeId 
-                && tp.ZoneId == dto.ZoneId 
+        var ticketPrice = await _context.TicketPrices
+            .Where(tp => tp.TicketTypeId == dto.TicketTypeId
+                && tp.ZoneId == dto.ZoneId
                 && tp.IsActive)
-            .ToListAsync();
-        
-        var ticketPrice = allPrices
-            .Where(tp => 
-            {
-                var priceValidFrom = tp.ValidFrom.Kind == DateTimeKind.Unspecified 
-                    ? DateTime.SpecifyKind(tp.ValidFrom, DateTimeKind.Utc) 
-                    : tp.ValidFrom.ToUniversalTime();
-                var priceValidFromDate = priceValidFrom.Date;
-                
-                if (priceValidFromDate > ticketValidFromDate)
-                    return false;
-                
-                if (tp.ValidTo.HasValue)
-                {
-                    var priceValidTo = tp.ValidTo.Value.Kind == DateTimeKind.Unspecified 
-                        ? DateTime.SpecifyKind(tp.ValidTo.Value, DateTimeKind.Utc) 
-                        : tp.ValidTo.Value.ToUniversalTime();
-                    var priceValidToDate = priceValidTo.Date;
-                    
-                    if (priceValidToDate < ticketValidFromDate)
-                        return false;
-                }
-                
-                return true;
-            })
+            .Where(tp => tp.ValidFrom <= dayEnd && (!tp.ValidTo.HasValue || tp.ValidTo.Value >= dayStart))
             .OrderByDescending(tp => tp.ValidFrom)
-            .FirstOrDefault();
+            .FirstOrDefaultAsync();
 
         if (ticketPrice == null)
         {
@@ -361,7 +339,7 @@ public class TicketService : ITicketService
             }
         }
 
-        var ticketNumber = GenerateTicketNumber();
+        var ticketNumber = await GenerateTicketNumberAsync();
 
         var ticket = new Ticket
         {
@@ -515,12 +493,21 @@ public class TicketService : ITicketService
         return $"{hours} h {minutes} min";
     }
 
-    private static string GenerateTicketNumber()
+    private async Task<string> GenerateTicketNumberAsync()
     {
         var year = DateTime.UtcNow.Year;
-        var random = new Random();
-        var number = random.Next(100000, 999999);
-        return $"TKT-{year}-{number:D6}";
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var number = RandomNumberGenerator.GetInt32(0, 1_000_000);
+            var candidate = $"TKT-{year}-{number:D6}";
+            var exists = await _context.Tickets.AnyAsync(t => t.TicketNumber == candidate);
+            if (!exists)
+            {
+                return candidate;
+            }
+        }
+
+        throw new InvalidOperationException("Failed to generate unique ticket number");
     }
 
     private static string GetTicketStatus(Ticket ticket, DateTime now)

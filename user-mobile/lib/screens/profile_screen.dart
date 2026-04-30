@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../services/ticket_service.dart';
 import '../services/favorite_service.dart';
 import '../models/user_model.dart';
-import '../models/ticket_model.dart';
 import 'login_screen.dart';
 import 'subscriptions_list_screen.dart';
+import '../utils/validators.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -539,7 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     if (value == null || value.trim().isEmpty) {
                                       return 'Molimo unesite email';
                                     }
-                                    if (!value.contains('@')) {
+                                    if (!Validators.isValidEmail(value)) {
                                       return 'Molimo unesite validan email';
                                     }
                                     return null;
@@ -558,6 +557,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     fillColor: Colors.grey[50],
                                   ),
                                   keyboardType: TextInputType.phone,
+                                  validator: (value) {
+                                    if (value == null) return null;
+                                    if (!Validators.isValidPhone(value)) {
+                                      return 'Unesite validan broj telefona (npr. +38761222333)';
+                                    }
+                                    return null;
+                                  },
                                 ),
                                 const SizedBox(height: 24),
                                 ElevatedButton(

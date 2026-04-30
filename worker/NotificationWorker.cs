@@ -3,6 +3,8 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using MailKit.Net.Smtp;
+using MimeKit;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 
@@ -12,6 +14,8 @@ public class NotificationWorker : BackgroundService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<NotificationWorker> _logger;
+    private static readonly SemaphoreSlim EmailThrottleLock = new(1, 1);
+    private static DateTimeOffset _lastEmailSentAt = DateTimeOffset.MinValue;
     private IConnection? _connection;
     private IModel? _channel;
     private const string ExchangeName = "transitflow_notifications";
@@ -281,9 +285,80 @@ public class NotificationWorker : BackgroundService
 
     private async Task SendEmailNotificationAsync(NotificationEvent notificationEvent)
     {
-        await Task.Delay(100);
+        var host = _configuration["Smtp:Host"];
+        var port = int.TryParse(_configuration["Smtp:Port"], out var parsedPort) ? parsedPort : 0;
+        var userName = _configuration["Smtp:UserName"];
+        var password = _configuration["Smtp:Password"];
+        var fromEmail = _configuration["Smtp:FromEmail"];
+        var fromName = _configuration["Smtp:FromName"] ?? "TransitFlow";
+        var fallbackTo = _configuration["Smtp:FallbackToEmail"];
+        var useSsl = (_configuration["Smtp:UseSsl"] ?? "true").ToLowerInvariant() == "true";
+        var minIntervalMs = int.TryParse(_configuration["Smtp:MinIntervalMs"], out var ms) ? ms : 400;
 
-        _logger.LogInformation("Email notification sent for notification {NotificationId}", notificationEvent.NotificationId);
+        var toEmail = notificationEvent.UserEmail;
+        if (string.IsNullOrWhiteSpace(toEmail))
+        {
+            toEmail = fallbackTo;
+        }
+
+        if (string.IsNullOrWhiteSpace(host) ||
+            port <= 0 ||
+            string.IsNullOrWhiteSpace(fromEmail) ||
+            string.IsNullOrWhiteSpace(toEmail))
+        {
+            _logger.LogWarning(
+                "SMTP not configured or missing recipient. Skipping email send for notification {NotificationId}. Host={Host} Port={Port} FromEmail set={HasFrom} ToEmail set={HasTo}",
+                notificationEvent.NotificationId,
+                host ?? "",
+                port,
+                !string.IsNullOrWhiteSpace(fromEmail),
+                !string.IsNullOrWhiteSpace(toEmail));
+            return;
+        }
+
+        if (minIntervalMs > 0)
+        {
+            await EmailThrottleLock.WaitAsync();
+            try
+            {
+                var now = DateTimeOffset.UtcNow;
+                var elapsedMs = (now - _lastEmailSentAt).TotalMilliseconds;
+                if (elapsedMs < minIntervalMs)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(minIntervalMs - elapsedMs));
+                }
+                _lastEmailSentAt = DateTimeOffset.UtcNow;
+            }
+            finally
+            {
+                EmailThrottleLock.Release();
+            }
+        }
+
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(fromName, fromEmail));
+        message.To.Add(MailboxAddress.Parse(toEmail));
+        message.Subject = notificationEvent.Title;
+        message.Body = new TextPart("plain")
+        {
+            Text = notificationEvent.Message
+        };
+
+        using var client = new SmtpClient();
+        await client.ConnectAsync(host, port, useSsl);
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            await client.AuthenticateAsync(userName, password ?? string.Empty);
+        }
+
+        await client.SendAsync(message);
+        await client.DisconnectAsync(true);
+
+        _logger.LogInformation(
+            "Email sent for notification {NotificationId} to {ToEmail}",
+            notificationEvent.NotificationId,
+            toEmail);
     }
 
     private async Task LogNotificationAsync(NotificationEvent notificationEvent)
@@ -312,6 +387,7 @@ public class NotificationEvent
     public string Message { get; set; } = string.Empty;
     public string Type { get; set; } = string.Empty;
     public int? UserId { get; set; }
+    public string? UserEmail { get; set; }
     public bool IsBroadcast { get; set; }
     public DateTime CreatedAt { get; set; }
 }

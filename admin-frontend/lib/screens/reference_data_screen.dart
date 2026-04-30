@@ -240,6 +240,7 @@ class _ZonesTableState extends State<ZonesTable> {
     final nameController = TextEditingController(text: zone?.name ?? '');
     final descriptionController = TextEditingController(text: zone?.description ?? '');
     bool isActive = zone?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -247,38 +248,50 @@ class _ZonesTableState extends State<ZonesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(zone == null ? 'Dodaj zonu' : 'Uredi zonu'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                if (zone != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  if (zone != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -288,10 +301,7 @@ class _ZonesTableState extends State<ZonesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
@@ -676,6 +686,7 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
     final descriptionController = TextEditingController(text: ticketType?.description ?? '');
     final validityDaysController = TextEditingController(text: ticketType?.validityDays.toString() ?? '30');
     bool isActive = ticketType?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -683,47 +694,72 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(ticketType == null ? 'Dodaj tip karte' : 'Uredi tip karte'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: validityDaysController,
-                  decoration: const InputDecoration(
-                    labelText: 'Broj dana važenja *',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                if (ticketType != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: validityDaysController,
+                    decoration: const InputDecoration(
+                      labelText: 'Broj dana važenja *',
+                      border: OutlineInputBorder(),
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Broj dana važenja je obavezan';
+                      }
+                      final n = int.tryParse(value.trim());
+                      if (n == null || n <= 0) {
+                        return 'Unesite pozitivan broj';
+                      }
+                      if (n > 3650) {
+                        return 'Maksimalno 3650 dana';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (ticketType != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -733,20 +769,11 @@ class _TicketTypesTableState extends State<TicketTypesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
-                final validityDays = int.tryParse(validityDaysController.text.trim());
-                if (validityDays == null || validityDays <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Broj dana važenja mora biti pozitivan broj')),
-                  );
-                  return;
-                }
+                final validityDays = int.parse(validityDaysController.text.trim());
 
                 try {
                   if (ticketType == null) {
@@ -1083,6 +1110,7 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
     final nameController = TextEditingController(text: transportType?.name ?? '');
     final descriptionController = TextEditingController(text: transportType?.description ?? '');
     bool isActive = transportType?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -1090,38 +1118,50 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(transportType == null ? 'Dodaj tip vozila' : 'Uredi tip vozila'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opis',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                if (transportType != null) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isActive = value ?? true;
-                      });
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
                     },
                   ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Opis',
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  if (transportType != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -1131,10 +1171,7 @@ class _TransportTypesTableState extends State<TransportTypesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
+                if (!(formKey.currentState?.validate() ?? false)) {
                   return;
                 }
 
@@ -1847,6 +1884,7 @@ class _CitiesTableState extends State<CitiesTable> {
     final postalCodeController = TextEditingController(text: city?.postalCode ?? '');
     int? selectedCountryId = city?.countryId;
     bool isActive = city?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -1854,57 +1892,69 @@ class _CitiesTableState extends State<CitiesTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(city == null ? 'Dodaj grad' : 'Uredi grad'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: postalCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Poštanski broj',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedCountryId,
-                  decoration: const InputDecoration(
-                    labelText: 'Država',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    const DropdownMenuItem<int>(
-                      value: null,
-                      child: Text('Nije odabrano'),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
                     ),
-                    ..._buildCountryDropdownItems(selectedCountryId),
-                  ],
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedCountryId = value;
-                    });
-                  },
-                ),
-                if (city != null) ...[
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
+                  TextFormField(
+                    controller: postalCodeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Poštanski broj',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedCountryId,
+                    decoration: const InputDecoration(
+                      labelText: 'Država',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem<int>(
+                        value: null,
+                        child: Text('Nije odabrano'),
+                      ),
+                      ..._buildCountryDropdownItems(selectedCountryId),
+                    ],
                     onChanged: (value) {
                       setDialogState(() {
-                        isActive = value ?? true;
+                        selectedCountryId = value;
                       });
                     },
                   ),
+                  if (city != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -1914,12 +1964,7 @@ class _CitiesTableState extends State<CitiesTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
-                  return;
-                }
+                if (!(formKey.currentState?.validate() ?? false)) return;
 
                 try {
                   if (city == null) {
@@ -2297,6 +2342,7 @@ class _StationsTableState extends State<StationsTable> {
     int? selectedCityId = station?.cityId ?? (_cities.isNotEmpty ? _cities.first.id : null);
     int? selectedZoneId = station?.zoneId ?? (_zones.isNotEmpty ? _zones.first.id : null);
     bool isActive = station?.isActive ?? true;
+    final formKey = GlobalKey<FormState>();
 
     await showDialog(
       context: context,
@@ -2304,101 +2350,133 @@ class _StationsTableState extends State<StationsTable> {
         builder: (context, setDialogState) => AlertDialog(
           title: Text(station == null ? 'Dodaj stajalište' : 'Uredi stajalište'),
           content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Naziv *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: addressController,
-                  decoration: const InputDecoration(
-                    labelText: 'Adresa',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: latitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Latitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      ),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Naziv *',
+                      border: OutlineInputBorder(),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: longitudeController,
-                        decoration: const InputDecoration(
-                          labelText: 'Longitude',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedCityId,
-                  decoration: const InputDecoration(
-                    labelText: 'Grad *',
-                    border: OutlineInputBorder(),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Naziv je obavezan';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Naziv mora imati najmanje 2 karaktera';
+                      }
+                      return null;
+                    },
                   ),
-                  items: _cities.map((city) {
-                    return DropdownMenuItem<int>(
-                      value: city.id,
-                      child: Text(city.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedCityId = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: selectedZoneId,
-                  decoration: const InputDecoration(
-                    labelText: 'Zona *',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _zones.map((zone) {
-                    return DropdownMenuItem<int>(
-                      value: zone.id,
-                      child: Text(zone.name),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setDialogState(() {
-                      selectedZoneId = value;
-                    });
-                  },
-                ),
-                if (station != null) ...[
                   const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Aktivna'),
-                    value: isActive,
+                  TextFormField(
+                    controller: addressController,
+                    decoration: const InputDecoration(
+                      labelText: 'Adresa',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: latitudeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Latitude',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return null;
+                            final n = double.tryParse(v);
+                            if (n == null || n < -90 || n > 90) {
+                              return 'Vrijednost mora biti između -90 i 90';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: longitudeController,
+                          decoration: const InputDecoration(
+                            labelText: 'Longitude',
+                            border: OutlineInputBorder(),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          validator: (value) {
+                            final v = value?.trim() ?? '';
+                            if (v.isEmpty) return null;
+                            final n = double.tryParse(v);
+                            if (n == null || n < -180 || n > 180) {
+                              return 'Vrijednost mora biti između -180 i 180';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedCityId,
+                    decoration: const InputDecoration(
+                      labelText: 'Grad *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value == null ? 'Grad je obavezan' : null,
+                    items: _cities.map((city) {
+                      return DropdownMenuItem<int>(
+                        value: city.id,
+                        child: Text(city.name),
+                      );
+                    }).toList(),
                     onChanged: (value) {
                       setDialogState(() {
-                        isActive = value ?? true;
+                        selectedCityId = value;
                       });
                     },
                   ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<int>(
+                    value: selectedZoneId,
+                    decoration: const InputDecoration(
+                      labelText: 'Zona *',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value == null ? 'Zona je obavezna' : null,
+                    items: _zones.map((zone) {
+                      return DropdownMenuItem<int>(
+                        value: zone.id,
+                        child: Text(zone.name),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedZoneId = value;
+                      });
+                    },
+                  ),
+                  if (station != null) ...[
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Aktivna'),
+                      value: isActive,
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isActive = value ?? true;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -2408,47 +2486,18 @@ class _StationsTableState extends State<StationsTable> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Naziv je obavezan')),
-                  );
-                  return;
-                }
-
-                if (selectedCityId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Grad je obavezan')),
-                  );
-                  return;
-                }
-
-                if (selectedZoneId == null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Zona je obavezna')),
-                  );
-                  return;
-                }
+                if (!(formKey.currentState?.validate() ?? false)) return;
 
                 double? latitude;
-                if (latitudeController.text.trim().isNotEmpty) {
-                  latitude = double.tryParse(latitudeController.text.trim());
-                  if (latitude == null || latitude < -90 || latitude > 90) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Latitude mora biti između -90 i 90')),
-                    );
-                    return;
-                  }
+                final latRaw = latitudeController.text.trim();
+                if (latRaw.isNotEmpty) {
+                  latitude = double.tryParse(latRaw);
                 }
 
                 double? longitude;
-                if (longitudeController.text.trim().isNotEmpty) {
-                  longitude = double.tryParse(longitudeController.text.trim());
-                  if (longitude == null || longitude < -180 || longitude > 180) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Longitude mora biti između -180 i 180')),
-                    );
-                    return;
-                  }
+                final lonRaw = longitudeController.text.trim();
+                if (lonRaw.isNotEmpty) {
+                  longitude = double.tryParse(lonRaw);
                 }
 
                 try {

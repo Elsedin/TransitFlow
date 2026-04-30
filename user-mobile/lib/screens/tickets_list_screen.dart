@@ -191,7 +191,6 @@ class _TicketsListScreenState extends State<TicketsListScreen>
 
   Widget _buildTicketCard(Ticket ticket) {
     final dateFormat = DateFormat('dd.MM.yyyy');
-    final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
     final now = DateTime.now();
     final isActive = !ticket.isUsed && ticket.validTo.isAfter(now);
 

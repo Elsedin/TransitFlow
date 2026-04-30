@@ -15,8 +15,8 @@ class AppConfig {
   static String get resolvedApiBaseUrl {
     if (apiBaseUrl.trim().isNotEmpty) return apiBaseUrl.trim();
 
-    if (kIsWeb) return 'http://localhost:5178/api';
-    if (Platform.isAndroid) return 'http://10.0.2.2:5178/api'; // AVD default
-    return 'http://localhost:5178/api';
+    if (kIsWeb) return 'http://localhost:5000/api';
+    if (Platform.isAndroid) return 'http://10.0.2.2:5000/api'; // AVD default
+    return 'http://localhost:5000/api';
   }
 }

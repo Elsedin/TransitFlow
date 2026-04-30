@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../services/vehicle_service.dart';
-import '../services/transport_line_service.dart';
 import '../models/vehicle_model.dart';
 import '../config/app_config.dart';
 import '../services/auth_service.dart';
@@ -17,7 +16,6 @@ class VehiclesScreen extends StatefulWidget {
 
 class _VehiclesScreenState extends State<VehiclesScreen> {
   final _vehicleService = VehicleService();
-  final _transportLineService = TransportLineService();
   List<Vehicle> _vehicles = [];
   int _totalCount = 0;
   bool _isLoading = true;
@@ -406,10 +404,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +422,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }

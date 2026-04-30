@@ -133,6 +133,11 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         }
       });
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Greška pri učitavanju cijena karata';
+        });
+      }
     }
   }
 
@@ -165,20 +170,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   String _getDayName(DateTime date) {
     final days = ['Ponedjeljak', 'Utorak', 'Srijeda', 'Četvrtak', 'Petak', 'Subota', 'Nedjelja'];
     return days[date.weekday - 1];
-  }
-
-  String _getNextDeparture() {
-    if (_selectedRoute == null) return 'N/A';
-    final now = DateTime.now();
-    final currentTime = TimeOfDay.fromDateTime(now);
-    final selectedDateTime = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      _selectedTime.hour,
-      _selectedTime.minute,
-    );
-    return DateFormat('HH:mm').format(selectedDateTime);
   }
 
   double _getTotalPrice() {

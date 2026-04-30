@@ -83,6 +83,15 @@ services:
       - RabbitMQ__Port=${RABBITMQ__PORT:-5672}
       - RabbitMQ__UserName=${RABBITMQ__USERNAME:-guest}
       - RabbitMQ__Password=${RABBITMQ__PASSWORD:-guest}
+      - Smtp__Host=${SMTP__HOST}
+      - Smtp__Port=${SMTP__PORT}
+      - Smtp__UseSsl=${SMTP__USESSL:-true}
+      - Smtp__UserName=${SMTP__USERNAME}
+      - Smtp__Password=${SMTP__PASSWORD}
+      - Smtp__FromEmail=${SMTP__FROMEMAIL}
+      - Smtp__FromName=${SMTP__FROMNAME:-TransitFlow}
+      - Smtp__FallbackToEmail=${SMTP__FALLBACKTOEMAIL}
+      - Smtp__MinIntervalMs=${SMTP__MININTERVALMS:-400}
     depends_on:
       rabbitmq:
         condition: service_healthy

@@ -12,9 +12,6 @@ class SubscriptionSuccessScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd.MM.yyyy');
-    final dateTimeFormat = DateFormat('dd.MM.yyyy HH:mm');
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kupovina uspješna!'),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -105,7 +106,9 @@ class AuthService {
 
       return true;
     } catch (e) {
-      print('isAuthenticated error: $e');
+      if (kDebugMode) {
+        debugPrint('isAuthenticated error: $e');
+      }
       return false;
     }
   }

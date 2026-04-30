@@ -209,12 +209,18 @@ public class RefundRequestService : IRefundRequestService
 
         await _context.SaveChangesAsync();
 
+        var email = await _context.Users
+            .Where(u => u.Id == request.UserId)
+            .Select(u => u.Email)
+            .FirstOrDefaultAsync();
+
         _rabbitMQService.PublishNotificationCreated(
             notification.Id,
             notification.Title,
             notification.Message,
             notification.Type,
-            notification.UserId);
+            notification.UserId,
+            email);
 
         return await MapAsync(request.Id);
     }
@@ -251,12 +257,18 @@ public class RefundRequestService : IRefundRequestService
 
         await _context.SaveChangesAsync();
 
+        var email = await _context.Users
+            .Where(u => u.Id == request.UserId)
+            .Select(u => u.Email)
+            .FirstOrDefaultAsync();
+
         _rabbitMQService.PublishNotificationCreated(
             notification.Id,
             notification.Title,
             notification.Message,
             notification.Type,
-            notification.UserId);
+            notification.UserId,
+            email);
 
         return await MapAsync(request.Id);
     }

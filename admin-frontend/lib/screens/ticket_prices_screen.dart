@@ -493,10 +493,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -512,7 +511,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }

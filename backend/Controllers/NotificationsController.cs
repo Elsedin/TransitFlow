@@ -142,7 +142,14 @@ public class NotificationsController : ControllerBase
     [HttpPost("{id}/mark-read")]
     public async Task<ActionResult> MarkAsRead(int id)
     {
-        var result = await _notificationService.MarkAsReadAsync(id);
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var isAdmin = User.IsInRole("Administrator");
+        var result = await _notificationService.MarkAsReadAsync(id, userId, isAdmin);
         
         if (!result)
         {

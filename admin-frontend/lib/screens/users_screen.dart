@@ -4,6 +4,7 @@ import '../services/user_service.dart';
 import '../models/user_model.dart';
 import '../widgets/metric_card_enhanced.dart';
 import '../widgets/pagination_bar.dart';
+import '../utils/validators.dart';
 
 class UsersScreen extends StatefulWidget {
   const UsersScreen({super.key});
@@ -532,10 +533,9 @@ class _TableHeaderCell extends StatelessWidget {
 
 class _TableCell extends StatelessWidget {
   final String text;
-  final Color? color;
   final Widget? child;
 
-  const _TableCell(this.text, {this.color, this.child});
+  const _TableCell(this.text, {this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -551,7 +551,7 @@ class _TableCell extends StatelessWidget {
       child: Text(
         text,
         textAlign: TextAlign.center,
-        style: TextStyle(color: color),
+        style: const TextStyle(),
       ),
     );
   }
@@ -696,7 +696,7 @@ class _UserDialogState extends State<_UserDialog> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Molimo unesite email';
                     }
-                    if (!value.contains('@')) {
+                    if (!Validators.isValidEmail(value)) {
                       return 'Molimo unesite validan email';
                     }
                     return null;
@@ -754,6 +754,13 @@ class _UserDialogState extends State<_UserDialog> {
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null) return null;
+                    if (!Validators.isValidPhone(value)) {
+                      return 'Unesite validan broj telefona (npr. +38761222333)';
+                    }
+                    return null;
+                  },
                 ),
                 if (widget.user != null) ...[
                   const SizedBox(height: 16),

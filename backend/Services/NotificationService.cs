@@ -205,12 +205,14 @@ public class NotificationService : INotificationService
 
             foreach (var notification in notifications)
             {
+                var email = activeUsers.FirstOrDefault(u => u.Id == notification.UserId)?.Email;
                 _rabbitMQService.PublishNotificationCreated(
                     notification.Id,
                     notification.Title,
                     notification.Message,
                     notification.Type,
-                    notification.UserId);
+                    notification.UserId,
+                    email);
             }
 
             var firstNotification = notifications.First();
@@ -242,12 +244,20 @@ public class NotificationService : INotificationService
             _context.Notifications.Add(notification);
             await _context.SaveChangesAsync();
 
+            var email = notification.UserId.HasValue
+                ? await _context.Users
+                    .Where(u => u.Id == notification.UserId.Value)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync()
+                : null;
+
             _rabbitMQService.PublishNotificationCreated(
                 notification.Id,
                 notification.Title,
                 notification.Message,
                 notification.Type,
-                notification.UserId);
+                notification.UserId,
+                email);
 
             var user = notification.UserId.HasValue
                 ? await _context.Users.FindAsync(notification.UserId.Value)
@@ -310,10 +320,18 @@ public class NotificationService : INotificationService
         return true;
     }
 
-    public async Task<bool> MarkAsReadAsync(int id)
+    public async Task<bool> MarkAsReadAsync(int id, int requestingUserId, bool isAdmin)
     {
         var notification = await _context.Notifications.FindAsync(id);
         if (notification == null) return false;
+
+        if (!isAdmin)
+        {
+            if (!notification.UserId.HasValue || notification.UserId.Value != requestingUserId)
+            {
+                return false;
+            }
+        }
 
         notification.IsRead = true;
         notification.ReadAt = DateTime.UtcNow;

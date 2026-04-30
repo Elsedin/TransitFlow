@@ -16,7 +16,6 @@ class SubscriptionsScreen extends StatefulWidget {
 
 class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
   final _subscriptionService = SubscriptionService();
-  final _userService = UserService();
   SubscriptionMetrics? _metrics;
   List<Subscription> _subscriptions = [];
   int _totalCount = 0;

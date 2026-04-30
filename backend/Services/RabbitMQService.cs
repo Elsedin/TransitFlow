@@ -83,7 +83,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
         }
     }
 
-    public void PublishNotificationCreated(int notificationId, string title, string message, string type, int? userId)
+    public void PublishNotificationCreated(int notificationId, string title, string message, string type, int? userId, string? userEmail)
     {
         try
         {
@@ -96,6 +96,7 @@ public class RabbitMQService : IRabbitMQService, IDisposable
                 Message = message,
                 Type = type,
                 UserId = userId,
+                UserEmail = userEmail,
                 CreatedAt = DateTime.UtcNow
             };
 

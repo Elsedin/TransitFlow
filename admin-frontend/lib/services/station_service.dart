@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/paged_result.dart';
@@ -83,8 +84,10 @@ class StationService {
           final data = jsonDecode(response.body) as Map<String, dynamic>;
           return Station.fromJson(data);
         } catch (e) {
-          print('[StationService] Error parsing response: $e');
-          print('[StationService] Response body: ${response.body}');
+          if (kDebugMode) {
+            debugPrint('[StationService] Error parsing response: $e');
+            debugPrint('[StationService] Response body: ${response.body}');
+          }
           throw Exception('Failed to parse station data from server');
         }
       } else {

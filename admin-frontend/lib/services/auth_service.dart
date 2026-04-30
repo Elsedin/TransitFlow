@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -10,11 +11,17 @@ class AuthService {
   static const String _usernameKey = 'auth_username';
   static const String _expiresAtKey = 'auth_expires_at';
 
+  void _log(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
+
   Future<AuthResponse?> login(String username, String password) async {
     try {
       final url = '${AppConfig.apiBaseUrl}/auth/login';
-      print('[AuthService] Login URL: $url');
-      print('[AuthService] Username: $username');
+      _log('[AuthService] Login URL: $url');
+      _log('[AuthService] Username: $username');
       
       final response = await http.post(
         Uri.parse(url),
@@ -25,8 +32,8 @@ class AuthService {
         ).toJson()),
       );
 
-      print('[AuthService] Response status: ${response.statusCode}');
-      print('[AuthService] Response body: ${response.body}');
+      _log('[AuthService] Response status: ${response.statusCode}');
+      _log('[AuthService] Response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -35,11 +42,11 @@ class AuthService {
         await _saveAuthData(authResponse);
         return authResponse;
       } else {
-        print('[AuthService] Login failed with status: ${response.statusCode}');
+        _log('[AuthService] Login failed with status: ${response.statusCode}');
         return null;
       }
     } catch (e) {
-      print('[AuthService] Login error: $e');
+      _log('[AuthService] Login error: $e');
       return null;
     }
   }
@@ -49,7 +56,7 @@ class AuthService {
     await prefs.setString(_tokenKey, authResponse.token);
     await prefs.setString(_usernameKey, authResponse.username);
     await prefs.setString(_expiresAtKey, authResponse.expiresAt.toIso8601String());
-    print('[AuthService] Saved auth data. Token expires at: ${authResponse.expiresAt}');
+    _log('[AuthService] Saved auth data. Token expires at: ${authResponse.expiresAt}');
   }
 
   Future<String?> getToken() async {
@@ -64,10 +71,10 @@ class AuthService {
 
   Future<bool> isAuthenticated() async {
     final token = await getToken();
-    print('[AuthService] Checking authentication. Token exists: ${token != null && token.isNotEmpty}');
+    _log('[AuthService] Checking authentication. Token exists: ${token != null && token.isNotEmpty}');
     
     if (token == null || token.isEmpty) {
-      print('[AuthService] No token found, user not authenticated');
+      _log('[AuthService] No token found, user not authenticated');
       return false;
     }
     
@@ -79,23 +86,23 @@ class AuthService {
         final expiresAt = DateTime.parse(expiresAtString);
         final now = DateTime.now().toUtc();
         
-        print('[AuthService] Token expires at: $expiresAt, current time: $now');
+        _log('[AuthService] Token expires at: $expiresAt, current time: $now');
         
         if (now.isAfter(expiresAt)) {
-          print('[AuthService] Token has expired, logging out');
+          _log('[AuthService] Token has expired, logging out');
           await logout();
           return false;
         }
         
         final timeUntilExpiry = expiresAt.difference(now);
-        print('[AuthService] Token is valid for ${timeUntilExpiry.inMinutes} more minutes');
+        _log('[AuthService] Token is valid for ${timeUntilExpiry.inMinutes} more minutes');
       } catch (e) {
-        print('[AuthService] Error parsing expiresAt: $e');
+        _log('[AuthService] Error parsing expiresAt: $e');
       }
     }
     
     try {
-      print('[AuthService] Validating token with API...');
+      _log('[AuthService] Validating token with API...');
       final response = await http.get(
         Uri.parse('${AppConfig.apiBaseUrl}/dashboard/metrics'),
         headers: {
@@ -104,20 +111,20 @@ class AuthService {
         },
       ).timeout(const Duration(seconds: 3));
       
-      print('[AuthService] API response status: ${response.statusCode}');
+      _log('[AuthService] API response status: ${response.statusCode}');
       
       if (response.statusCode == 401 || response.statusCode == 403) {
-        print('[AuthService] Token invalid (${response.statusCode}), logging out');
+        _log('[AuthService] Token invalid (${response.statusCode}), logging out');
         await logout();
         return false;
       }
       
       final isAuthenticated = response.statusCode == 200;
-      print('[AuthService] Authentication result: $isAuthenticated');
+      _log('[AuthService] Authentication result: $isAuthenticated');
       return isAuthenticated;
     } catch (e) {
-      print('[AuthService] Token validation failed: $e');
-      print('[AuthService] Logging out due to error');
+      _log('[AuthService] Token validation failed: $e');
+      _log('[AuthService] Logging out due to error');
       await logout();
       return false;
     }
@@ -132,6 +139,6 @@ class AuthService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_usernameKey);
     await prefs.remove(_expiresAtKey);
-    print('[AuthService] Logged out and cleared all auth data');
+    _log('[AuthService] Logged out and cleared all auth data');
   }
 }

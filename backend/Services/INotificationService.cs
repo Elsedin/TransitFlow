@@ -27,5 +27,5 @@ public interface INotificationService
     Task<NotificationDto> CreateAsync(CreateNotificationDto dto);
     Task<NotificationDto?> UpdateAsync(int id, UpdateNotificationDto dto);
     Task<bool> DeleteAsync(int id);
-    Task<bool> MarkAsReadAsync(int id);
+    Task<bool> MarkAsReadAsync(int id, int requestingUserId, bool isAdmin);
 }
