@@ -70,31 +70,22 @@ Dokumentacija sistema preporuke nalazi se na putanji:
 
 - `docs/recommender/recommender_dokumentacija.pdf`
 
+### GitHub Release (build artefakti)
+
+Build fajlovi se postavljaju kao ZIP asset na GitHub Release.
+
+ZIP sadrži:
+
+- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+- `admin-frontend/build/windows/x64/runner/Release/`
+
 ### Build Android (APK)
-
-Web API adresa za AVD treba biti `10.0.2.2`.
-
-```
-cd user-mobile
-flutter clean
-flutter pub get
-flutter build apk --release --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
-```
 
 APK će biti na:
 
 - `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
 
 ### Build Windows (EXE)
-
-Web API adresa treba biti `localhost`.
-
-```
-cd admin-frontend
-flutter clean
-flutter pub get
-flutter build windows --release
-```
 
 Build folder će biti na:
 
