@@ -11,6 +11,15 @@ class SubscriptionService {
     return await _authService.getToken();
   }
 
+  List<dynamic> _extractItems(dynamic decoded) {
+    if (decoded is List) return decoded;
+    if (decoded is Map<String, dynamic>) {
+      final items = decoded['items'];
+      if (items is List) return items;
+    }
+    throw Exception('Unexpected response format');
+  }
+
   Future<List<Subscription>> getAll({
     String? status,
     DateTime? dateFrom,
@@ -42,8 +51,9 @@ class SubscriptionService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => Subscription.fromJson(json)).toList();
+      final decoded = json.decode(response.body);
+      final items = _extractItems(decoded);
+      return items.map((json) => Subscription.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load subscriptions: ${response.statusCode}');
     }
@@ -98,7 +108,7 @@ class SubscriptionService {
       'startDate': DateTime.now().toIso8601String(),
       'endDate': DateTime.now().add(const Duration(days: 1)).toIso8601String(),
       'status': 'Active',
-      if (transactionId != null) 'transactionId': transactionId,
+      ...?(transactionId == null ? null : {'transactionId': transactionId}),
     };
 
     final response = await http.post(
@@ -159,8 +169,9 @@ class SubscriptionService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => SubscriptionPackage.fromJson(json)).toList();
+      final decoded = json.decode(response.body);
+      final items = _extractItems(decoded);
+      return items.map((json) => SubscriptionPackage.fromJson(json)).toList();
     } else {
       throw Exception('Failed to load subscription packages: ${response.statusCode}');
     }

@@ -18,6 +18,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("metrics")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<DashboardMetricsDto>> GetMetrics()
     {
         var metrics = await _dashboardService.GetMetricsAsync();
@@ -25,6 +26,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("ticket-sales")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<List<TicketSalesDto>>> GetTicketSales([FromQuery] int days = 30)
     {
         var sales = await _dashboardService.GetTicketSalesAsync(days);
@@ -32,6 +34,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("ticket-type-distribution")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<List<TicketTypeDistributionDto>>> GetTicketTypeDistribution()
     {
         var distribution = await _dashboardService.GetTicketTypeDistributionAsync();
@@ -39,6 +42,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("popular-lines")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<List<PopularLineDto>>> GetPopularLines([FromQuery] int top = 5)
     {
         var lines = await _dashboardService.GetPopularLinesAsync(top);

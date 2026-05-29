@@ -93,6 +93,20 @@ public class SubscriptionsController : ControllerBase
             return NotFound();
         }
 
+        if (!User.IsInRole("Administrator"))
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+            {
+                return Unauthorized(new { message = "User not authenticated or user ID not found." });
+            }
+
+            if (subscription.UserId != authenticatedUserId)
+            {
+                return NotFound();
+            }
+        }
+
         return Ok(subscription);
     }
 
@@ -145,6 +159,7 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<SubscriptionDto>> Update(int id, [FromBody] UpdateSubscriptionDto dto)
     {
         try
@@ -178,6 +193,26 @@ public class SubscriptionsController : ControllerBase
     {
         try
         {
+            if (!User.IsInRole("Administrator"))
+            {
+                var existing = await _subscriptionService.GetByIdAsync(id);
+                if (existing == null)
+                {
+                    return NotFound();
+                }
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+                {
+                    return Unauthorized(new { message = "User not authenticated or user ID not found." });
+                }
+
+                if (existing.UserId != authenticatedUserId)
+                {
+                    return NotFound();
+                }
+            }
+
             var subscription = await _subscriptionService.CancelAsync(id);
             
             if (subscription == null)
@@ -199,6 +234,7 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Delete(int id)
     {
         try

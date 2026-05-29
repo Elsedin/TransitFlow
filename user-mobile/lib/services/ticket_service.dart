@@ -185,7 +185,7 @@ class TicketService {
       'zoneId': zoneId,
       'validFrom': validFrom.toIso8601String(),
       'validTo': validTo.toIso8601String(),
-      if (transactionId != null) 'transactionId': transactionId,
+      ...?(transactionId == null ? null : {'transactionId': transactionId}),
     };
 
     final response = await http.post(
