@@ -21,9 +21,12 @@ class PayPalPaymentScreen extends StatefulWidget {
 }
 
 class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
   bool _paymentCompleted = false;
+
+  static const _successUrl = 'https://transitflow.app/payment/success';
+  static const _cancelUrl = 'https://transitflow.app/payment/cancel';
 
   @override
   void initState() {
@@ -34,39 +37,28 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
   Future<void> _initializeWebView() async {
     final cookieManager = WebViewCookieManager();
     await cookieManager.clearCookies();
-    
+
     final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
             if (_paymentCompleted) return;
-            
-            setState(() {
-              _isLoading = true;
-            });
+            if (mounted) {
+              setState(() {
+                _isLoading = true;
+              });
+            }
             _handleUrlChange(url);
           },
-          onPageFinished: (String url) async {
+          onPageFinished: (String url) {
             if (_paymentCompleted) return;
-            
-            setState(() {
-              _isLoading = false;
-            });
-            _handleUrlChange(url);
-            
-            if (!_paymentCompleted) {
-              try {
-                final currentUrl = await _controller.currentUrl();
-                if (currentUrl != null && !_paymentCompleted) {
-                  _handleUrlChange(currentUrl);
-                }
-              } catch (e) {
-                if (kDebugMode) {
-                  debugPrint('Error getting current URL: $e');
-                }
-              }
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
             }
+            _handleUrlChange(url);
           },
           onWebResourceError: (WebResourceError error) {
             if (_paymentCompleted) return;
@@ -76,7 +68,6 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
           },
           onUrlChange: (UrlChange change) {
             if (_paymentCompleted) return;
-            
             if (change.url != null) {
               _handleUrlChange(change.url!);
             }
@@ -85,46 +76,31 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
       );
 
     await controller.loadRequest(Uri.parse(widget.approvalUrl));
-    
+
+    if (!mounted) return;
     setState(() {
       _controller = controller;
+      _isLoading = false;
     });
   }
 
   void _handleUrlChange(String url) {
     if (_paymentCompleted) return;
-    if (kDebugMode) {
-      debugPrint('PayPal URL changed: $url');
-    }
-    
-    if (url.contains('transitflow.app/payment/success') || 
-        (url.contains('token=') && (url.contains('PayerID=') || url.contains('payer_id=')))) {
-      if (kDebugMode) {
-        debugPrint('PayPal payment approved - closing WebView');
-      }
+
+    if (url.startsWith(_successUrl)) {
       _paymentCompleted = true;
+      widget.onPaymentComplete(widget.orderId);
       if (mounted) {
         Navigator.of(context).pop(widget.orderId);
       }
-    } else if (url.contains('transitflow.app/payment/cancel') || 
-               (url.contains('cancel') && url.contains('transitflow.app'))) {
-      if (kDebugMode) {
-        debugPrint('PayPal payment cancelled');
-      }
+      return;
+    }
+
+    if (url.startsWith(_cancelUrl)) {
       _paymentCompleted = true;
       widget.onPaymentCancel();
       if (mounted) {
         Navigator.of(context).pop(null);
-      }
-    } else if ((url.contains('/checkoutnow/2') || 
-               url.contains('payment/confirm') || 
-               url.contains('checkout/confirm')) && url.contains('token=')) {
-      if (kDebugMode) {
-        debugPrint('PayPal payment confirmed - closing WebView');
-      }
-      _paymentCompleted = true;
-      if (mounted) {
-        Navigator.of(context).pop(widget.orderId);
       }
     }
   }
@@ -137,15 +113,17 @@ class _PayPalPaymentScreenState extends State<PayPalPaymentScreen> {
         backgroundColor: Colors.orange[700],
         foregroundColor: Colors.white,
       ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
+      body: _controller == null
+          ? const Center(child: CircularProgressIndicator())
+          : Stack(
+              children: [
+                WebViewWidget(controller: _controller!),
+                if (_isLoading)
+                  const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }

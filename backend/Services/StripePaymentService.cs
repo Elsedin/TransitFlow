@@ -4,6 +4,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Stripe;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 
@@ -52,7 +53,7 @@ public class StripePaymentService : IPaymentService
             UserId = userId,
             Amount = amount,
             PaymentMethod = "Stripe",
-            Status = "pending",
+            Status = TransactionStatuses.Pending,
             CreatedAt = DateTime.UtcNow,
             ExternalTransactionId = paymentIntent.Id,
             Notes = $"PaymentIntent: {paymentIntent.Id}"
@@ -91,11 +92,29 @@ public class StripePaymentService : IPaymentService
             };
         }
 
+        var completedTransaction = await _context.Transactions
+            .FirstOrDefaultAsync(t =>
+                t.UserId == userId &&
+                t.PaymentMethod == "Stripe" &&
+                t.Status.ToLower() == TransactionStatuses.Completed &&
+                t.ExternalTransactionId == paymentIntentId);
+
+        if (completedTransaction != null)
+        {
+            return new PaymentResult
+            {
+                Success = true,
+                TransactionId = completedTransaction.Id,
+                PaymentIntentId = paymentIntentId,
+                Message = "Payment already confirmed"
+            };
+        }
+
         var transaction = await _context.Transactions
             .FirstOrDefaultAsync(t =>
                 t.UserId == userId &&
                 t.PaymentMethod == "Stripe" &&
-                t.Status == "pending" &&
+                t.Status.ToLower() == TransactionStatuses.Pending &&
                 t.ExternalTransactionId == paymentIntentId);
 
         if (transaction == null)
@@ -107,7 +126,7 @@ public class StripePaymentService : IPaymentService
             };
         }
 
-        transaction.Status = "completed";
+        transaction.Status = TransactionStatuses.Completed;
         transaction.CompletedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -239,7 +258,7 @@ public class StripePaymentService : IPaymentService
             UserId = userId,
             Amount = originalAmount,
             PaymentMethod = "PayPal",
-            Status = "pending",
+            Status = TransactionStatuses.Pending,
             CreatedAt = DateTime.UtcNow,
             ExternalTransactionId = orderId,
             Notes = $"PayPal Order: {orderId}, PayPalAmount: {paypalAmount.ToString("F2", CultureInfo.InvariantCulture)} {currencyCode}"
@@ -298,7 +317,7 @@ public class StripePaymentService : IPaymentService
 
                 if (existingTransaction != null)
                 {
-                    existingTransaction.Status = "completed";
+                    existingTransaction.Status = TransactionStatuses.Completed;
                     existingTransaction.CompletedAt = DateTime.UtcNow;
                     try
                     {
@@ -381,6 +400,24 @@ public class StripePaymentService : IPaymentService
 
         if (transaction == null)
         {
+            var completedTransaction = await _context.Transactions
+                .FirstOrDefaultAsync(t =>
+                    t.UserId == userId &&
+                    t.PaymentMethod == "PayPal" &&
+                    t.Status.ToLower() == TransactionStatuses.Completed &&
+                    t.ExternalTransactionId == orderId);
+
+            if (completedTransaction != null)
+            {
+                return new PaymentResult
+                {
+                    Success = true,
+                    TransactionId = completedTransaction.Id,
+                    PaymentIntentId = orderId,
+                    Message = "Payment already confirmed"
+                };
+            }
+
             throw new InvalidOperationException($"Transaction not found for orderId: {orderId}, userId: {userId}");
         }
 
@@ -410,7 +447,7 @@ public class StripePaymentService : IPaymentService
             throw new InvalidOperationException("PayPal capture succeeded but capture id was not returned; transaction marked as failed.");
         }
 
-        transaction.Status = "completed";
+        transaction.Status = TransactionStatuses.Completed;
         transaction.CompletedAt = DateTime.UtcNow;
         transaction.PayPalCaptureId = captureId;
         await _context.SaveChangesAsync();

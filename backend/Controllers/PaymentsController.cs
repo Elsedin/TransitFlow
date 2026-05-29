@@ -15,18 +15,27 @@ namespace TransitFlow.API.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
+    private readonly IPaymentPricingService _paymentPricingService;
+    private readonly IPaymentFulfillmentService _paymentFulfillmentService;
     private readonly ApplicationDbContext _context;
     private readonly ILogger<PaymentsController> _logger;
 
-    public PaymentsController(IPaymentService paymentService, ApplicationDbContext context, ILogger<PaymentsController> logger)
+    public PaymentsController(
+        IPaymentService paymentService,
+        IPaymentPricingService paymentPricingService,
+        IPaymentFulfillmentService paymentFulfillmentService,
+        ApplicationDbContext context,
+        ILogger<PaymentsController> logger)
     {
         _paymentService = paymentService;
+        _paymentPricingService = paymentPricingService;
+        _paymentFulfillmentService = paymentFulfillmentService;
         _context = context;
         _logger = logger;
     }
 
     [HttpPost("stripe/create-intent")]
-    public async Task<ActionResult<PaymentIntentResponse>> CreateStripeIntent([FromBody] CreatePaymentRequest request)
+    public async Task<ActionResult<PaymentIntentResponse>> CreateStripeIntent([FromBody] CreatePaymentIntentRequest request)
     {
         var userId = await GetUserIdAsync();
         if (userId == null)
@@ -36,17 +45,85 @@ public class PaymentsController : ControllerBase
 
         try
         {
+            var amount = await ResolvePaymentAmountAsync(userId.Value, request);
+            if (amount <= 0)
+            {
+                return BadRequest(new { message = "No payment required for this purchase" });
+            }
+
             var result = await _paymentService.CreateStripePaymentIntentAsync(
-                request.Amount,
+                amount,
                 request.Currency ?? "bam",
                 userId.Value
             );
             return Ok(result);
         }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed creating Stripe payment intent for user {UserId}", userId);
             return StatusCode(500, new { message = "An error occurred while creating payment intent", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("stripe/finalize-ticket")]
+    public async Task<ActionResult<TicketDto>> FinalizeStripeTicket([FromBody] FinalizeTicketPaymentRequest request)
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            var ticket = await _paymentFulfillmentService.FinalizeStripeTicketAsync(userId.Value, request);
+            return Ok(ticket);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed finalizing Stripe ticket purchase for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while finalizing ticket purchase", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("stripe/finalize-subscription")]
+    public async Task<ActionResult<SubscriptionDto>> FinalizeStripeSubscription([FromBody] FinalizeSubscriptionPaymentRequest request)
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            var subscription = await _paymentFulfillmentService.FinalizeStripeSubscriptionAsync(userId.Value, request);
+            return Ok(subscription);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed finalizing Stripe subscription purchase for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while finalizing subscription purchase", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -78,7 +155,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("paypal/create-order")]
-    public async Task<ActionResult<PayPalOrderResponse>> CreatePayPalOrder([FromBody] CreatePayPalOrderRequest request)
+    public async Task<ActionResult<PayPalOrderResponse>> CreatePayPalOrder([FromBody] CreatePaymentIntentRequest request)
     {
         var userId = await GetUserIdAsync();
         if (userId == null)
@@ -88,12 +165,22 @@ public class PaymentsController : ControllerBase
 
         try
         {
+            var amount = await ResolvePaymentAmountAsync(userId.Value, request);
+            if (amount <= 0)
+            {
+                return BadRequest(new { message = "No payment required for this purchase" });
+            }
+
             var result = await _paymentService.CreatePayPalOrderAsync(
-                request.Amount,
+                amount,
                 request.Currency ?? "bam",
                 userId.Value
             );
             return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {
@@ -103,6 +190,60 @@ public class PaymentsController : ControllerBase
         {
             _logger.LogError(ex, "Failed creating PayPal order for user {UserId}", userId);
             return StatusCode(500, new { message = "An error occurred while creating PayPal order", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("paypal/finalize-ticket")]
+    public async Task<ActionResult<TicketDto>> FinalizePayPalTicket([FromBody] FinalizePayPalTicketPaymentRequest request)
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            var ticket = await _paymentFulfillmentService.FinalizePayPalTicketAsync(userId.Value, request);
+            return Ok(ticket);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed finalizing PayPal ticket purchase for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while finalizing ticket purchase", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("paypal/finalize-subscription")]
+    public async Task<ActionResult<SubscriptionDto>> FinalizePayPalSubscription([FromBody] FinalizePayPalSubscriptionPaymentRequest request)
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            var subscription = await _paymentFulfillmentService.FinalizePayPalSubscriptionAsync(userId.Value, request);
+            return Ok(subscription);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed finalizing PayPal subscription purchase for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while finalizing subscription purchase", traceId = HttpContext.TraceIdentifier });
         }
     }
 
@@ -137,6 +278,42 @@ public class PaymentsController : ControllerBase
             _logger.LogError(ex, "Failed capturing PayPal order for user {UserId}", userId);
             return StatusCode(500, new { message = "An error occurred while capturing PayPal order", traceId = HttpContext.TraceIdentifier });
         }
+    }
+
+    private async Task<decimal> ResolvePaymentAmountAsync(int userId, CreatePaymentIntentRequest request)
+    {
+        var purchaseType = (request.PurchaseType ?? string.Empty).Trim().ToLowerInvariant();
+
+        return purchaseType switch
+        {
+            "ticket" => await ResolveTicketAmountAsync(userId, request),
+            "subscription" => await ResolveSubscriptionAmountAsync(request),
+            _ => throw new ArgumentException("Invalid purchase type")
+        };
+    }
+
+    private async Task<decimal> ResolveTicketAmountAsync(int userId, CreatePaymentIntentRequest request)
+    {
+        if (!request.TicketTypeId.HasValue || !request.RouteId.HasValue || !request.ZoneId.HasValue || !request.ValidFrom.HasValue)
+        {
+            throw new ArgumentException("Ticket purchase requires ticketTypeId, routeId, zoneId and validFrom");
+        }
+
+        return await _paymentPricingService.CalculateTicketAmountAsync(
+            userId,
+            request.TicketTypeId.Value,
+            request.ZoneId.Value,
+            request.ValidFrom.Value);
+    }
+
+    private async Task<decimal> ResolveSubscriptionAmountAsync(CreatePaymentIntentRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.PackageKey))
+        {
+            throw new ArgumentException("Subscription purchase requires packageKey");
+        }
+
+        return await _paymentPricingService.CalculateSubscriptionAmountAsync(request.PackageKey);
     }
 
     private async Task<int?> GetUserIdAsync()

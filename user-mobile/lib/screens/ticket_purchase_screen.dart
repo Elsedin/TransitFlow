@@ -235,14 +235,11 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         _selectedTime.minute,
       );
 
-      final validTo = selectedDateTime.add(Duration(days: _selectedTicketType!.validityDays));
-
       final ticket = await _ticketService.purchaseTicket(
         ticketTypeId: _selectedTicketType!.id,
         routeId: _selectedRoute!.id,
         zoneId: _selectedTicketPrice!.zoneId,
         validFrom: selectedDateTime.toUtc(),
-        validTo: validTo.toUtc(),
         transactionId: null,
       );
 
@@ -266,11 +263,27 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     }
   }
 
+  DateTime _buildSelectedDateTimeUtc() {
+    final selectedDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+    return selectedDateTime.toUtc();
+  }
+
   Future<void> _processStripePayment() async {
     try {
-      final totalPrice = _getTotalPrice();
+      final validFrom = _buildSelectedDateTimeUtc();
 
-      final paymentIntent = await _paymentService.createStripePaymentIntent(totalPrice);
+      final paymentIntent = await _paymentService.createStripePaymentIntentForTicket(
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
       await stripe.Stripe.instance.initPaymentSheet(
         paymentSheetParameters: stripe.SetupPaymentSheetParameters(
@@ -287,12 +300,20 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
       }
 
-      final result = await _paymentService.confirmStripePayment(paymentIntent.paymentIntentId);
+      final ticket = await _paymentService.finalizeStripeTicketPurchase(
+        paymentIntentId: paymentIntent.paymentIntentId,
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
-      if (result.success) {
-        await _createTicketAfterPayment(result.transactionId);
-      } else {
-        throw Exception(result.message ?? 'Plaćanje nije uspješno');
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => TicketSuccessScreen(ticket: ticket),
+          ),
+        );
       }
     } on stripe.StripeException catch (e) {
       if (e.error.code == stripe.FailureCode.Canceled) {
@@ -309,9 +330,14 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
 
   Future<void> _processPayPalPayment() async {
     try {
-      final totalPrice = _getTotalPrice();
+      final validFrom = _buildSelectedDateTimeUtc();
 
-      final paypalOrder = await _paymentService.createPayPalOrder(totalPrice);
+      final paypalOrder = await _paymentService.createPayPalOrderForTicket(
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
       if (!mounted) return;
       
@@ -339,12 +365,20 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
           throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
         }
 
-        final paymentResult = await _paymentService.capturePayPalOrder(paypalOrder.orderId);
+        final ticket = await _paymentService.finalizePayPalTicketPurchase(
+          orderId: returnedOrderId,
+          ticketTypeId: _selectedTicketType!.id,
+          routeId: _selectedRoute!.id,
+          zoneId: _selectedTicketPrice!.zoneId,
+          validFrom: validFrom,
+        );
 
-        if (paymentResult.success) {
-          await _createTicketAfterPayment(paymentResult.transactionId);
-        } else {
-          throw Exception(paymentResult.message ?? 'Plaćanje nije uspješno');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => TicketSuccessScreen(ticket: ticket),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -356,39 +390,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         _isPurchasing = false;
       });
       throw Exception('Greška pri PayPal plaćanju: $e');
-    }
-  }
-
-  Future<void> _createTicketAfterPayment(int transactionId) async {
-    try {
-      final selectedDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
-
-      final validTo = selectedDateTime.add(Duration(days: _selectedTicketType!.validityDays));
-
-      final ticket = await _ticketService.purchaseTicket(
-        ticketTypeId: _selectedTicketType!.id,
-        routeId: _selectedRoute!.id,
-        zoneId: _selectedTicketPrice!.zoneId,
-        validFrom: selectedDateTime.toUtc(),
-        validTo: validTo.toUtc(),
-        transactionId: transactionId,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => TicketSuccessScreen(ticket: ticket),
-          ),
-        );
-      }
-    } catch (e) {
-      throw Exception('Greška pri kreiranju karte: $e');
     }
   }
 

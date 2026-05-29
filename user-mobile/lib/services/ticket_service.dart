@@ -173,7 +173,6 @@ class TicketService {
     required int routeId,
     required int zoneId,
     required DateTime validFrom,
-    required DateTime validTo,
     int? transactionId,
   }) async {
     final token = await _getToken();
@@ -184,7 +183,6 @@ class TicketService {
       'routeId': routeId,
       'zoneId': zoneId,
       'validFrom': validFrom.toIso8601String(),
-      'validTo': validTo.toIso8601String(),
       ...?(transactionId == null ? null : {'transactionId': transactionId}),
     };
 

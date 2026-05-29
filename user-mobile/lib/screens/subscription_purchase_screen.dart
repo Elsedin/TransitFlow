@@ -366,9 +366,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
 
   Future<void> _processStripePayment() async {
     try {
-      final totalPrice = _package!.price;
-
-      final paymentIntent = await _paymentService.createStripePaymentIntent(totalPrice);
+      final paymentIntent = await _paymentService.createStripePaymentIntentForSubscription(
+        packageKey: _package!.key,
+      );
 
       await stripe.Stripe.instance.initPaymentSheet(
         paymentSheetParameters: stripe.SetupPaymentSheetParameters(
@@ -385,12 +385,17 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
         throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
       }
 
-      final result = await _paymentService.confirmStripePayment(paymentIntent.paymentIntentId);
+      final subscription = await _paymentService.finalizeStripeSubscriptionPurchase(
+        paymentIntentId: paymentIntent.paymentIntentId,
+        packageKey: _package!.key,
+      );
 
-      if (result.success) {
-        await _createSubscriptionAfterPayment(result.transactionId);
-      } else {
-        throw Exception(result.message ?? 'Plaćanje nije uspješno');
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
+          ),
+        );
       }
     } on stripe.StripeException catch (e) {
       if (e.error.code == stripe.FailureCode.Canceled) {
@@ -407,9 +412,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
 
   Future<void> _processPayPalPayment() async {
     try {
-      final totalPrice = _package!.price;
-
-      final paypalOrder = await _paymentService.createPayPalOrder(totalPrice);
+      final paypalOrder = await _paymentService.createPayPalOrderForSubscription(
+        packageKey: _package!.key,
+      );
 
       if (!mounted) return;
 
@@ -435,12 +440,17 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
           throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
         }
 
-        final paymentResult = await _paymentService.capturePayPalOrder(paypalOrder.orderId);
+        final subscription = await _paymentService.finalizePayPalSubscriptionPurchase(
+          orderId: returnedOrderId,
+          packageKey: _package!.key,
+        );
 
-        if (paymentResult.success) {
-          await _createSubscriptionAfterPayment(paymentResult.transactionId);
-        } else {
-          throw Exception(paymentResult.message ?? 'Plaćanje nije uspješno');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -455,26 +465,4 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
     }
   }
 
-  Future<void> _createSubscriptionAfterPayment(int transactionId) async {
-    try {
-      final subscription = await _subscriptionService.purchaseSubscription(
-        packageKey: _package!.key,
-        transactionId: transactionId,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
-          ),
-        );
-      }
-    } catch (e) {
-      throw Exception('Greška pri kreiranju pretplate: $e');
-    } finally {
-      setState(() {
-        _isPurchasing = false;
-      });
-    }
-  }
 }

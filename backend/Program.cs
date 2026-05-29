@@ -126,6 +126,8 @@ builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+builder.Services.AddScoped<IPaymentPricingService, PaymentPricingService>();
+builder.Services.AddScoped<IPaymentFulfillmentService, PaymentFulfillmentService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IRefundRequestService, RefundRequestService>();
