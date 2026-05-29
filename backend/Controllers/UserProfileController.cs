@@ -67,7 +67,7 @@ public class UserProfileController : ControllerBase
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
                 PhoneNumber = dto.PhoneNumber,
-                IsActive = true
+                IsActive = user.IsActive
             };
 
             var updatedUser = await _userService.UpdateAsync(user.Id, updateDto);

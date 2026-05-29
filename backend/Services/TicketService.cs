@@ -301,6 +301,17 @@ public class TicketService : ITicketService
         var expectedAmount = ticketPrice.Price;
         Models.Transaction? transaction = null;
 
+        if (dto.TransactionId.HasValue)
+        {
+            var existingTicketForTransaction = await _context.Tickets
+                .FirstOrDefaultAsync(t => t.TransactionId == dto.TransactionId.Value && t.UserId == userId);
+            if (existingTicketForTransaction != null)
+            {
+                return await GetByIdAsync(existingTicketForTransaction.Id)
+                    ?? throw new Exception("Failed to retrieve existing ticket");
+            }
+        }
+
         if (!subscriptionAllowsFreeTicket)
         {
             if (!dto.TransactionId.HasValue)
@@ -341,6 +352,8 @@ public class TicketService : ITicketService
 
         var ticketNumber = await GenerateTicketNumberAsync();
 
+        var ticketValidTo = CalculateValidTo(ticketType, ticketValidFrom);
+
         var ticket = new Ticket
         {
             PublicId = Guid.NewGuid(),
@@ -351,7 +364,7 @@ public class TicketService : ITicketService
             ZoneId = dto.ZoneId,
             Price = subscriptionAllowsFreeTicket ? 0 : expectedAmount,
             ValidFrom = ticketValidFrom,
-            ValidTo = DateTime.SpecifyKind(dto.ValidTo, DateTimeKind.Utc).ToUniversalTime(),
+            ValidTo = ticketValidTo,
             PurchasedAt = DateTime.UtcNow,
             IsUsed = false,
             TransactionId = subscriptionAllowsFreeTicket ? null : transaction!.Id
@@ -420,7 +433,9 @@ public class TicketService : ITicketService
             };
         }
 
-        if (ticket.TicketTypeId == 1)
+        var typeCode = (ticket.TicketType?.Code ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (typeCode == "single")
         {
             if (ticket.IsUsed)
             {
@@ -446,7 +461,7 @@ public class TicketService : ITicketService
             };
         }
 
-        if (ticket.TicketTypeId == 2)
+        if (typeCode == "daily")
         {
             if (!ticket.UsedAt.HasValue)
             {
@@ -508,6 +523,20 @@ public class TicketService : ITicketService
         }
 
         throw new InvalidOperationException("Failed to generate unique ticket number");
+    }
+
+    private static DateTime CalculateValidTo(Models.TicketType ticketType, DateTime validFrom)
+    {
+        var fromUtc = DateTime.SpecifyKind(validFrom, DateTimeKind.Utc).ToUniversalTime();
+        var code = (ticketType.Code ?? string.Empty).Trim().ToLowerInvariant();
+
+        return code switch
+        {
+            "single" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
+            "daily" => fromUtc.Date.AddDays(1).AddTicks(-1),
+            "monthly" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
+            _ => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays))
+        };
     }
 
     private static string GetTicketStatus(Ticket ticket, DateTime now)

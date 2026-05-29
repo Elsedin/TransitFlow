@@ -217,6 +217,14 @@ public class SubscriptionService : ISubscriptionService
             throw new ArgumentException("Transaction ID is required");
         }
 
+        var existingSubscriptionForTransaction = await _context.Subscriptions
+            .FirstOrDefaultAsync(s => s.TransactionId == dto.TransactionId.Value && s.UserId == dto.UserId);
+        if (existingSubscriptionForTransaction != null)
+        {
+            return await GetByIdAsync(existingSubscriptionForTransaction.Id)
+                ?? throw new Exception("Failed to retrieve existing subscription");
+        }
+
         var transaction = await _context.Transactions
             .FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
 

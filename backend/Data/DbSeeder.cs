@@ -180,8 +180,8 @@ public static class DbSeeder
         {
             var ticketTypes = new[]
             {
-                new TicketType { Name = "Jednokratna", Description = "Karta za jedan put", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
-                new TicketType { Name = "Dnevna", Description = "Karta za jedan dan", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new TicketType { Name = "Jednokratna", Code = "single", Description = "Karta za jedan put", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
+                new TicketType { Name = "Dnevna", Code = "daily", Description = "Karta za jedan dan", ValidityDays = 1, IsActive = true, CreatedAt = DateTime.UtcNow },
             };
 
             context.TicketTypes.AddRange(ticketTypes);
