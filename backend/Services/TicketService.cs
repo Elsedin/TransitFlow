@@ -533,7 +533,7 @@ public class TicketService : ITicketService
         return code switch
         {
             "single" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
-            "daily" => fromUtc.Date.AddDays(1).AddTicks(-1),
+            "daily" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
             "monthly" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
             _ => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays))
         };
