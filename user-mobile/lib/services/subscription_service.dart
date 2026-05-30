@@ -82,15 +82,25 @@ class SubscriptionService {
 
   Future<Subscription?> getActiveSubscription() async {
     try {
-      final subscriptions = await getAll(status: 'active');
-      final now = DateTime.now();
-      
-      final activeSubscriptions = subscriptions
-          .where((s) => s.status.toLowerCase() == 'active' && s.endDate.isAfter(now))
-          .toList();
-      
-      return activeSubscriptions.isNotEmpty ? activeSubscriptions.first : null;
-    } catch (e) {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/active'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return Subscription.fromJson(json.decode(response.body));
+      }
+      if (response.statusCode == 404) {
+        return null;
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }

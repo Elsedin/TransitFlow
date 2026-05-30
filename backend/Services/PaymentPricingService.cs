@@ -21,14 +21,17 @@ public class PaymentPricingService : IPaymentPricingService
                 && s.Status.ToLower() == "active"
                 && s.StartDate <= now
                 && s.EndDate >= now)
-            .OrderByDescending(s => s.EndDate)
+            .OrderByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.EndDate)
             .FirstOrDefaultAsync();
 
-        if (activeSubscription?.SubscriptionPackage != null &&
-            activeSubscription.SubscriptionPackage.IsActive &&
-            activeSubscription.SubscriptionPackage.MaxZoneId >= zoneId)
+        if (activeSubscription?.SubscriptionPackage != null)
         {
-            return 0;
+            var zone = await _context.Zones.FindAsync(zoneId);
+            if (ZoneCoverage.SubscriptionCoversZone(activeSubscription.SubscriptionPackage, zone))
+            {
+                return 0;
+            }
         }
 
         var ticketValidFrom = DateTime.SpecifyKind(validFrom, DateTimeKind.Utc).ToUniversalTime();

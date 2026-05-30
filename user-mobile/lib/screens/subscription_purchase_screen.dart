@@ -157,7 +157,7 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              '${_package!.durationDays} dana • Pokriva zone 1-${_package!.maxZoneId}',
+              '${_package!.durationDays} dana • Pokriva zone 1-${_package!.maxZoneLevel}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],

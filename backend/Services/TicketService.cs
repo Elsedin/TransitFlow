@@ -291,12 +291,14 @@ public class TicketService : ITicketService
                 && s.Status.ToLower() == "active"
                 && s.StartDate <= now
                 && s.EndDate >= now)
-            .OrderByDescending(s => s.EndDate)
+            .OrderByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.EndDate)
             .FirstOrDefaultAsync();
 
-        var subscriptionAllowsFreeTicket = activeSubscription?.SubscriptionPackage != null &&
-                                           activeSubscription.SubscriptionPackage.IsActive &&
-                                           activeSubscription.SubscriptionPackage.MaxZoneId >= dto.ZoneId;
+        var ticketZone = await _context.Zones.FindAsync(dto.ZoneId);
+        var subscriptionAllowsFreeTicket = ZoneCoverage.SubscriptionCoversZone(
+            activeSubscription?.SubscriptionPackage,
+            ticketZone);
 
         var expectedAmount = ticketPrice.Price;
         Models.Transaction? transaction = null;

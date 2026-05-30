@@ -7,6 +7,7 @@ public class TicketPriceDto
     public string TicketTypeName { get; set; } = string.Empty;
     public int ZoneId { get; set; }
     public string ZoneName { get; set; } = string.Empty;
+    public int ZoneLevel { get; set; }
     public decimal Price { get; set; }
     public int ValidityDays { get; set; }
     public string ValidityDescription { get; set; } = string.Empty;

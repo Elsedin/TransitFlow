@@ -7,6 +7,9 @@ public class SubscriptionDto
     public string UserEmail { get; set; } = string.Empty;
     public string? UserFullName { get; set; }
     public string PackageName { get; set; } = string.Empty;
+    public int SubscriptionPackageId { get; set; }
+    public string PackageKey { get; set; } = string.Empty;
+    public int MaxZoneLevel { get; set; }
     public decimal Price { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }

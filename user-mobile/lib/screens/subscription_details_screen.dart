@@ -240,6 +240,13 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    _buildDetailRow(
+                      'Pokrivene zone:',
+                      subscription.maxZoneLevel > 0
+                          ? 'Zone 1-${subscription.maxZoneLevel}'
+                          : 'N/A',
+                    ),
+                    const Divider(height: 24),
                     _buildDetailRow('Cijena:', '${subscription.price.toStringAsFixed(2)} KM'),
                     const Divider(height: 24),
                     _buildDetailRow('Datum početka:', DateFormat('dd.MM.yyyy').format(subscription.startDate)),
@@ -275,7 +282,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Vaša aktivna pretplata omogućava neograničen broj vožnji na svim linijama javnog prevoza.',
+                        'Vaša aktivna pretplata omogućava neograničen broj vožnji u zonama 1-${subscription.maxZoneLevel > 0 ? subscription.maxZoneLevel : "?"} na svim linijama u tom opsegu.',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],

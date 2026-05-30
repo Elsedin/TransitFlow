@@ -110,22 +110,30 @@ public class SubscriptionService : ISubscriptionService
         if (subscription == null)
             return null;
 
-        return new SubscriptionDto
+        return MapToDto(subscription);
+    }
+
+    public async Task<SubscriptionDto?> GetActiveForUserAsync(int userId)
+    {
+        var now = DateTime.UtcNow;
+        var subscription = await _context.Subscriptions
+            .Include(s => s.User)
+            .Include(s => s.Transaction)
+            .Include(s => s.SubscriptionPackage)
+            .Where(s => s.UserId == userId
+                && s.Status.ToLower() == "active"
+                && s.StartDate <= now
+                && s.EndDate >= now)
+            .OrderByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.EndDate)
+            .FirstOrDefaultAsync();
+
+        if (subscription == null)
         {
-            Id = subscription.Id,
-            UserId = subscription.UserId,
-            UserEmail = subscription.User?.Email ?? string.Empty,
-            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
-            PackageName = subscription.PackageName,
-            Price = subscription.Price,
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            Status = subscription.Status,
-            CreatedAt = subscription.CreatedAt,
-            UpdatedAt = subscription.UpdatedAt,
-            TransactionId = subscription.TransactionId,
-            TransactionNumber = subscription.Transaction?.TransactionNumber
-        };
+            return null;
+        }
+
+        return MapToDto(subscription);
     }
 
     private IQueryable<Subscription> BuildFilteredQuery(
@@ -194,6 +202,9 @@ public class SubscriptionService : ISubscriptionService
             UserEmail = s.User?.Email ?? string.Empty,
             UserFullName = $"{s.User?.FirstName ?? ""} {s.User?.LastName ?? ""}".Trim(),
             PackageName = s.PackageName,
+            SubscriptionPackageId = s.SubscriptionPackageId,
+            PackageKey = s.SubscriptionPackage?.Key ?? string.Empty,
+            MaxZoneLevel = s.SubscriptionPackage?.MaxZoneLevel ?? 0,
             Price = s.Price,
             StartDate = s.StartDate,
             EndDate = s.EndDate,

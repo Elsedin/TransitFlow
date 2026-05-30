@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TransitFlow.API.Models;
@@ -167,9 +168,9 @@ public static class DbSeeder
         {
             var zones = new[]
             {
-                new Zone { Name = "Zona 1", Description = "Centar grada", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new Zone { Name = "Zona 2", Description = "Prva zona", IsActive = true, CreatedAt = DateTime.UtcNow },
-                new Zone { Name = "Zona 3", Description = "Druga zona", IsActive = true, CreatedAt = DateTime.UtcNow }
+                new Zone { Name = "Zona 1", Level = 1, Description = "Centar grada", IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Zone { Name = "Zona 2", Level = 2, Description = "Prva zona", IsActive = true, CreatedAt = DateTime.UtcNow },
+                new Zone { Name = "Zona 3", Level = 3, Description = "Druga zona", IsActive = true, CreatedAt = DateTime.UtcNow }
             };
 
             context.Zones.AddRange(zones);
@@ -766,15 +767,15 @@ public static class DbSeeder
             var now = DateTime.UtcNow;
             var packages = new[]
             {
-                new SubscriptionPackage { Key = "monthly_zone1", DisplayName = "Mjesečna (Zona 1)", DurationDays = 30, Price = 45.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "monthly_zone2", DisplayName = "Mjesečna (Zona 1-2)", DurationDays = 30, Price = 55.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "monthly_zone3", DisplayName = "Mjesečna (Zona 1-3)", DurationDays = 30, Price = 65.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "annual_zone1", DisplayName = "Godišnja (Zona 1)", DurationDays = 365, Price = 450.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "annual_zone2", DisplayName = "Godišnja (Zona 1-2)", DurationDays = 365, Price = 550.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "annual_zone3", DisplayName = "Godišnja (Zona 1-3)", DurationDays = 365, Price = 650.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "student_monthly_zone1", DisplayName = "Studentska mjesečna (Zona 1)", DurationDays = 30, Price = 30.00m, MaxZoneId = 1, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "student_monthly_zone2", DisplayName = "Studentska mjesečna (Zona 1-2)", DurationDays = 30, Price = 40.00m, MaxZoneId = 2, IsActive = true, CreatedAt = now },
-                new SubscriptionPackage { Key = "student_monthly_zone3", DisplayName = "Studentska mjesečna (Zona 1-3)", DurationDays = 30, Price = 50.00m, MaxZoneId = 3, IsActive = true, CreatedAt = now }
+                new SubscriptionPackage { Key = "monthly_zone1", DisplayName = "Mjesečna (Zona 1)", DurationDays = 30, Price = 45.00m, MaxZoneLevel = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone2", DisplayName = "Mjesečna (Zona 1-2)", DurationDays = 30, Price = 55.00m, MaxZoneLevel = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "monthly_zone3", DisplayName = "Mjesečna (Zona 1-3)", DurationDays = 30, Price = 65.00m, MaxZoneLevel = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone1", DisplayName = "Godišnja (Zona 1)", DurationDays = 365, Price = 450.00m, MaxZoneLevel = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone2", DisplayName = "Godišnja (Zona 1-2)", DurationDays = 365, Price = 550.00m, MaxZoneLevel = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "annual_zone3", DisplayName = "Godišnja (Zona 1-3)", DurationDays = 365, Price = 650.00m, MaxZoneLevel = 3, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone1", DisplayName = "Studentska mjesečna (Zona 1)", DurationDays = 30, Price = 30.00m, MaxZoneLevel = 1, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone2", DisplayName = "Studentska mjesečna (Zona 1-2)", DurationDays = 30, Price = 40.00m, MaxZoneLevel = 2, IsActive = true, CreatedAt = now },
+                new SubscriptionPackage { Key = "student_monthly_zone3", DisplayName = "Studentska mjesečna (Zona 1-3)", DurationDays = 30, Price = 50.00m, MaxZoneLevel = 3, IsActive = true, CreatedAt = now }
             };
 
             context.SubscriptionPackages.AddRange(packages);
@@ -896,5 +897,36 @@ public static class DbSeeder
                 await context.SaveChangesAsync();
             }
         }
+
+        await BackfillZoneLevelsAsync(context, logger);
+    }
+
+    private static async Task BackfillZoneLevelsAsync(ApplicationDbContext context, ILogger logger)
+    {
+        var zones = await context.Zones.ToListAsync();
+        var changed = false;
+
+        foreach (var zone in zones)
+        {
+            var parsed = ParseZoneLevelFromName(zone.Name);
+            if (parsed > 0 && zone.Level != parsed)
+            {
+                zone.Level = parsed;
+                zone.UpdatedAt = DateTime.UtcNow;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Backfilled Zone.Level for {Count} zone(s)", zones.Count(z => ParseZoneLevelFromName(z.Name) > 0));
+        }
+    }
+
+    private static int ParseZoneLevelFromName(string name)
+    {
+        var match = Regex.Match(name ?? string.Empty, @"Zona\s*(\d+)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var level) ? level : 0;
     }
 }

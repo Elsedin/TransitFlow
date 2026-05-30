@@ -32,17 +32,7 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
     });
 
     try {
-      final subscriptions = await _subscriptionService.getAll();
-      final now = DateTime.now();
-      
-      _activeSubscription = subscriptions
-          .where((s) => s.status.toLowerCase() == 'active' && s.endDate.isAfter(now))
-          .isNotEmpty
-          ? subscriptions
-              .where((s) => s.status.toLowerCase() == 'active' && s.endDate.isAfter(now))
-              .first
-          : null;
-
+      _activeSubscription = await _subscriptionService.getActiveSubscription();
       _availablePackages = await _subscriptionService.fetchAvailablePackages();
 
       setState(() {
@@ -167,7 +157,7 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Sve linije • Neograničen broj vožnji',
+                'Zone 1-${subscription.maxZoneLevel > 0 ? subscription.maxZoneLevel : "?"} • Neograničen broj vožnji',
                 style: TextStyle(
                   fontSize: 14,
                   color: Colors.grey[600],
@@ -279,7 +269,7 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              '${package.durationDays} dana • Pokriva zone 1-${package.maxZoneId}',
+              '${package.durationDays} dana • Pokriva zone 1-${package.maxZoneLevel}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],

@@ -13,6 +13,8 @@ public class Zone
     
     [MaxLength(500)]
     public string? Description { get; set; }
+
+    public int Level { get; set; } = 1;
     
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     

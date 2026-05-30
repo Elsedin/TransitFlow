@@ -73,6 +73,7 @@ public class TicketPriceService : ITicketPriceService
             TicketTypeName = ticketPrice.TicketType?.Name ?? string.Empty,
             ZoneId = ticketPrice.ZoneId,
             ZoneName = ticketPrice.Zone?.Name ?? string.Empty,
+            ZoneLevel = ZoneCoverage.ResolveZoneLevel(ticketPrice.Zone),
             Price = ticketPrice.Price,
             ValidityDays = ticketPrice.TicketType?.ValidityDays ?? 0,
             ValidityDescription = GetValidityDescription(ticketPrice.TicketType?.ValidityDays ?? 0),
@@ -96,6 +97,8 @@ public class TicketPriceService : ITicketPriceService
         {
             throw new InvalidOperationException("Zone not found");
         }
+
+        await ValidateNoOverlapAsync(dto.TicketTypeId, dto.ZoneId, dto.ValidFrom, dto.ValidTo);
 
         var ticketPrice = new TicketPrice
         {
@@ -131,6 +134,8 @@ public class TicketPriceService : ITicketPriceService
         {
             throw new InvalidOperationException("Zone not found");
         }
+
+        await ValidateNoOverlapAsync(dto.TicketTypeId, dto.ZoneId, dto.ValidFrom, dto.ValidTo, id);
 
         ticketPrice.TicketTypeId = dto.TicketTypeId;
         ticketPrice.ZoneId = dto.ZoneId;
@@ -194,6 +199,35 @@ public class TicketPriceService : ITicketPriceService
         return query;
     }
 
+    private async Task ValidateNoOverlapAsync(
+        int ticketTypeId,
+        int zoneId,
+        DateTime validFrom,
+        DateTime? validTo,
+        int? excludeId = null)
+    {
+        var rangeEnd = validTo ?? DateTime.MaxValue;
+        var query = _context.TicketPrices
+            .Where(tp => tp.TicketTypeId == ticketTypeId
+                && tp.ZoneId == zoneId
+                && tp.IsActive);
+
+        if (excludeId.HasValue)
+        {
+            query = query.Where(tp => tp.Id != excludeId.Value);
+        }
+
+        var hasOverlap = await query
+            .Where(tp => validFrom <= (tp.ValidTo ?? DateTime.MaxValue) && rangeEnd >= tp.ValidFrom)
+            .AnyAsync();
+
+        if (hasOverlap)
+        {
+            throw new InvalidOperationException(
+                "An active ticket price already exists for this ticket type, zone, and date range");
+        }
+    }
+
     private static TicketPriceDto MapToDto(TicketPrice tp)
     {
         return new TicketPriceDto
@@ -203,6 +237,7 @@ public class TicketPriceService : ITicketPriceService
             TicketTypeName = tp.TicketType?.Name ?? string.Empty,
             ZoneId = tp.ZoneId,
             ZoneName = tp.Zone?.Name ?? string.Empty,
+            ZoneLevel = ZoneCoverage.ResolveZoneLevel(tp.Zone),
             Price = tp.Price,
             ValidityDays = tp.TicketType?.ValidityDays ?? 0,
             ValidityDescription = GetValidityDescription(tp.TicketType?.ValidityDays ?? 0),

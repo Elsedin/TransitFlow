@@ -83,6 +83,24 @@ public class SubscriptionsController : ControllerBase
         return Ok(subscriptions);
     }
 
+    [HttpGet("active")]
+    public async Task<ActionResult<SubscriptionDto>> GetActive()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var subscription = await _subscriptionService.GetActiveForUserAsync(userId);
+        if (subscription == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(subscription);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<SubscriptionDto>> GetById(int id)
     {

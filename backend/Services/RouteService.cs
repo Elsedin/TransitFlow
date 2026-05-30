@@ -58,6 +58,7 @@ public class RouteService : IRouteService
             .Include(r => r.TransportLine)
             .Include(r => r.RouteStations)
                 .ThenInclude(rs => rs.Station)
+                    .ThenInclude(s => s!.Zone)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (route == null)
@@ -84,6 +85,8 @@ public class RouteService : IRouteService
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
                     Order = rs.Order,
+                    ZoneId = rs.Station.ZoneId,
+                    ZoneLevel = ZoneCoverage.ResolveZoneLevel(rs.Station.Zone),
                     Latitude = rs.Station.Latitude,
                     Longitude = rs.Station.Longitude
                 })
@@ -97,6 +100,7 @@ public class RouteService : IRouteService
             .Include(r => r.TransportLine)
             .Include(r => r.RouteStations)
                 .ThenInclude(rs => rs.Station)
+                    .ThenInclude(s => s!.Zone)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -144,6 +148,8 @@ public class RouteService : IRouteService
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
                     Order = rs.Order,
+                    ZoneId = rs.Station.ZoneId,
+                    ZoneLevel = ZoneCoverage.ResolveZoneLevel(rs.Station.Zone),
                     Latitude = rs.Station.Latitude,
                     Longitude = rs.Station.Longitude
                 })

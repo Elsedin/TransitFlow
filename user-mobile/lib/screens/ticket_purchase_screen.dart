@@ -45,14 +45,59 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   bool _isPurchasing = false;
   String? _errorMessage;
   Subscription? _activeSubscription;
-  int? _activeSubscriptionMaxZoneId;
-  List<SubscriptionPackage> _subscriptionPackages = [];
+  int? _recommendedRouteZoneLevel;
+
+  int? _resolveZoneLevel({int? zoneLevel, String? zoneName}) {
+    if (zoneLevel != null && zoneLevel > 0) return zoneLevel;
+    if (zoneName == null) return null;
+    final match = RegExp(r'Zona\s*(\d+)', caseSensitive: false).firstMatch(zoneName);
+    if (match != null) return int.tryParse(match.group(1)!);
+    return null;
+  }
+
+  int? _priceZoneLevel(TicketPrice? price) {
+    if (price == null) return null;
+    return _resolveZoneLevel(zoneLevel: price.zoneLevel, zoneName: price.zoneName);
+  }
 
   bool get _coversSelection {
-    final zoneId = _selectedTicketPrice?.zoneId;
-    final maxZone = _activeSubscriptionMaxZoneId;
-    if (zoneId == null || maxZone == null) return false;
-    return maxZone >= zoneId;
+    final zoneLevel = _priceZoneLevel(_selectedTicketPrice);
+    final maxLevel = _activeSubscription?.maxZoneLevel;
+    if (zoneLevel == null || maxLevel == null || maxLevel == 0) return false;
+    return maxLevel >= zoneLevel;
+  }
+
+  int? _requiredRouteZoneLevel() {
+    if (_selectedRoute == null || _selectedRoute!.stations.isEmpty) {
+      return null;
+    }
+    var maxLevel = 0;
+    for (final station in _selectedRoute!.stations) {
+      final level = _resolveZoneLevel(zoneLevel: station.zoneLevel, zoneName: null) ?? 0;
+      if (level > maxLevel) maxLevel = level;
+    }
+    return maxLevel > 0 ? maxLevel : null;
+  }
+
+  List<TicketPrice> _filterPricesForRoute(List<TicketPrice> prices, int? requiredLevel) {
+    if (requiredLevel == null || requiredLevel == 0) {
+      return prices;
+    }
+
+    final exact = prices
+        .where((p) => _priceZoneLevel(p) == requiredLevel)
+        .toList();
+    if (exact.isNotEmpty) {
+      return exact;
+    }
+
+    final zoneName = 'Zona $requiredLevel';
+    final byName = prices.where((p) => p.zoneName == zoneName).toList();
+    if (byName.isNotEmpty) {
+      return byName;
+    }
+
+    return prices;
   }
 
   @override
@@ -69,23 +114,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
 
     try {
       _activeSubscription = await _subscriptionService.getActiveSubscription();
-      if (_activeSubscription != null) {
-        try {
-          _subscriptionPackages = await _subscriptionService.fetchAvailablePackages();
-          final match = _subscriptionPackages
-              .where((p) => p.displayName == _activeSubscription!.packageName)
-              .toList();
-          if (match.isNotEmpty) {
-            _activeSubscriptionMaxZoneId = match.first.maxZoneId;
-          } else {
-            _activeSubscriptionMaxZoneId = null;
-          }
-        } catch (_) {
-          _activeSubscriptionMaxZoneId = null;
-        }
-      } else {
-        _activeSubscriptionMaxZoneId = null;
-      }
 
       if (widget.lineId != null) {
         final line = await _transportLineService.getById(widget.lineId!);
@@ -122,15 +150,23 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     if (_selectedTicketType == null || _selectedRoute == null) return;
 
     try {
+      final route = await _transportLineService.getRouteById(_selectedRoute!.id);
+      if (route != null) {
+        _selectedRoute = route;
+      }
+
+      final requiredLevel = _requiredRouteZoneLevel();
       final prices = await _ticketService.getTicketPrices(
         ticketTypeId: _selectedTicketType!.id,
         isActive: true,
       );
+      final recommended = _filterPricesForRoute(prices, requiredLevel);
       setState(() {
+        _recommendedRouteZoneLevel = requiredLevel;
         _ticketPrices = prices;
-        if (prices.isNotEmpty) {
-          _selectedTicketPrice = prices.first;
-        }
+        _selectedTicketPrice = recommended.isNotEmpty
+            ? recommended.first
+            : (prices.isNotEmpty ? prices.first : null);
       });
     } catch (e) {
       if (mounted) {
@@ -731,9 +767,22 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (_recommendedRouteZoneLevel != null && _recommendedRouteZoneLevel! > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Preporučeno za ovu rutu: Zona $_recommendedRouteZoneLevel',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             ..._ticketPrices.map((price) {
               final isSelected = _selectedTicketPrice?.id == price.id;
+              final isRecommended = _recommendedRouteZoneLevel != null &&
+                  _recommendedRouteZoneLevel! > 0 &&
+                  _priceZoneLevel(price) == _recommendedRouteZoneLevel;
               return InkWell(
                 onTap: () {
                   setState(() {
@@ -771,6 +820,15 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
+                                ),
+                              ),
+                            if (isRecommended)
+                              Text(
+                                'Preporučeno za rutu',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                           ],
@@ -869,7 +927,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Karta je besplatna zbog vaše aktivne pretplate (${_activeSubscription?.packageName ?? "pretplata"}).',
+                    'Karta je besplatna zbog vaše aktivne pretplate (${_activeSubscription?.packageName ?? "pretplata"}, zone 1-${_activeSubscription?.maxZoneLevel ?? "?"}).',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[700],
