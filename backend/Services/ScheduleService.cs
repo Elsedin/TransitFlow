@@ -104,6 +104,8 @@ public class ScheduleService : IScheduleService
             throw new ArgumentException("Day of week must be between 0 and 6");
         }
 
+        ValidateScheduleTimes(departureTime, arrivalTime);
+
         var route = await _context.Routes.FindAsync(dto.RouteId);
         if (route == null)
         {
@@ -153,6 +155,8 @@ public class ScheduleService : IScheduleService
         {
             throw new ArgumentException("Day of week must be between 0 and 6");
         }
+
+        ValidateScheduleTimes(departureTime, arrivalTime);
 
         var route = await _context.Routes.FindAsync(dto.RouteId);
         if (route == null)
@@ -241,6 +245,14 @@ public class ScheduleService : IScheduleService
             DayOfWeekName = GetDayOfWeekName(s.DayOfWeek),
             IsActive = s.IsActive
         };
+    }
+
+    private static void ValidateScheduleTimes(TimeOnly departureTime, TimeOnly arrivalTime)
+    {
+        if (arrivalTime <= departureTime)
+        {
+            throw new ArgumentException("Arrival time must be after departure time");
+        }
     }
 
     private static string GetDayOfWeekName(DayOfWeek dayOfWeek)

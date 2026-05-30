@@ -332,6 +332,45 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
     );
   }
 
+  Future<bool> _confirmSubscriptionPurchase() async {
+    if (_package == null) return false;
+
+    final priceText = '${_package!.price.toStringAsFixed(2)} KM';
+    final paymentText = _paymentMethod == 'card' ? 'Kartica (Stripe)' : 'PayPal';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda kupovine pretplate'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Paket: ${_package!.displayName}'),
+            Text('Iznos: $priceText'),
+            Text('Način: $paymentText'),
+            const SizedBox(height: 12),
+            const Text(
+              'Nakon potvrde pretplata će biti aktivirana i transakcija se ne može poništiti.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Odustani'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Potvrdi kupovinu'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
   Future<void> _purchaseSubscription() async {
     if (_paymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -339,6 +378,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
       );
       return;
     }
+
+    final confirmed = await _confirmSubscriptionPurchase();
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _isPurchasing = true;

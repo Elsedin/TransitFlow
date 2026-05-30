@@ -24,6 +24,7 @@ public interface INotificationService
         string? search = null);
     Task<NotificationDto?> GetByIdAsync(int id);
     Task<NotificationMetricsDto> GetMetricsAsync();
+    Task<int> GetUnreadCountForUserAsync(int userId);
     Task<NotificationDto> CreateAsync(CreateNotificationDto dto);
     Task<NotificationDto?> UpdateAsync(int id, UpdateNotificationDto dto);
     Task<bool> DeleteAsync(int id);

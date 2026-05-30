@@ -64,7 +64,7 @@ public class NotificationWorker : BackgroundService
 
                 try
                 {
-                    ConsumeLoop(stoppingToken);
+                    await ConsumeLoopAsync(stoppingToken);
                     attempt = 0;
                 }
                 catch (Exception ex)
@@ -142,7 +142,7 @@ public class NotificationWorker : BackgroundService
         _channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
     }
 
-    private void ConsumeLoop(CancellationToken stoppingToken)
+    private async Task ConsumeLoopAsync(CancellationToken stoppingToken)
     {
         if (_channel == null)
             throw new InvalidOperationException("Channel not initialized");
@@ -156,7 +156,7 @@ public class NotificationWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested && channel.IsOpen && _connection is { IsOpen: true })
         {
-            Thread.Sleep(500);
+            await Task.Delay(500, stoppingToken);
         }
     }
 

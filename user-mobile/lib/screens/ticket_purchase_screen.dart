@@ -176,6 +176,53 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     return _selectedTicketPrice?.price ?? 0.0;
   }
 
+  Future<bool> _confirmTicketPurchase({required bool isFree}) async {
+    final price = isFree ? 0.0 : _getTotalPrice();
+    final priceText = isFree
+        ? 'Besplatno (pokriveno pretplatom)'
+        : '${price.toStringAsFixed(2)} KM';
+    final paymentText = isFree
+        ? 'Bez plaćanja'
+        : (_paymentMethod == 'card' ? 'Kartica (Stripe)' : 'PayPal');
+    final ticketTypeName = _selectedTicketType?.name ?? '';
+    final routeLabel = _selectedRoute != null
+        ? '${_selectedRoute!.origin} - ${_selectedRoute!.destination}'
+        : '';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda kupovine karte'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tip karte: $ticketTypeName'),
+            if (routeLabel.isNotEmpty) Text('Ruta: $routeLabel'),
+            Text('Iznos: $priceText'),
+            Text('Način: $paymentText'),
+            const SizedBox(height: 12),
+            const Text(
+              'Nakon potvrde karta će biti izdata i transakcija se ne može poništiti.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Odustani'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Potvrdi kupovinu'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
   Future<void> _purchaseTicket() async {
     if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -185,6 +232,8 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     }
 
     if (_coversSelection) {
+      final confirmed = await _confirmTicketPurchase(isFree: true);
+      if (!confirmed || !mounted) return;
       await _createTicketWithoutPayment();
       return;
     }
@@ -195,6 +244,9 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       );
       return;
     }
+
+    final confirmed = await _confirmTicketPurchase(isFree: false);
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _isPurchasing = true;

@@ -193,10 +193,7 @@ public class NotificationsController : ControllerBase
             return Unauthorized(new { message = "User not authenticated or user ID not found." });
         }
 
-        var notifications = await _notificationService.GetAllAsync(
-            userId: userId,
-            isRead: false,
-            isActive: true);
-        return Ok(notifications.Count);
+        var count = await _notificationService.GetUnreadCountForUserAsync(userId);
+        return Ok(count);
     }
 }
