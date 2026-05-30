@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 
@@ -18,7 +19,7 @@ public class DashboardService : IDashboardService
         var totalUsers = await _context.Users.CountAsync(u => u.IsActive);
         var totalTicketsSold = await _context.Tickets.CountAsync();
         var totalRevenue = await _context.Transactions
-            .Where(t => t.Status != null && t.Status.ToLower() == "completed")
+            .Where(t => t.Status != null && t.Status.ToLower() == TransactionStatuses.Completed)
             .SumAsync(t => (decimal?)t.Amount) ?? 0;
         var activeTransportLines = await _context.TransportLines.CountAsync(tl => tl.IsActive);
 

@@ -337,7 +337,7 @@ public class TicketService : ITicketService
                 throw new InvalidOperationException("Transaction does not belong to the user");
             }
 
-            if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            if (!TransactionStatuses.Is(transaction.Status, TransactionStatuses.Completed))
             {
                 throw new InvalidOperationException("Transaction is not completed");
             }

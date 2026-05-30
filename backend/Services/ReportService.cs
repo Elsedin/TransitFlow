@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Ticket = TransitFlow.API.Models.Ticket;
@@ -98,7 +99,7 @@ public class ReportService : IReportService
 
         var transactions = _context.Transactions
             .Where(t => t.CreatedAt >= dateFrom && t.CreatedAt <= dateTo)
-            .Where(t => t.Status != null && t.Status.ToLower() == "completed");
+            .Where(t => t.Status != null && t.Status.ToLower() == TransactionStatuses.Completed);
 
         var totalRevenue = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
         var totalCount = await transactions.CountAsync();
@@ -363,12 +364,12 @@ public class ReportService : IReportService
             .ToListAsync();
 
         var total = items.Count;
-        var pending = items.Count(r => r.Status == "pending");
-        var approved = items.Count(r => r.Status == "approved");
-        var rejected = items.Count(r => r.Status == "rejected");
+        var pending = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Pending));
+        var approved = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Approved));
+        var rejected = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Rejected));
 
         var refundedTotal = items
-            .Where(r => r.Status == "approved")
+            .Where(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Approved))
             .Sum(r => r.Ticket?.Price ?? 0m);
 
         return new ReportDto
@@ -440,12 +441,12 @@ public class ReportService : IReportService
             .ToListAsync();
 
         var total = items.Count;
-        var pending = items.Count(r => r.Status == "pending");
-        var approved = items.Count(r => r.Status == "approved");
-        var rejected = items.Count(r => r.Status == "rejected");
+        var pending = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Pending));
+        var approved = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Approved));
+        var rejected = items.Count(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Rejected));
 
         var refundedTotal = items
-            .Where(r => r.Status == "approved")
+            .Where(r => RefundRequestStatuses.Is(r.Status, RefundRequestStatuses.Approved))
             .Sum(r => r.Ticket?.Price ?? 0m);
 
         var rows = items.Select(r =>
@@ -474,7 +475,7 @@ public class ReportService : IReportService
 
         var transactions = _context.Transactions
             .Where(t => t.CreatedAt >= dateFrom && t.CreatedAt <= dateTo)
-            .Where(t => t.Status != null && t.Status.ToLower() == "completed");
+            .Where(t => t.Status != null && t.Status.ToLower() == TransactionStatuses.Completed);
 
         var totalRevenue = await transactions.SumAsync(t => (decimal?)t.Amount) ?? 0m;
         var totalCount = await transactions.CountAsync();

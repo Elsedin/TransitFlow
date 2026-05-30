@@ -319,7 +319,7 @@ public class StripePaymentService : IPaymentService
                     .FirstOrDefaultAsync(t =>
                         t.UserId == userId &&
                         t.PaymentMethod == "PayPal" &&
-                        t.Status == "pending" &&
+                        t.Status.ToLower() == TransactionStatuses.Pending &&
                         t.ExternalTransactionId == orderId);
 
                 if (existingTransaction != null)
@@ -369,11 +369,11 @@ public class StripePaymentService : IPaymentService
                 .FirstOrDefaultAsync(t =>
                     t.UserId == userId &&
                     t.PaymentMethod == "PayPal" &&
-                    t.Status == "pending" &&
+                    t.Status.ToLower() == TransactionStatuses.Pending &&
                     t.ExternalTransactionId == orderId);
             if (txn != null)
             {
-                txn.Status = "failed";
+                txn.Status = TransactionStatuses.Failed;
                 txn.Notes = AppendNote(txn.Notes, $"Capture failed: {response.StatusCode}", responseContent);
                 await _context.SaveChangesAsync();
             }
@@ -402,7 +402,7 @@ public class StripePaymentService : IPaymentService
             .FirstOrDefaultAsync(t =>
                 t.UserId == userId &&
                 t.PaymentMethod == "PayPal" &&
-                t.Status == "pending" &&
+                t.Status.ToLower() == TransactionStatuses.Pending &&
                 t.ExternalTransactionId == orderId);
 
         if (transaction == null)
@@ -448,7 +448,7 @@ public class StripePaymentService : IPaymentService
 
         if (string.IsNullOrWhiteSpace(captureId))
         {
-            transaction.Status = "failed";
+            transaction.Status = TransactionStatuses.Failed;
             transaction.Notes = AppendNote(transaction.Notes, "Captured but captureId missing", responseContent);
             await _context.SaveChangesAsync();
             throw new InvalidOperationException("PayPal capture succeeded but capture id was not returned; transaction marked as failed.");
