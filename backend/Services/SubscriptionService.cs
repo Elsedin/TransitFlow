@@ -8,10 +8,12 @@ namespace TransitFlow.API.Services;
 public class SubscriptionService : ISubscriptionService
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public SubscriptionService(ApplicationDbContext context)
+    public SubscriptionService(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     private async Task<Models.SubscriptionPackage> ResolvePackageAsync(string packageName, CancellationToken cancellationToken = default)
@@ -300,6 +302,14 @@ public class SubscriptionService : ISubscriptionService
 
         _context.Subscriptions.Add(subscription);
         await _context.SaveChangesAsync();
+
+        await _notificationService.CreateAsync(new CreateNotificationDto
+        {
+            UserId = dto.UserId,
+            Title = "Pretplata aktivirana",
+            Message = $"Vaša pretplata {package.DisplayName} važi do {endDate:dd.MM.yyyy}.",
+            Type = "subscription_purchase"
+        });
 
         return await GetByIdAsync(subscription.Id) ?? throw new Exception("Failed to retrieve created subscription");
     }

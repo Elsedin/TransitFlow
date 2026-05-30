@@ -9,10 +9,12 @@ namespace TransitFlow.API.Services;
 public class TicketService : ITicketService
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public TicketService(ApplicationDbContext context)
+    public TicketService(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<List<TicketDto>> GetAllAsync(
@@ -375,6 +377,14 @@ public class TicketService : ITicketService
         _context.Tickets.Add(ticket);
         await _context.SaveChangesAsync();
 
+        await _notificationService.CreateAsync(new CreateNotificationDto
+        {
+            UserId = userId,
+            Title = "Karta kupljena",
+            Message = $"Uspješno ste kupili kartu {ticketNumber}.",
+            Type = "ticket_purchase"
+        });
+
         return await GetByIdAsync(ticket.Id) ?? throw new Exception("Failed to retrieve created ticket");
     }
 
@@ -454,6 +464,14 @@ public class TicketService : ITicketService
             ticket.UsedAt = now;
             await _context.SaveChangesAsync();
 
+            await _notificationService.CreateAsync(new CreateNotificationDto
+            {
+                UserId = ticket.UserId,
+                Title = "Karta aktivirana",
+                Message = $"Karta {ticket.TicketNumber} je uspješno validirana.",
+                Type = "ticket_validated"
+            });
+
             return new TicketValidationResultDto
             {
                 IsValid = true,
@@ -469,6 +487,14 @@ public class TicketService : ITicketService
             {
                 ticket.UsedAt = now;
                 await _context.SaveChangesAsync();
+
+                await _notificationService.CreateAsync(new CreateNotificationDto
+                {
+                    UserId = ticket.UserId,
+                    Title = "Karta aktivirana",
+                    Message = $"Dnevna karta {ticket.TicketNumber} je prvi put aktivirana.",
+                    Type = "ticket_validated"
+                });
             }
             return new TicketValidationResultDto
             {

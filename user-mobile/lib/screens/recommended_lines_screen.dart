@@ -3,6 +3,7 @@ import '../services/recommendation_service.dart';
 import '../services/transport_line_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'line_details_screen.dart';
+import '../utils/api_error.dart';
 
 class RecommendedLinesScreen extends StatefulWidget {
   const RecommendedLinesScreen({super.key});
@@ -52,7 +53,7 @@ class _RecommendedLinesScreenState extends State<RecommendedLinesScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
@@ -463,7 +464,7 @@ class _RecommendedLinesScreenState extends State<RecommendedLinesScreen> {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(e.toString().replaceAll('Exception: ', '')),
+                              content: Text(ApiError.fromException(e)),
                               backgroundColor: Colors.red,
                               duration: const Duration(seconds: 2),
                             ),
@@ -509,7 +510,7 @@ class _RecommendedLinesScreenState extends State<RecommendedLinesScreen> {
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text(e.toString().replaceAll('Exception: ', '')),
+                              content: Text(ApiError.fromException(e)),
                               backgroundColor: Colors.red,
                               duration: const Duration(seconds: 2),
                             ),

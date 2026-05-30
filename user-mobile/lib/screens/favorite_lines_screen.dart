@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/favorite_service.dart';
 import '../models/favorite_line_model.dart';
 import 'line_details_screen.dart';
+import '../utils/api_error.dart';
 
 class FavoriteLinesScreen extends StatefulWidget {
   const FavoriteLinesScreen({super.key});
@@ -36,7 +37,7 @@ class _FavoriteLinesScreenState extends State<FavoriteLinesScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
@@ -63,7 +64,7 @@ class _FavoriteLinesScreenState extends State<FavoriteLinesScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
+          content: Text(ApiError.fromException(e)),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 3),
         ),

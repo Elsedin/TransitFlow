@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
 import '../services/ticket_service.dart';
+import '../utils/api_error.dart';
 import 'ticket_details_screen.dart';
 import 'purchase_history_screen.dart';
 
@@ -70,7 +71,7 @@ class _TicketsListScreenState extends State<TicketsListScreen>
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }

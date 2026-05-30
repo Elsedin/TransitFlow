@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription_model.dart';
 import '../services/subscription_service.dart';
+import '../utils/api_error.dart';
 import 'subscription_purchase_screen.dart';
 import 'subscription_details_screen.dart';
 
@@ -40,7 +41,7 @@ class _SubscriptionsListScreenState extends State<SubscriptionsListScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }

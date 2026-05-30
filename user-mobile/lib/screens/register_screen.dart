@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../models/auth_model.dart';
 import 'home_screen.dart';
 import '../utils/validators.dart';
+import '../utils/api_error.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -69,7 +70,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
       });
     }
   }

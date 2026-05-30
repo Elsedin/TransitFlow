@@ -9,6 +9,7 @@ import '../services/subscription_service.dart';
 import '../models/ticket_model.dart';
 import '../models/subscription_model.dart';
 import '../models/transport_line_model.dart' as models;
+import '../utils/api_error.dart';
 import 'ticket_success_screen.dart';
 import 'paypal_payment_screen.dart';
 
@@ -140,7 +141,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
@@ -297,7 +298,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {
@@ -340,7 +341,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {

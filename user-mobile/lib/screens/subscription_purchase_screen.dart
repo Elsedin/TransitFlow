@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
+import '../utils/api_error.dart';
 import '../models/subscription_model.dart';
 import '../services/subscription_service.dart';
 import '../services/payment_service.dart';
@@ -395,7 +396,7 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {

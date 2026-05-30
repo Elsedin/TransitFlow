@@ -1,5 +1,7 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using System.Security.Claims;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -60,6 +62,53 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Registration failed");
             return StatusCode(500, new { message = "An error occurred during registration", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("user/change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new
+            {
+                type = "about:blank",
+                title = "Validation failed",
+                status = StatusCodes.Status400BadRequest,
+                message = "Podaci nisu validni",
+                errors = ModelState
+                    .Where(kvp => kvp.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray()),
+                traceId = HttpContext.TraceIdentifier
+            });
+        }
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            await _authService.ChangeUserPasswordAsync(userId, dto);
+            return Ok(new { message = "Lozinka je uspješno promijenjena" });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Change password failed for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while changing the password", traceId = HttpContext.TraceIdentifier });
         }
     }
 }

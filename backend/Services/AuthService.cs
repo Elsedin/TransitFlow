@@ -144,6 +144,29 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task ChangeUserPasswordAsync(int userId, ChangePasswordDto dto)
+    {
+        if (!string.Equals(dto.NewPassword, dto.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Nova lozinka i potvrda se ne poklapaju");
+        }
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+        if (user == null)
+        {
+            throw new KeyNotFoundException("Korisnik nije pronađen");
+        }
+
+        var verification = VerifyPasswordDetailed(dto.CurrentPassword, user.PasswordHash);
+        if (verification == PasswordVerifyResult.Failed)
+        {
+            throw new InvalidOperationException("Trenutna lozinka nije ispravna");
+        }
+
+        user.PasswordHash = HashPassword(dto.NewPassword);
+        await _context.SaveChangesAsync();
+    }
+
     public string GenerateJwtToken(string username, int? userId = null, string? role = null)
     {
         var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured"));
