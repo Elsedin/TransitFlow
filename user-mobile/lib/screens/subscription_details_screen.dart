@@ -385,6 +385,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
         return 'Otkazana';
       case 'expired':
         return 'Istekla';
+      case 'deleted':
+        return 'Arhivirana';
       default:
         return status;
     }

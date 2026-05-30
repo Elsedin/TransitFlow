@@ -1,3 +1,4 @@
+using TransitFlow.API.Constants;
 using TransitFlow.API.DTOs;
 
 namespace TransitFlow.API.Services;
@@ -52,7 +53,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
             Price = 0.01m,
             StartDate = DateTime.UtcNow,
             EndDate = DateTime.UtcNow.AddDays(1),
-            Status = "active"
+            Status = SubscriptionStatuses.Active
         });
     }
 
@@ -90,7 +91,7 @@ public class PaymentFulfillmentService : IPaymentFulfillmentService
             Price = 0.01m,
             StartDate = DateTime.UtcNow,
             EndDate = DateTime.UtcNow.AddDays(1),
-            Status = "active"
+            Status = SubscriptionStatuses.Active
         });
     }
 }

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Models;
 using TransitFlow.API.Services;
 
@@ -802,7 +803,7 @@ public static class DbSeeder
                     Price = annual.Price,
                     StartDate = now.Date.AddDays(-10),
                     EndDate = now.Date.AddDays(-10).AddDays(annual.DurationDays),
-                    Status = "active",
+                    Status = SubscriptionStatuses.Active,
                     CreatedAt = now.AddDays(-10)
                 });
             }
@@ -817,7 +818,7 @@ public static class DbSeeder
                     Price = student.Price,
                     StartDate = now.Date.AddDays(-5),
                     EndDate = now.Date.AddDays(-5).AddDays(student.DurationDays),
-                    Status = "active",
+                    Status = SubscriptionStatuses.Active,
                     CreatedAt = now.AddDays(-5)
                 });
             }

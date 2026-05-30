@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 
 namespace TransitFlow.API.Services;
@@ -18,7 +19,7 @@ public class PaymentPricingService : IPaymentPricingService
         var activeSubscription = await _context.Subscriptions
             .Include(s => s.SubscriptionPackage)
             .Where(s => s.UserId == userId
-                && s.Status.ToLower() == "active"
+                && s.Status.ToLower() == SubscriptionStatuses.Active
                 && s.StartDate <= now
                 && s.EndDate >= now)
             .OrderByDescending(s => s.StartDate)

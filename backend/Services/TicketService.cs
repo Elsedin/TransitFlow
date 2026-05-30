@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Ticket = TransitFlow.API.Models.Ticket;
@@ -290,7 +291,7 @@ public class TicketService : ITicketService
         var activeSubscription = await _context.Subscriptions
             .Include(s => s.SubscriptionPackage)
             .Where(s => s.UserId == userId
-                && s.Status.ToLower() == "active"
+                && s.Status.ToLower() == SubscriptionStatuses.Active
                 && s.StartDate <= now
                 && s.EndDate >= now)
             .OrderByDescending(s => s.StartDate)

@@ -100,8 +100,12 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Obriši pretplatu'),
-        content: const Text('Da li ste sigurni da želite obrisati ovu pretplatu?'),
+        title: const Text('Arhiviraj pretplatu'),
+        content: const Text(
+          'Pretplata neće biti trajno uklonjena iz baze. '
+          'Biće označena statusom „Arhivirana” i nestati iz standardnog prikaza. '
+          'Arhivirane pretplate možete vidjeti u filteru statusa → Arhivirana.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -110,7 +114,7 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Obriši'),
+            child: const Text('Arhiviraj'),
           ),
         ],
       ),
@@ -123,7 +127,11 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
           _loadData();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Pretplata uspješno obrisana')),
+              const SnackBar(
+                content: Text(
+                  'Pretplata arhivirana. Za pregled odaberite filter statusa „Arhivirana”.',
+                ),
+              ),
             );
           }
         } else {
@@ -174,6 +182,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         return Colors.red;
       case 'cancelled':
         return Colors.grey;
+      case 'deleted':
+        return Colors.black54;
       default:
         return Colors.orange;
     }
@@ -187,6 +197,8 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
         return 'Istekla';
       case 'cancelled':
         return 'Otkazana';
+      case 'deleted':
+        return 'Arhivirana';
       default:
         return status;
     }
@@ -249,13 +261,14 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String?>(
                     value: _statusFilter,
-                    hint: const Text('Svi statusi'),
+                    hint: const Text('Svi (bez arhiviranih)'),
                     icon: const Icon(Icons.filter_list),
                     items: const [
-                      DropdownMenuItem<String?>(value: null, child: Text('Svi statusi')),
+                      DropdownMenuItem<String?>(value: null, child: Text('Svi (bez arhiviranih)')),
                       DropdownMenuItem<String?>(value: 'active', child: Text('Aktivna')),
                       DropdownMenuItem<String?>(value: 'expired', child: Text('Istekla')),
                       DropdownMenuItem<String?>(value: 'cancelled', child: Text('Otkazana')),
+                      DropdownMenuItem<String?>(value: 'deleted', child: Text('Arhivirana')),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -423,22 +436,32 @@ class _SubscriptionsScreenState extends State<SubscriptionsScreen> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TextButton(
-                  onPressed: () => _showAddEditDialog(subscription: subscription),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                if (subscription.status.toLowerCase() != 'deleted') ...[
+                  TextButton(
+                    onPressed: () => _showAddEditDialog(subscription: subscription),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                    child: const Text('Uredi'),
                   ),
-                  child: const Text('Uredi'),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  onPressed: () => _deleteSubscription(subscription.id),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: () => _deleteSubscription(subscription.id),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                    child: const Text('Arhiviraj'),
                   ),
-                  child: const Text('Obriši'),
-                ),
+                ] else
+                  const Text(
+                    'Arhivirano',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
               ],
             ),
           ),
