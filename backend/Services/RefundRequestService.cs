@@ -11,15 +11,23 @@ namespace TransitFlow.API.Services;
 
 public class RefundRequestService : IRefundRequestService
 {
+    private const string PayPalHttpClientName = "PayPal";
+
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IRabbitMQService _rabbitMQService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public RefundRequestService(ApplicationDbContext context, IConfiguration configuration, IRabbitMQService rabbitMQService)
+    public RefundRequestService(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        IRabbitMQService rabbitMQService,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _configuration = configuration;
         _rabbitMQService = rabbitMQService;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<RefundRequestDto> CreateAsync(int userId, CreateRefundRequestDto dto)
@@ -317,7 +325,7 @@ public class RefundRequestService : IRefundRequestService
 
             var baseUrl = isSandbox ? "https://api.sandbox.paypal.com" : "https://api.paypal.com";
 
-            using var httpClient = new HttpClient();
+            using var httpClient = _httpClientFactory.CreateClient(PayPalHttpClientName);
             var accessToken = await GetPayPalAccessTokenAsync(httpClient, baseUrl, clientId, clientSecret);
 
             httpClient.DefaultRequestHeaders.Clear();

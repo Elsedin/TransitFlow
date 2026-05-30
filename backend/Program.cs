@@ -128,6 +128,7 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddHttpClient("PayPal");
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
 builder.Services.AddScoped<IPaymentPricingService, PaymentPricingService>();
 builder.Services.AddScoped<IPaymentFulfillmentService, PaymentFulfillmentService>();

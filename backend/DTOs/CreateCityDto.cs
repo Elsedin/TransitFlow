@@ -11,5 +11,6 @@ public class CreateCityDto
     [MaxLength(10)]
     public string? PostalCode { get; set; }
     
-    public int? CountryId { get; set; }
+    [Required]
+    public int CountryId { get; set; }
 }

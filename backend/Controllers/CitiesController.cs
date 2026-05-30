@@ -115,13 +115,10 @@ public class CitiesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        if (dto.CountryId.HasValue)
+        var countryExists = await _context.Countries.AnyAsync(c => c.Id == dto.CountryId);
+        if (!countryExists)
         {
-            var countryExists = await _context.Countries.AnyAsync(c => c.Id == dto.CountryId.Value);
-            if (!countryExists)
-            {
-                return BadRequest(new { message = $"Country with ID {dto.CountryId.Value} does not exist" });
-            }
+            return BadRequest(new { message = "Država nije pronađena" });
         }
 
         var city = new City
@@ -169,13 +166,10 @@ public class CitiesController : ControllerBase
             return NotFound();
         }
 
-        if (dto.CountryId.HasValue)
+        var countryExists = await _context.Countries.AnyAsync(c => c.Id == dto.CountryId);
+        if (!countryExists)
         {
-            var countryExists = await _context.Countries.AnyAsync(c => c.Id == dto.CountryId.Value);
-            if (!countryExists)
-            {
-                return BadRequest(new { message = $"Country with ID {dto.CountryId.Value} does not exist" });
-            }
+            return BadRequest(new { message = "Država nije pronađena" });
         }
 
         city.Name = dto.Name.Trim();

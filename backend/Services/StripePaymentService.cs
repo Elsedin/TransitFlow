@@ -12,13 +12,20 @@ namespace TransitFlow.API.Services;
 
 public class StripePaymentService : IPaymentService
 {
+    private const string PayPalHttpClientName = "PayPal";
+
     private readonly IConfiguration _configuration;
     private readonly ApplicationDbContext _context;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public StripePaymentService(IConfiguration configuration, ApplicationDbContext context)
+    public StripePaymentService(
+        IConfiguration configuration,
+        ApplicationDbContext context,
+        IHttpClientFactory httpClientFactory)
     {
         _configuration = configuration;
         _context = context;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<PaymentIntentResponse> CreateStripePaymentIntentAsync(decimal amount, string currency, int userId)
@@ -154,7 +161,7 @@ public class StripePaymentService : IPaymentService
             ? "https://api.sandbox.paypal.com" 
             : "https://api.paypal.com";
 
-        var httpClient = new HttpClient();
+        var httpClient = _httpClientFactory.CreateClient(PayPalHttpClientName);
 
         string accessToken;
         try
@@ -290,7 +297,7 @@ public class StripePaymentService : IPaymentService
             ? "https://api.sandbox.paypal.com" 
             : "https://api.paypal.com";
 
-        var httpClient = new HttpClient();
+        var httpClient = _httpClientFactory.CreateClient(PayPalHttpClientName);
         var accessToken = await GetPayPalAccessTokenAsync(httpClient, baseUrl, clientId, clientSecret);
 
         httpClient.DefaultRequestHeaders.Clear();
