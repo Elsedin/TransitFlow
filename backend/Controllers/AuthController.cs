@@ -111,4 +111,75 @@ public class AuthController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while changing the password", traceId = HttpContext.TraceIdentifier });
         }
     }
+
+    [HttpPost("user/forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new
+            {
+                type = "about:blank",
+                title = "Validation failed",
+                status = StatusCodes.Status400BadRequest,
+                message = "Podaci nisu validni",
+                errors = ModelState
+                    .Where(kvp => kvp.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray()),
+                traceId = HttpContext.TraceIdentifier
+            });
+        }
+
+        try
+        {
+            await _authService.RequestPasswordResetAsync(dto);
+            return Ok(new
+            {
+                message = "Ako postoji račun sa tom email adresom, poslat ćemo vam kod za reset lozinke."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Forgot password failed for email {Email}", dto.Email);
+            return StatusCode(500, new { message = "An error occurred while processing the request", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
+    [HttpPost("user/reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new
+            {
+                type = "about:blank",
+                title = "Validation failed",
+                status = StatusCodes.Status400BadRequest,
+                message = "Podaci nisu validni",
+                errors = ModelState
+                    .Where(kvp => kvp.Value?.Errors.Count > 0)
+                    .ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray()),
+                traceId = HttpContext.TraceIdentifier
+            });
+        }
+
+        try
+        {
+            await _authService.ResetPasswordAsync(dto);
+            return Ok(new { message = "Lozinka je uspješno resetovana. Možete se prijaviti." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reset password failed for email {Email}", dto.Email);
+            return StatusCode(500, new { message = "An error occurred while resetting the password", traceId = HttpContext.TraceIdentifier });
+        }
+    }
 }

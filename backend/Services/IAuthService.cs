@@ -8,5 +8,7 @@ public interface IAuthService
     Task<LoginResponse?> UserLoginAsync(LoginRequest request);
     Task<RegisterResponse?> RegisterAsync(RegisterRequest request);
     Task ChangeUserPasswordAsync(int userId, ChangePasswordDto dto);
+    Task RequestPasswordResetAsync(ForgotPasswordDto dto);
+    Task ResetPasswordAsync(ResetPasswordDto dto);
     string GenerateJwtToken(string username, int? userId = null, string? role = null);
 }

@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../utils/api_error.dart';
 import '../models/auth_model.dart';
 import 'register_screen.dart';
+import 'forgot_password_screen.dart';
 import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -147,6 +148,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                      );
+                    },
+                    child: const Text('Zaboravili ste lozinku?'),
+                  ),
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 16),

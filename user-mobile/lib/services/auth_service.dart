@@ -72,6 +72,46 @@ class AuthService {
     throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Promjena lozinke nije uspjela'));
   }
 
+  Future<String> forgotPassword({required String email}) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email.trim()}),
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body) as Map<String, dynamic>;
+      return decoded['message'] as String? ??
+          'Ako postoji račun sa tom email adresom, poslat ćemo vam kod za reset lozinke.';
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Slanje koda nije uspjelo'));
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String resetCode,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'email': email.trim(),
+        'resetCode': resetCode.trim(),
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Reset lozinke nije uspio'));
+  }
+
   Future<void> _saveAuthData(LoginResponse response) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_tokenKey, response.token);

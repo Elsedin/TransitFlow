@@ -20,12 +20,18 @@ public class AuthService : IAuthService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
+    private readonly IRabbitMQService _rabbitMQService;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration, ILogger<AuthService> logger)
+    public AuthService(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        ILogger<AuthService> logger,
+        IRabbitMQService rabbitMQService)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _rabbitMQService = rabbitMQService;
     }
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request)
@@ -165,6 +171,114 @@ public class AuthService : IAuthService
 
         user.PasswordHash = HashPassword(dto.NewPassword);
         await _context.SaveChangesAsync();
+    }
+
+    public async Task RequestPasswordResetAsync(ForgotPasswordDto dto)
+    {
+        var email = dto.Email.Trim().ToLowerInvariant();
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == email && u.IsActive);
+
+        if (user == null)
+        {
+            return;
+        }
+
+        var expirationMinutes = int.Parse(_configuration["PasswordReset:ExpirationMinutes"] ?? "15");
+        var resetCode = GenerateResetCode();
+        var tokenHash = HashResetCode(resetCode);
+        var now = DateTime.UtcNow;
+
+        var activeTokens = await _context.PasswordResetTokens
+            .Where(t => t.UserId == user.Id && t.UsedAt == null && t.ExpiresAt >= now)
+            .ToListAsync();
+
+        foreach (var token in activeTokens)
+        {
+            token.UsedAt = now;
+        }
+
+        _context.PasswordResetTokens.Add(new Models.PasswordResetToken
+        {
+            UserId = user.Id,
+            TokenHash = tokenHash,
+            ExpiresAt = now.AddMinutes(expirationMinutes),
+            CreatedAt = now
+        });
+
+        var notification = new Models.Notification
+        {
+            UserId = user.Id,
+            Title = "Reset lozinke",
+            Message = "Poslali smo vam kod za reset lozinke na email adresu.",
+            Type = "password_reset_requested",
+            IsRead = false,
+            CreatedAt = now,
+            IsActive = true
+        };
+
+        _context.Notifications.Add(notification);
+        await _context.SaveChangesAsync();
+
+        var emailMessage =
+            $"Vaš kod za reset lozinke je: {resetCode}. Kod važi {expirationMinutes} minuta. " +
+            "Ako niste zatražili reset, ignorišite ovu poruku.";
+
+        _rabbitMQService.PublishNotificationCreated(
+            notification.Id,
+            "Reset lozinke - TransitFlow",
+            emailMessage,
+            "password_reset",
+            user.Id,
+            user.Email);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto dto)
+    {
+        if (!string.Equals(dto.NewPassword, dto.ConfirmPassword, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("Nova lozinka i potvrda se ne poklapaju");
+        }
+
+        var email = dto.Email.Trim().ToLowerInvariant();
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == email && u.IsActive);
+
+        if (user == null)
+        {
+            throw new InvalidOperationException("Kod za reset nije ispravan ili je istekao");
+        }
+
+        var tokenHash = HashResetCode(dto.ResetCode.Trim());
+        var now = DateTime.UtcNow;
+
+        var resetToken = await _context.PasswordResetTokens
+            .Where(t => t.UserId == user.Id
+                && t.TokenHash == tokenHash
+                && t.UsedAt == null
+                && t.ExpiresAt >= now)
+            .OrderByDescending(t => t.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (resetToken == null)
+        {
+            throw new InvalidOperationException("Kod za reset nije ispravan ili je istekao");
+        }
+
+        resetToken.UsedAt = now;
+        user.PasswordHash = HashPassword(dto.NewPassword);
+        await _context.SaveChangesAsync();
+    }
+
+    private static string GenerateResetCode()
+    {
+        return RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+    }
+
+    private static string HashResetCode(string resetCode)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(resetCode.Trim()));
+        return Convert.ToBase64String(bytes);
     }
 
     public string GenerateJwtToken(string username, int? userId = null, string? role = null)
