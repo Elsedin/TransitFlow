@@ -247,6 +247,48 @@ public class PaymentsController : ControllerBase
         }
     }
 
+    [HttpGet("recoverable")]
+    public async Task<ActionResult<List<RecoverableTransactionDto>>> GetRecoverableTransactions()
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var items = await _paymentFulfillmentService.GetRecoverableTransactionsAsync(userId.Value);
+        return Ok(items);
+    }
+
+    [HttpPost("recover")]
+    public async Task<ActionResult<RecoverPurchaseResultDto>> RecoverPurchase([FromBody] RecoverPurchaseRequest request)
+    {
+        var userId = await GetUserIdAsync();
+        if (userId == null)
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        try
+        {
+            var result = await _paymentFulfillmentService.RecoverPurchaseAsync(userId.Value, request);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed recovering purchase for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while recovering purchase", traceId = HttpContext.TraceIdentifier });
+        }
+    }
+
     [HttpPost("paypal/capture")]
     public async Task<ActionResult<PaymentResult>> CapturePayPalOrder([FromBody] CapturePayPalOrderRequest request)
     {

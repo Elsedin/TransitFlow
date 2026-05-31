@@ -20,6 +20,8 @@ public class Schedule
     
     [Required]
     public TimeOnly ArrivalTime { get; set; }
+
+    public int ArrivalDayOffset { get; set; }
     
     public DayOfWeek DayOfWeek { get; set; }
     

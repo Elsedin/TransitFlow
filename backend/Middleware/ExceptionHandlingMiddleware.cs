@@ -55,6 +55,7 @@ public sealed class ExceptionHandlingMiddleware
         {
             UnauthorizedAccessException => (HttpStatusCode.Forbidden, "Forbidden"),
             KeyNotFoundException => (HttpStatusCode.NotFound, "Not found"),
+            ArgumentException => (HttpStatusCode.BadRequest, "Bad request"),
             InvalidOperationException => (HttpStatusCode.BadRequest, "Bad request"),
             _ => (HttpStatusCode.InternalServerError, "Server error")
         };

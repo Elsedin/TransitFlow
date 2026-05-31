@@ -104,7 +104,7 @@ public class TicketService : ITicketService
         {
             query = status.Trim().ToLower() switch
             {
-                "aktivna" => query.Where(t => !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now),
+                "aktivna" => query.Where(t => !t.IsUsed && !t.IsRefunded && t.ValidFrom <= now && t.ValidTo >= now),
                 "korištena" => query.Where(t => t.IsUsed),
                 "istekla" => query.Where(t => !t.IsUsed && t.ValidTo < now),
                 _ => query
@@ -156,7 +156,7 @@ public class TicketService : ITicketService
             UsedAt = t.UsedAt.HasValue ? DateTime.SpecifyKind(t.UsedAt.Value, DateTimeKind.Utc) : null,
             IsRefunded = t.IsRefunded,
             RefundedAt = t.RefundedAt.HasValue ? DateTime.SpecifyKind(t.RefundedAt.Value, DateTimeKind.Utc) : null,
-            Status = GetTicketStatus(t, now),
+            Status = TicketStatuses.Resolve(t, now),
             IsActive = !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now,
             PaymentMethod = t.Transaction?.PaymentMethod
         };
@@ -202,7 +202,7 @@ public class TicketService : ITicketService
             UsedAt = ticket.UsedAt.HasValue ? DateTime.SpecifyKind(ticket.UsedAt.Value, DateTimeKind.Utc) : null,
             IsRefunded = ticket.IsRefunded,
             RefundedAt = ticket.RefundedAt.HasValue ? DateTime.SpecifyKind(ticket.RefundedAt.Value, DateTimeKind.Utc) : null,
-            Status = GetTicketStatus(ticket, now),
+            Status = TicketStatuses.Resolve(ticket, now),
             IsActive = !ticket.IsUsed && ticket.ValidFrom <= now && ticket.ValidTo >= now,
             PaymentMethod = ticket.Transaction?.PaymentMethod
         };
@@ -566,25 +566,5 @@ public class TicketService : ITicketService
             "monthly" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
             _ => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays))
         };
-    }
-
-    private static string GetTicketStatus(Ticket ticket, DateTime now)
-    {
-        if (ticket.IsUsed)
-        {
-            return "Korištena";
-        }
-
-        if (ticket.ValidFrom > now)
-        {
-            return "Neaktivna";
-        }
-
-        if (ticket.ValidTo < now)
-        {
-            return "Istekla";
-        }
-
-        return "Aktivna";
     }
 }
