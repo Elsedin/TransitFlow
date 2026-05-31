@@ -14,7 +14,7 @@ class UserService {
 
   Future<User> getCurrentUser() async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
@@ -33,7 +33,7 @@ class UserService {
 
   Future<User> updateProfile(UpdateUserProfileRequest request) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.put(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
