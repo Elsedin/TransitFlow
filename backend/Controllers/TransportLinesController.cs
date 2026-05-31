@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -11,10 +12,12 @@ namespace TransitFlow.API.Controllers;
 public class TransportLinesController : ControllerBase
 {
     private readonly ITransportLineService _transportLineService;
+    private readonly ILogger<TransportLinesController> _logger;
 
-    public TransportLinesController(ITransportLineService transportLineService)
+    public TransportLinesController(ITransportLineService transportLineService, ILogger<TransportLinesController> logger)
     {
         _transportLineService = transportLineService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -56,22 +59,46 @@ public class TransportLinesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<TransportLineDto>> Create([FromBody] CreateTransportLineDto dto)
     {
-        var line = await _transportLineService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = line.Id }, line);
+        try
+        {
+            var line = await _transportLineService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = line.Id }, line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed creating transport line");
+            return StatusCode(500, new { message = "An error occurred while creating the transport line", traceId = HttpContext.TraceIdentifier });
+        }
     }
 
     [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<TransportLineDto>> Update(int id, [FromBody] UpdateTransportLineDto dto)
     {
-        var line = await _transportLineService.UpdateAsync(id, dto);
-        
-        if (line == null)
+        try
         {
-            return NotFound();
-        }
+            var line = await _transportLineService.UpdateAsync(id, dto);
+        
+            if (line == null)
+            {
+                return NotFound();
+            }
 
-        return Ok(line);
+            return Ok(line);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed updating transport line {TransportLineId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the transport line", traceId = HttpContext.TraceIdentifier });
+        }
     }
 
     [Authorize(Policy = "Administrator")]

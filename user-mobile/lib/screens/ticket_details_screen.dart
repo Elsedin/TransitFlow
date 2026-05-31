@@ -4,6 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/ticket_model.dart';
 import '../services/refund_request_service.dart';
+import '../utils/api_error.dart';
 
 class TicketDetailsScreen extends StatefulWidget {
   final Ticket ticket;
@@ -178,7 +179,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      final raw = e.toString().replaceAll('Exception: ', '').trim();
+      final raw = ApiError.fromException(e);
       final friendly = raw.toLowerCase().contains('refund nije moguć')
           ? 'Refund na ovu kartu nije moguć.'
           : raw;

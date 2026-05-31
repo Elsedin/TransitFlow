@@ -55,6 +55,7 @@ public sealed class ExceptionHandlingMiddleware
         {
             UnauthorizedAccessException => (HttpStatusCode.Forbidden, "Forbidden"),
             KeyNotFoundException => (HttpStatusCode.NotFound, "Not found"),
+            ArgumentException => (HttpStatusCode.BadRequest, "Bad request"),
             InvalidOperationException => (HttpStatusCode.BadRequest, "Bad request"),
             _ => (HttpStatusCode.InternalServerError, "Server error")
         };
@@ -70,6 +71,7 @@ public sealed class ExceptionHandlingMiddleware
             Type = "about:blank",
             Title = title,
             Status = (int)statusCode,
+            Message = exception.Message,
             Detail = _environment.IsDevelopment() ? exception.ToString() : null,
             TraceId = traceId
         };
@@ -86,6 +88,7 @@ public sealed class ExceptionHandlingMiddleware
         public string? Type { get; set; }
         public string? Title { get; set; }
         public int? Status { get; set; }
+        public string? Message { get; set; }
         public string? Detail { get; set; }
         public string? TraceId { get; set; }
     }

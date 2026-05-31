@@ -21,7 +21,8 @@ public class SubscriptionPackage
     [Column(TypeName = "decimal(10,2)")]
     public decimal Price { get; set; }
 
-    public int MaxZoneId { get; set; }
+    [Column("MaxZoneId")]
+    public int MaxZoneLevel { get; set; }
 
     public bool IsActive { get; set; } = true;
 

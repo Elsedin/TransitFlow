@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
 import '../models/auth_model.dart';
+import '../utils/api_error.dart';
 
 class AuthService {
   static const String _tokenKey = 'auth_token';
@@ -23,8 +24,7 @@ class AuthService {
       await _saveAuthData(loginResponse);
       return loginResponse;
     } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Login failed');
+      throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Prijava nije uspjela'));
     }
   }
 
@@ -40,9 +40,76 @@ class AuthService {
       await _saveAuthDataFromRegister(registerResponse);
       return registerResponse;
     } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Registration failed');
+      throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Registracija nije uspjela'));
     }
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final token = await getToken();
+    if (token == null) throw Exception('Niste prijavljeni');
+
+    final response = await http.post(
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/change-password'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Promjena lozinke nije uspjela'));
+  }
+
+  Future<String> forgotPassword({required String email}) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email.trim()}),
+    );
+
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body) as Map<String, dynamic>;
+      return decoded['message'] as String? ??
+          'Ako postoji račun sa tom email adresom, poslat ćemo vam kod za reset lozinke.';
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Slanje koda nije uspjelo'));
+  }
+
+  Future<void> resetPassword({
+    required String email,
+    required String resetCode,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('${AppConfig.resolvedApiBaseUrl}/auth/user/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'email': email.trim(),
+        'resetCode': resetCode.trim(),
+        'newPassword': newPassword,
+        'confirmPassword': confirmPassword,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Reset lozinke nije uspio'));
   }
 
   Future<void> _saveAuthData(LoginResponse response) async {

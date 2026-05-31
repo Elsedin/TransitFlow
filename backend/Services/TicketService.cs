@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Ticket = TransitFlow.API.Models.Ticket;
@@ -9,10 +10,12 @@ namespace TransitFlow.API.Services;
 public class TicketService : ITicketService
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public TicketService(ApplicationDbContext context)
+    public TicketService(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<List<TicketDto>> GetAllAsync(
@@ -101,7 +104,7 @@ public class TicketService : ITicketService
         {
             query = status.Trim().ToLower() switch
             {
-                "aktivna" => query.Where(t => !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now),
+                "aktivna" => query.Where(t => !t.IsUsed && !t.IsRefunded && t.ValidFrom <= now && t.ValidTo >= now),
                 "korištena" => query.Where(t => t.IsUsed),
                 "istekla" => query.Where(t => !t.IsUsed && t.ValidTo < now),
                 _ => query
@@ -153,7 +156,7 @@ public class TicketService : ITicketService
             UsedAt = t.UsedAt.HasValue ? DateTime.SpecifyKind(t.UsedAt.Value, DateTimeKind.Utc) : null,
             IsRefunded = t.IsRefunded,
             RefundedAt = t.RefundedAt.HasValue ? DateTime.SpecifyKind(t.RefundedAt.Value, DateTimeKind.Utc) : null,
-            Status = GetTicketStatus(t, now),
+            Status = TicketStatuses.Resolve(t, now),
             IsActive = !t.IsUsed && t.ValidFrom <= now && t.ValidTo >= now,
             PaymentMethod = t.Transaction?.PaymentMethod
         };
@@ -199,7 +202,7 @@ public class TicketService : ITicketService
             UsedAt = ticket.UsedAt.HasValue ? DateTime.SpecifyKind(ticket.UsedAt.Value, DateTimeKind.Utc) : null,
             IsRefunded = ticket.IsRefunded,
             RefundedAt = ticket.RefundedAt.HasValue ? DateTime.SpecifyKind(ticket.RefundedAt.Value, DateTimeKind.Utc) : null,
-            Status = GetTicketStatus(ticket, now),
+            Status = TicketStatuses.Resolve(ticket, now),
             IsActive = !ticket.IsUsed && ticket.ValidFrom <= now && ticket.ValidTo >= now,
             PaymentMethod = ticket.Transaction?.PaymentMethod
         };
@@ -288,18 +291,31 @@ public class TicketService : ITicketService
         var activeSubscription = await _context.Subscriptions
             .Include(s => s.SubscriptionPackage)
             .Where(s => s.UserId == userId
-                && s.Status.ToLower() == "active"
+                && s.Status.ToLower() == SubscriptionStatuses.Active
                 && s.StartDate <= now
                 && s.EndDate >= now)
-            .OrderByDescending(s => s.EndDate)
+            .OrderByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.EndDate)
             .FirstOrDefaultAsync();
 
-        var subscriptionAllowsFreeTicket = activeSubscription?.SubscriptionPackage != null &&
-                                           activeSubscription.SubscriptionPackage.IsActive &&
-                                           activeSubscription.SubscriptionPackage.MaxZoneId >= dto.ZoneId;
+        var ticketZone = await _context.Zones.FindAsync(dto.ZoneId);
+        var subscriptionAllowsFreeTicket = ZoneCoverage.SubscriptionCoversZone(
+            activeSubscription?.SubscriptionPackage,
+            ticketZone);
 
         var expectedAmount = ticketPrice.Price;
         Models.Transaction? transaction = null;
+
+        if (dto.TransactionId.HasValue)
+        {
+            var existingTicketForTransaction = await _context.Tickets
+                .FirstOrDefaultAsync(t => t.TransactionId == dto.TransactionId.Value && t.UserId == userId);
+            if (existingTicketForTransaction != null)
+            {
+                return await GetByIdAsync(existingTicketForTransaction.Id)
+                    ?? throw new Exception("Failed to retrieve existing ticket");
+            }
+        }
 
         if (!subscriptionAllowsFreeTicket)
         {
@@ -321,7 +337,7 @@ public class TicketService : ITicketService
                 throw new InvalidOperationException("Transaction does not belong to the user");
             }
 
-            if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+            if (!TransactionStatuses.Is(transaction.Status, TransactionStatuses.Completed))
             {
                 throw new InvalidOperationException("Transaction is not completed");
             }
@@ -341,6 +357,8 @@ public class TicketService : ITicketService
 
         var ticketNumber = await GenerateTicketNumberAsync();
 
+        var ticketValidTo = CalculateValidTo(ticketType, ticketValidFrom);
+
         var ticket = new Ticket
         {
             PublicId = Guid.NewGuid(),
@@ -351,7 +369,7 @@ public class TicketService : ITicketService
             ZoneId = dto.ZoneId,
             Price = subscriptionAllowsFreeTicket ? 0 : expectedAmount,
             ValidFrom = ticketValidFrom,
-            ValidTo = DateTime.SpecifyKind(dto.ValidTo, DateTimeKind.Utc).ToUniversalTime(),
+            ValidTo = ticketValidTo,
             PurchasedAt = DateTime.UtcNow,
             IsUsed = false,
             TransactionId = subscriptionAllowsFreeTicket ? null : transaction!.Id
@@ -359,6 +377,14 @@ public class TicketService : ITicketService
 
         _context.Tickets.Add(ticket);
         await _context.SaveChangesAsync();
+
+        await _notificationService.CreateAsync(new CreateNotificationDto
+        {
+            UserId = userId,
+            Title = "Karta kupljena",
+            Message = $"Uspješno ste kupili kartu {ticketNumber}.",
+            Type = "ticket_purchase"
+        });
 
         return await GetByIdAsync(ticket.Id) ?? throw new Exception("Failed to retrieve created ticket");
     }
@@ -420,7 +446,9 @@ public class TicketService : ITicketService
             };
         }
 
-        if (ticket.TicketTypeId == 1)
+        var typeCode = (ticket.TicketType?.Code ?? string.Empty).Trim().ToLowerInvariant();
+
+        if (typeCode == "single")
         {
             if (ticket.IsUsed)
             {
@@ -437,6 +465,14 @@ public class TicketService : ITicketService
             ticket.UsedAt = now;
             await _context.SaveChangesAsync();
 
+            await _notificationService.CreateAsync(new CreateNotificationDto
+            {
+                UserId = ticket.UserId,
+                Title = "Karta aktivirana",
+                Message = $"Karta {ticket.TicketNumber} je uspješno validirana.",
+                Type = "ticket_validated"
+            });
+
             return new TicketValidationResultDto
             {
                 IsValid = true,
@@ -446,12 +482,20 @@ public class TicketService : ITicketService
             };
         }
 
-        if (ticket.TicketTypeId == 2)
+        if (typeCode == "daily")
         {
             if (!ticket.UsedAt.HasValue)
             {
                 ticket.UsedAt = now;
                 await _context.SaveChangesAsync();
+
+                await _notificationService.CreateAsync(new CreateNotificationDto
+                {
+                    UserId = ticket.UserId,
+                    Title = "Karta aktivirana",
+                    Message = $"Dnevna karta {ticket.TicketNumber} je prvi put aktivirana.",
+                    Type = "ticket_validated"
+                });
             }
             return new TicketValidationResultDto
             {
@@ -510,23 +554,17 @@ public class TicketService : ITicketService
         throw new InvalidOperationException("Failed to generate unique ticket number");
     }
 
-    private static string GetTicketStatus(Ticket ticket, DateTime now)
+    private static DateTime CalculateValidTo(Models.TicketType ticketType, DateTime validFrom)
     {
-        if (ticket.IsUsed)
-        {
-            return "Korištena";
-        }
+        var fromUtc = DateTime.SpecifyKind(validFrom, DateTimeKind.Utc).ToUniversalTime();
+        var code = (ticketType.Code ?? string.Empty).Trim().ToLowerInvariant();
 
-        if (ticket.ValidFrom > now)
+        return code switch
         {
-            return "Neaktivna";
-        }
-
-        if (ticket.ValidTo < now)
-        {
-            return "Istekla";
-        }
-
-        return "Aktivna";
+            "single" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
+            "daily" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
+            "monthly" => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays)),
+            _ => fromUtc.AddDays(Math.Max(1, ticketType.ValidityDays))
+        };
     }
 }

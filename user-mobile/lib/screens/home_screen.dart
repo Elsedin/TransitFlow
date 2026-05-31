@@ -8,6 +8,7 @@ import '../services/notification_service.dart';
 import '../models/transport_line_model.dart' as models;
 import 'profile_screen.dart';
 import 'line_details_screen.dart';
+import '../utils/api_error.dart';
 import 'route_map_screen.dart';
 import 'tickets_list_screen.dart';
 import 'favorite_lines_screen.dart';
@@ -685,7 +686,7 @@ class _HomeTabState extends State<_HomeTab> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(e.toString().replaceAll('Exception: ', '')),
+                            content: Text(ApiError.fromException(e)),
                             backgroundColor: Colors.red,
                             duration: const Duration(seconds: 2),
                           ),
@@ -731,7 +732,7 @@ class _HomeTabState extends State<_HomeTab> {
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(e.toString().replaceAll('Exception: ', '')),
+                            content: Text(ApiError.fromException(e)),
                             backgroundColor: Colors.red,
                             duration: const Duration(seconds: 2),
                           ),
@@ -858,7 +859,7 @@ class _HomeTabState extends State<_HomeTab> {
                     }
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(e.toString().replaceAll('Exception: ', '')),
+                        content: Text(ApiError.fromException(e)),
                         backgroundColor: Colors.red,
                         duration: const Duration(seconds: 3),
                       ),
@@ -939,7 +940,7 @@ class _LinesTabState extends State<_LinesTab> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }

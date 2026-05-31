@@ -138,6 +138,8 @@ class RouteStation {
   final String stationName;
   final String? stationAddress;
   final int order;
+  final int zoneId;
+  final int zoneLevel;
   final double? latitude;
   final double? longitude;
 
@@ -147,6 +149,8 @@ class RouteStation {
     required this.stationName,
     this.stationAddress,
     required this.order,
+    this.zoneId = 0,
+    this.zoneLevel = 0,
     this.latitude,
     this.longitude,
   });
@@ -158,6 +162,8 @@ class RouteStation {
       stationName: json['stationName'] as String,
       stationAddress: json['stationAddress'] as String?,
       order: json['order'] as int,
+      zoneId: json['zoneId'] as int? ?? 0,
+      zoneLevel: json['zoneLevel'] as int? ?? 0,
       latitude: json['latitude'] != null ? (json['latitude'] as num).toDouble() : null,
       longitude: json['longitude'] != null ? (json['longitude'] as num).toDouble() : null,
     );

@@ -58,16 +58,19 @@ builder.Services.AddControllers()
         options.InvalidModelStateResponseFactory = context =>
         {
             var traceId = context.HttpContext.TraceIdentifier;
+            var errors = context.ModelState
+                .Where(kvp => kvp.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray());
+            var firstError = errors.Values.SelectMany(v => v).FirstOrDefault();
             return new BadRequestObjectResult(new
             {
                 type = "about:blank",
                 title = "Validation failed",
                 status = StatusCodes.Status400BadRequest,
-                errors = context.ModelState
-                    .Where(kvp => kvp.Value?.Errors.Count > 0)
-                    .ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => kvp.Value!.Errors.Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage).ToArray()),
+                message = string.IsNullOrWhiteSpace(firstError) ? "Validation failed" : firstError,
+                errors,
                 traceId
             });
         };
@@ -125,7 +128,10 @@ builder.Services.AddScoped<ITransactionService, TransactionService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddHttpClient("PayPal");
 builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+builder.Services.AddScoped<IPaymentPricingService, PaymentPricingService>();
+builder.Services.AddScoped<IPaymentFulfillmentService, PaymentFulfillmentService>();
 builder.Services.AddScoped<IFavoriteService, FavoriteService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IRefundRequestService, RefundRequestService>();

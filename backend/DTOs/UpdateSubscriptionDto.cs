@@ -22,5 +22,8 @@ public class UpdateSubscriptionDto
     [MaxLength(50)]
     public string Status { get; set; } = string.Empty;
     
+    [MaxLength(500)]
+    public string? CancelReason { get; set; }
+    
     public int? TransactionId { get; set; }
 }

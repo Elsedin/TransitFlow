@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Subscription = TransitFlow.API.Models.Subscription;
@@ -8,10 +9,12 @@ namespace TransitFlow.API.Services;
 public class SubscriptionService : ISubscriptionService
 {
     private readonly ApplicationDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public SubscriptionService(ApplicationDbContext context)
+    public SubscriptionService(ApplicationDbContext context, INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     private async Task<Models.SubscriptionPackage> ResolvePackageAsync(string packageName, CancellationToken cancellationToken = default)
@@ -37,13 +40,15 @@ public class SubscriptionService : ISubscriptionService
 
         var totalSubscriptions = await _context.Subscriptions.CountAsync();
         var activeSubscriptions = await _context.Subscriptions
-            .CountAsync(s => s.Status.ToLower() == "active" && s.EndDate >= now);
+            .CountAsync(s => s.Status.ToLower() == SubscriptionStatuses.Active && s.EndDate >= now);
         var expiredSubscriptions = await _context.Subscriptions
-            .CountAsync(s => s.Status.ToLower() == "expired" || s.EndDate < now);
+            .CountAsync(s =>
+                s.Status.ToLower() != SubscriptionStatuses.Deleted &&
+                (s.Status.ToLower() == SubscriptionStatuses.Expired || s.EndDate < now));
         var newSubscriptionsThisMonth = await _context.Subscriptions
             .CountAsync(s => s.CreatedAt >= startOfMonth);
         var totalRevenue = await _context.Subscriptions
-            .Where(s => s.Status.ToLower() == "active" || s.Status.ToLower() == "completed")
+            .Where(s => s.Status.ToLower() != SubscriptionStatuses.Deleted)
             .SumAsync(s => (decimal?)s.Price) ?? 0;
 
         return new SubscriptionMetricsDto
@@ -110,22 +115,30 @@ public class SubscriptionService : ISubscriptionService
         if (subscription == null)
             return null;
 
-        return new SubscriptionDto
+        return MapToDto(subscription);
+    }
+
+    public async Task<SubscriptionDto?> GetActiveForUserAsync(int userId)
+    {
+        var now = DateTime.UtcNow;
+        var subscription = await _context.Subscriptions
+            .Include(s => s.User)
+            .Include(s => s.Transaction)
+            .Include(s => s.SubscriptionPackage)
+            .Where(s => s.UserId == userId
+                && s.Status.ToLower() == SubscriptionStatuses.Active
+                && s.StartDate <= now
+                && s.EndDate >= now)
+            .OrderByDescending(s => s.StartDate)
+            .ThenByDescending(s => s.EndDate)
+            .FirstOrDefaultAsync();
+
+        if (subscription == null)
         {
-            Id = subscription.Id,
-            UserId = subscription.UserId,
-            UserEmail = subscription.User?.Email ?? string.Empty,
-            UserFullName = $"{subscription.User?.FirstName ?? ""} {subscription.User?.LastName ?? ""}".Trim(),
-            PackageName = subscription.PackageName,
-            Price = subscription.Price,
-            StartDate = subscription.StartDate,
-            EndDate = subscription.EndDate,
-            Status = subscription.Status,
-            CreatedAt = subscription.CreatedAt,
-            UpdatedAt = subscription.UpdatedAt,
-            TransactionId = subscription.TransactionId,
-            TransactionNumber = subscription.Transaction?.TransactionNumber
-        };
+            return null;
+        }
+
+        return MapToDto(subscription);
     }
 
     private IQueryable<Subscription> BuildFilteredQuery(
@@ -155,6 +168,10 @@ public class SubscriptionService : ISubscriptionService
         if (!string.IsNullOrWhiteSpace(status))
         {
             query = query.Where(s => s.Status.ToLower() == status.ToLower());
+        }
+        else
+        {
+            query = query.Where(s => s.Status.ToLower() != SubscriptionStatuses.Deleted);
         }
 
         if (userId.HasValue)
@@ -194,12 +211,17 @@ public class SubscriptionService : ISubscriptionService
             UserEmail = s.User?.Email ?? string.Empty,
             UserFullName = $"{s.User?.FirstName ?? ""} {s.User?.LastName ?? ""}".Trim(),
             PackageName = s.PackageName,
+            SubscriptionPackageId = s.SubscriptionPackageId,
+            PackageKey = s.SubscriptionPackage?.Key ?? string.Empty,
+            MaxZoneLevel = s.SubscriptionPackage?.MaxZoneLevel ?? 0,
             Price = s.Price,
             StartDate = s.StartDate,
             EndDate = s.EndDate,
             Status = s.Status,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
+            CancelledAt = s.CancelledAt,
+            CancelReason = s.CancelReason,
             TransactionId = s.TransactionId,
             TransactionNumber = s.Transaction?.TransactionNumber
         };
@@ -217,6 +239,14 @@ public class SubscriptionService : ISubscriptionService
             throw new ArgumentException("Transaction ID is required");
         }
 
+        var existingSubscriptionForTransaction = await _context.Subscriptions
+            .FirstOrDefaultAsync(s => s.TransactionId == dto.TransactionId.Value && s.UserId == dto.UserId);
+        if (existingSubscriptionForTransaction != null)
+        {
+            return await GetByIdAsync(existingSubscriptionForTransaction.Id)
+                ?? throw new Exception("Failed to retrieve existing subscription");
+        }
+
         var transaction = await _context.Transactions
             .FirstOrDefaultAsync(t => t.Id == dto.TransactionId.Value);
 
@@ -230,7 +260,7 @@ public class SubscriptionService : ISubscriptionService
             throw new InvalidOperationException("Transaction does not belong to the user");
         }
 
-        if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(transaction.Status, TransactionStatuses.Completed, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Transaction is not completed");
         }
@@ -254,7 +284,7 @@ public class SubscriptionService : ISubscriptionService
         var activeSubscription = await _context.Subscriptions
             .Where(s => s.UserId == dto.UserId
                 && s.EndDate >= now
-                && s.Status.ToLower() == "active")
+                && s.Status.ToLower() == SubscriptionStatuses.Active)
             .OrderByDescending(s => s.EndDate)
             .FirstOrDefaultAsync();
 
@@ -274,13 +304,21 @@ public class SubscriptionService : ISubscriptionService
             Price = package.Price,
             StartDate = startDate,
             EndDate = endDate,
-            Status = "active",
+            Status = SubscriptionStatuses.Active,
             TransactionId = transaction.Id,
             CreatedAt = now
         };
 
         _context.Subscriptions.Add(subscription);
         await _context.SaveChangesAsync();
+
+        await _notificationService.CreateAsync(new CreateNotificationDto
+        {
+            UserId = dto.UserId,
+            Title = "Pretplata aktivirana",
+            Message = $"Vaša pretplata {package.DisplayName} važi do {endDate:dd.MM.yyyy}.",
+            Type = "subscription_purchase"
+        });
 
         return await GetByIdAsync(subscription.Id) ?? throw new Exception("Failed to retrieve created subscription");
     }
@@ -317,30 +355,47 @@ public class SubscriptionService : ISubscriptionService
             subscription.TransactionId = transaction.Id;
         }
 
-        subscription.Status = dto.Status.Trim();
+        var previousStatus = subscription.Status;
+        var normalizedStatus = SubscriptionStatuses.Normalize(dto.Status.Trim());
+        SubscriptionStatuses.EnsureAdminTransition(subscription.Status, normalizedStatus);
+
+        subscription.Status = normalizedStatus;
         subscription.StartDate = dto.StartDate;
         subscription.EndDate = dto.EndDate;
         subscription.UpdatedAt = DateTime.UtcNow;
+
+        if (SubscriptionStatuses.Is(normalizedStatus, SubscriptionStatuses.Cancelled) &&
+            !SubscriptionStatuses.Is(previousStatus, SubscriptionStatuses.Cancelled))
+        {
+            subscription.CancelledAt = DateTime.UtcNow;
+            var reason = dto.CancelReason?.Trim();
+            subscription.CancelReason = string.IsNullOrWhiteSpace(reason)
+                ? "Administrativna promjena statusa"
+                : reason;
+        }
 
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(id);
     }
 
-    public async Task<SubscriptionDto?> CancelAsync(int id)
+    public async Task<SubscriptionDto?> CancelAsync(int id, CancelSubscriptionDto dto)
     {
         var subscription = await _context.Subscriptions.FindAsync(id);
         if (subscription == null)
             return null;
 
-        var now = DateTime.UtcNow;
-        if (subscription.Status.ToLower() != "active" || subscription.EndDate < now)
-        {
-            throw new InvalidOperationException("Only active subscriptions can be cancelled");
-        }
+        var reason = dto.Reason.Trim();
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new InvalidOperationException("Razlog otkazivanja je obavezan.");
 
-        subscription.Status = "cancelled";
-        subscription.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+        SubscriptionStatuses.EnsureCanCancel(subscription.Status, subscription.EndDate, now);
+
+        subscription.Status = SubscriptionStatuses.Cancelled;
+        subscription.CancelledAt = now;
+        subscription.CancelReason = reason;
+        subscription.UpdatedAt = now;
 
         await _context.SaveChangesAsync();
 
@@ -353,7 +408,13 @@ public class SubscriptionService : ISubscriptionService
         if (subscription == null)
             return false;
 
-        _context.Subscriptions.Remove(subscription);
+        if (SubscriptionStatuses.Is(subscription.Status, SubscriptionStatuses.Deleted))
+        {
+            return true;
+        }
+
+        subscription.Status = SubscriptionStatuses.Deleted;
+        subscription.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         return true;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/notification_model.dart' as models;
 import '../services/notification_service.dart';
+import '../utils/api_error.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -65,7 +66,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     } catch (e) {
       if (showLoading) {
         setState(() {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = ApiError.fromException(e);
           _isLoading = false;
         });
       }
@@ -82,7 +83,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Greška pri označavanju kao pročitano: ${e.toString().replaceAll('Exception: ', '')}'),
+            content: Text('Greška pri označavanju kao pročitano: ${ApiError.fromException(e)}'),
             backgroundColor: Colors.red,
           ),
         );

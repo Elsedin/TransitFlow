@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/user_model.dart';
+import '../utils/api_error.dart';
 import 'auth_service.dart';
 
 class UserService {
@@ -13,7 +14,7 @@ class UserService {
 
   Future<User> getCurrentUser() async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
@@ -26,13 +27,13 @@ class UserService {
     if (response.statusCode == 200) {
       return User.fromJson(json.decode(response.body));
     } else {
-      throw Exception('Failed to load user profile: ${response.statusCode}');
+      throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje profila nije uspjelo'));
     }
   }
 
   Future<User> updateProfile(UpdateUserProfileRequest request) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.put(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/userprofile/me'),
@@ -46,8 +47,7 @@ class UserService {
     if (response.statusCode == 200) {
       return User.fromJson(json.decode(response.body));
     } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to update profile');
+      throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Ažuriranje profila nije uspjelo'));
     }
   }
 }

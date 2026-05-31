@@ -81,6 +81,7 @@ public class ScheduleService : IScheduleService
             VehicleLicensePlate = schedule.Vehicle?.LicensePlate ?? string.Empty,
             DepartureTime = schedule.DepartureTime.ToString("HH:mm"),
             ArrivalTime = schedule.ArrivalTime.ToString("HH:mm"),
+            ArrivalDayOffset = schedule.ArrivalDayOffset,
             DayOfWeek = (int)schedule.DayOfWeek,
             DayOfWeekName = GetDayOfWeekName(schedule.DayOfWeek),
             IsActive = schedule.IsActive
@@ -104,6 +105,8 @@ public class ScheduleService : IScheduleService
             throw new ArgumentException("Day of week must be between 0 and 6");
         }
 
+        ValidateScheduleTimes(departureTime, arrivalTime, dto.ArrivalDayOffset);
+
         var route = await _context.Routes.FindAsync(dto.RouteId);
         if (route == null)
         {
@@ -122,6 +125,7 @@ public class ScheduleService : IScheduleService
             VehicleId = dto.VehicleId,
             DepartureTime = departureTime,
             ArrivalTime = arrivalTime,
+            ArrivalDayOffset = dto.ArrivalDayOffset,
             DayOfWeek = (DayOfWeek)dto.DayOfWeek,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -154,6 +158,8 @@ public class ScheduleService : IScheduleService
             throw new ArgumentException("Day of week must be between 0 and 6");
         }
 
+        ValidateScheduleTimes(departureTime, arrivalTime, dto.ArrivalDayOffset);
+
         var route = await _context.Routes.FindAsync(dto.RouteId);
         if (route == null)
         {
@@ -170,6 +176,7 @@ public class ScheduleService : IScheduleService
         schedule.VehicleId = dto.VehicleId;
         schedule.DepartureTime = departureTime;
         schedule.ArrivalTime = arrivalTime;
+        schedule.ArrivalDayOffset = dto.ArrivalDayOffset;
         schedule.DayOfWeek = (DayOfWeek)dto.DayOfWeek;
         schedule.IsActive = dto.IsActive;
         schedule.UpdatedAt = DateTime.UtcNow;
@@ -237,10 +244,24 @@ public class ScheduleService : IScheduleService
             VehicleLicensePlate = s.Vehicle?.LicensePlate ?? string.Empty,
             DepartureTime = s.DepartureTime.ToString("HH:mm"),
             ArrivalTime = s.ArrivalTime.ToString("HH:mm"),
+            ArrivalDayOffset = s.ArrivalDayOffset,
             DayOfWeek = (int)s.DayOfWeek,
             DayOfWeekName = GetDayOfWeekName(s.DayOfWeek),
             IsActive = s.IsActive
         };
+    }
+
+    private static void ValidateScheduleTimes(TimeOnly departureTime, TimeOnly arrivalTime, int arrivalDayOffset)
+    {
+        if (arrivalDayOffset < 0 || arrivalDayOffset > 1)
+        {
+            throw new ArgumentException("Arrival day offset must be 0 or 1");
+        }
+
+        if (arrivalDayOffset == 0 && arrivalTime <= departureTime)
+        {
+            throw new ArgumentException("Arrival time must be after departure time");
+        }
     }
 
     private static string GetDayOfWeekName(DayOfWeek dayOfWeek)

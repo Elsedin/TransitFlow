@@ -67,6 +67,7 @@ public class ZonesController : ControllerBase
         {
             Id = z.Id,
             Name = z.Name,
+            Level = z.Level,
             Description = z.Description,
             StationCount = z.Stations.Count,
             IsActive = z.IsActive
@@ -97,6 +98,7 @@ public class ZonesController : ControllerBase
         {
             Id = zone.Id,
             Name = zone.Name,
+            Level = zone.Level,
             Description = zone.Description,
             StationCount = zone.Stations.Count,
             IsActive = zone.IsActive
@@ -116,6 +118,7 @@ public class ZonesController : ControllerBase
         var zone = new Zone
         {
             Name = dto.Name.Trim(),
+            Level = dto.Level,
             Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -131,6 +134,7 @@ public class ZonesController : ControllerBase
         {
             Id = zone.Id,
             Name = zone.Name,
+            Level = zone.Level,
             Description = zone.Description,
             StationCount = zone.Stations.Count,
             IsActive = zone.IsActive
@@ -157,6 +161,7 @@ public class ZonesController : ControllerBase
         }
 
         zone.Name = dto.Name.Trim();
+        zone.Level = dto.Level;
         zone.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
         zone.IsActive = dto.IsActive;
         zone.UpdatedAt = DateTime.UtcNow;
@@ -167,6 +172,7 @@ public class ZonesController : ControllerBase
         {
             Id = zone.Id,
             Name = zone.Name,
+            Level = zone.Level,
             Description = zone.Description,
             StationCount = zone.Stations.Count,
             IsActive = zone.IsActive

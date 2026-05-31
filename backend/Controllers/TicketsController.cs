@@ -24,6 +24,7 @@ public class TicketsController : ControllerBase
     }
 
     [HttpGet("metrics")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<TicketMetricsDto>> GetMetrics()
     {
         var metrics = await _ticketService.GetMetricsAsync();
@@ -90,6 +91,20 @@ public class TicketsController : ControllerBase
         if (ticket == null)
         {
             return NotFound();
+        }
+
+        if (!User.IsInRole("Administrator"))
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+            {
+                return Unauthorized(new { message = "User not authenticated or user ID not found." });
+            }
+
+            if (ticket.UserId != authenticatedUserId)
+            {
+                return NotFound();
+            }
         }
 
         return Ok(ticket);

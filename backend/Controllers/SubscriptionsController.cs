@@ -83,6 +83,24 @@ public class SubscriptionsController : ControllerBase
         return Ok(subscriptions);
     }
 
+    [HttpGet("active")]
+    public async Task<ActionResult<SubscriptionDto>> GetActive()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new { message = "User not authenticated or user ID not found." });
+        }
+
+        var subscription = await _subscriptionService.GetActiveForUserAsync(userId);
+        if (subscription == null)
+        {
+            return NotFound();
+        }
+
+        return Ok(subscription);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<SubscriptionDto>> GetById(int id)
     {
@@ -91,6 +109,20 @@ public class SubscriptionsController : ControllerBase
         if (subscription == null)
         {
             return NotFound();
+        }
+
+        if (!User.IsInRole("Administrator"))
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+            {
+                return Unauthorized(new { message = "User not authenticated or user ID not found." });
+            }
+
+            if (subscription.UserId != authenticatedUserId)
+            {
+                return NotFound();
+            }
         }
 
         return Ok(subscription);
@@ -145,6 +177,7 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<SubscriptionDto>> Update(int id, [FromBody] UpdateSubscriptionDto dto)
     {
         try
@@ -174,11 +207,36 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpPost("{id}/cancel")]
-    public async Task<ActionResult<SubscriptionDto>> Cancel(int id)
+    public async Task<ActionResult<SubscriptionDto>> Cancel(int id, [FromBody] CancelSubscriptionDto dto)
     {
         try
         {
-            var subscription = await _subscriptionService.CancelAsync(id);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (!User.IsInRole("Administrator"))
+            {
+                var existing = await _subscriptionService.GetByIdAsync(id);
+                if (existing == null)
+                {
+                    return NotFound();
+                }
+
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var authenticatedUserId))
+                {
+                    return Unauthorized(new { message = "User not authenticated or user ID not found." });
+                }
+
+                if (existing.UserId != authenticatedUserId)
+                {
+                    return NotFound();
+                }
+            }
+
+            var subscription = await _subscriptionService.CancelAsync(id, dto);
             
             if (subscription == null)
             {
@@ -199,6 +257,7 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Delete(int id)
     {
         try

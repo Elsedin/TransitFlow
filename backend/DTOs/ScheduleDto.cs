@@ -11,6 +11,7 @@ public class ScheduleDto
     public string VehicleLicensePlate { get; set; } = string.Empty;
     public string DepartureTime { get; set; } = string.Empty;
     public string ArrivalTime { get; set; } = string.Empty;
+    public int ArrivalDayOffset { get; set; }
     public int DayOfWeek { get; set; }
     public string DayOfWeekName { get; set; } = string.Empty;
     public bool IsActive { get; set; }

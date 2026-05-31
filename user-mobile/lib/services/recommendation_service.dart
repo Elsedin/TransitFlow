@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/transport_line_model.dart';
+import '../utils/api_error.dart';
 import 'auth_service.dart';
 
 class RecommendationService {
@@ -13,7 +14,7 @@ class RecommendationService {
 
   Future<List<RecommendedLine>> getRecommendedLines({int count = 3}) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/recommendations/lines?count=$count'),
@@ -26,14 +27,14 @@ class RecommendationService {
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       return data.map((json) => RecommendedLine.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load recommendations: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje preporuka nije uspjelo'));
   }
 
   Future<void> sendFeedback(int transportLineId, bool isUseful) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final requestBody = {
       'transportLineId': transportLineId,
@@ -49,15 +50,16 @@ class RecommendationService {
       body: json.encode(requestBody),
     );
 
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to send feedback');
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return;
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Slanje povratne informacije nije uspjelo'));
   }
 
   Future<bool?> getFeedbackStatus(int transportLineId) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/recommendations/feedback/$transportLineId'),
@@ -74,10 +76,11 @@ class RecommendationService {
         return feedbackStatus == null ? null : (feedbackStatus as bool);
       }
       return null;
-    } else if (response.statusCode == 204) {
-      return null;
-    } else {
-      throw Exception('Failed to load feedback status: ${response.statusCode}');
     }
+    if (response.statusCode == 204) {
+      return null;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje povratne informacije nije uspjelo'));
   }
 }

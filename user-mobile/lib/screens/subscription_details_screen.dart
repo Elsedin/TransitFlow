@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/subscription_model.dart';
 import '../services/subscription_service.dart';
+import '../utils/api_error.dart';
 
 class SubscriptionDetailsScreen extends StatefulWidget {
   final Subscription subscription;
@@ -50,19 +51,37 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
   }
 
   Future<void> _cancelSubscription() async {
+    final reasonController = TextEditingController();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Otkazivanje pretplate'),
-        content: const Text(
-          'Da li ste sigurni da želite otkazati ovu pretplatu? Ova akcija je nepovratna.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Unesite razlog otkazivanja. Ova akcija je nepovratna.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Razlog otkazivanja *',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              maxLength: 500,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -70,15 +89,32 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             child: const Text('Odustani'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Razlog otkazivanja je obavezan'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).pop(true);
+            },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Otkaži'),
+            child: const Text('Otkaži pretplatu'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
 
     setState(() {
       _isCancelling = true;
@@ -86,7 +122,10 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     });
 
     try {
-      final cancelledSubscription = await _subscriptionService.cancelSubscription(_subscription!.id);
+      final cancelledSubscription = await _subscriptionService.cancelSubscription(
+        _subscription!.id,
+        reason: reason,
+      );
       setState(() {
         _subscription = cancelledSubscription;
         _isCancelling = false;
@@ -103,7 +142,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isCancelling = false;
       });
       if (mounted) {
@@ -240,6 +279,13 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    _buildDetailRow(
+                      'Pokrivene zone:',
+                      subscription.maxZoneLevel > 0
+                          ? 'Zone 1-${subscription.maxZoneLevel}'
+                          : 'N/A',
+                    ),
+                    const Divider(height: 24),
                     _buildDetailRow('Cijena:', '${subscription.price.toStringAsFixed(2)} KM'),
                     const Divider(height: 24),
                     _buildDetailRow('Datum početka:', DateFormat('dd.MM.yyyy').format(subscription.startDate)),
@@ -248,6 +294,15 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                     _buildDetailRow('Datum kupovine:', DateFormat('dd.MM.yyyy HH:mm').format(subscription.createdAt)),
                     if (subscription.transactionNumber != null)
                       _buildDetailRow('Broj transakcije:', subscription.transactionNumber!),
+                    if (subscription.cancelledAt != null) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        'Datum otkazivanja:',
+                        DateFormat('dd.MM.yyyy HH:mm').format(subscription.cancelledAt!),
+                      ),
+                    ],
+                    if (subscription.cancelReason != null && subscription.cancelReason!.isNotEmpty)
+                      _buildDetailRow('Razlog otkazivanja:', subscription.cancelReason!),
                   ],
                 ),
               ),
@@ -275,7 +330,7 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Vaša aktivna pretplata omogućava neograničen broj vožnji na svim linijama javnog prevoza.',
+                        'Vaša aktivna pretplata omogućava neograničen broj vožnji u zonama 1-${subscription.maxZoneLevel > 0 ? subscription.maxZoneLevel : "?"} na svim linijama u tom opsegu.',
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[700],
@@ -377,6 +432,8 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
         return 'Otkazana';
       case 'expired':
         return 'Istekla';
+      case 'deleted':
+        return 'Arhivirana';
       default:
         return status;
     }

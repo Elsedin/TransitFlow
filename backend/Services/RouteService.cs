@@ -58,6 +58,7 @@ public class RouteService : IRouteService
             .Include(r => r.TransportLine)
             .Include(r => r.RouteStations)
                 .ThenInclude(rs => rs.Station)
+                    .ThenInclude(s => s!.Zone)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (route == null)
@@ -84,6 +85,8 @@ public class RouteService : IRouteService
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
                     Order = rs.Order,
+                    ZoneId = rs.Station.ZoneId,
+                    ZoneLevel = ZoneCoverage.ResolveZoneLevel(rs.Station.Zone),
                     Latitude = rs.Station.Latitude,
                     Longitude = rs.Station.Longitude
                 })
@@ -97,6 +100,7 @@ public class RouteService : IRouteService
             .Include(r => r.TransportLine)
             .Include(r => r.RouteStations)
                 .ThenInclude(rs => rs.Station)
+                    .ThenInclude(s => s!.Zone)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -144,6 +148,8 @@ public class RouteService : IRouteService
                     StationName = rs.Station!.Name,
                     StationAddress = rs.Station.Address,
                     Order = rs.Order,
+                    ZoneId = rs.Station.ZoneId,
+                    ZoneLevel = ZoneCoverage.ResolveZoneLevel(rs.Station.Zone),
                     Latitude = rs.Station.Latitude,
                     Longitude = rs.Station.Longitude
                 })
@@ -153,6 +159,9 @@ public class RouteService : IRouteService
 
     public async Task<RouteDto> CreateAsync(CreateRouteDto dto)
     {
+        await EnsureTransportLineExistsAsync(dto.TransportLineId);
+        await EnsureStationsExistAsync(dto.Stations.Select(s => s.StationId));
+
         var route = new Route
         {
             TransportLineId = dto.TransportLineId,
@@ -192,6 +201,9 @@ public class RouteService : IRouteService
 
         if (route == null)
             return null;
+
+        await EnsureTransportLineExistsAsync(dto.TransportLineId);
+        await EnsureStationsExistAsync(dto.Stations.Select(s => s.StationId));
 
         route.TransportLineId = dto.TransportLineId;
         route.Origin = dto.Origin;
@@ -260,5 +272,29 @@ public class RouteService : IRouteService
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    private async Task EnsureTransportLineExistsAsync(int transportLineId)
+    {
+        var exists = await _context.TransportLines.AnyAsync(tl => tl.Id == transportLineId);
+        if (!exists)
+        {
+            throw new InvalidOperationException("Linija prevoza nije pronađena");
+        }
+    }
+
+    private async Task EnsureStationsExistAsync(IEnumerable<int> stationIds)
+    {
+        var ids = stationIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var existingCount = await _context.Stations.CountAsync(s => ids.Contains(s.Id));
+        if (existingCount != ids.Count)
+        {
+            throw new InvalidOperationException("Jedna ili više stanica nije pronađena");
+        }
     }
 }

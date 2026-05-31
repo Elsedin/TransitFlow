@@ -7,6 +7,7 @@ import '../models/transport_line_model.dart' as models;
 import '../models/ticket_model.dart';
 import 'ticket_purchase_screen.dart';
 import 'route_map_screen.dart';
+import '../utils/api_error.dart';
 
 class LineDetailsScreen extends StatefulWidget {
   final int lineId;
@@ -79,7 +80,7 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
@@ -146,7 +147,7 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text(ApiError.fromException(e)),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -188,7 +189,7 @@ class _LineDetailsScreenState extends State<LineDetailsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text(ApiError.fromException(e)),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),

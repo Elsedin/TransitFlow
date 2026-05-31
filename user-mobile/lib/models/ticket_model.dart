@@ -130,6 +130,7 @@ class TicketPrice {
   final String ticketTypeName;
   final int zoneId;
   final String zoneName;
+  final int zoneLevel;
   final double price;
   final int validityDays;
   final String validityDescription;
@@ -144,6 +145,7 @@ class TicketPrice {
     required this.ticketTypeName,
     required this.zoneId,
     required this.zoneName,
+    this.zoneLevel = 0,
     required this.price,
     required this.validityDays,
     required this.validityDescription,
@@ -160,6 +162,7 @@ class TicketPrice {
       ticketTypeName: json['ticketTypeName'] as String,
       zoneId: json['zoneId'] as int,
       zoneName: json['zoneName'] as String,
+      zoneLevel: json['zoneLevel'] as int? ?? 0,
       price: (json['price'] as num).toDouble(),
       validityDays: json['validityDays'] as int,
       validityDescription: json['validityDescription'] as String,

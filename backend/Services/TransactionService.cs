@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using Transaction = TransitFlow.API.Models.Transaction;
@@ -95,14 +96,14 @@ public class TransactionService : ITransactionService
 
         var totalTransactions = await _context.Transactions.CountAsync();
         var completedTransactions = await _context.Transactions
-            .CountAsync(t => t.Status.ToLower() == "completed");
+            .CountAsync(t => t.Status.ToLower() == TransactionStatuses.Completed);
         var pendingTransactions = await _context.Transactions
-            .CountAsync(t => t.Status.ToLower() != "completed");
+            .CountAsync(t => t.Status.ToLower() != TransactionStatuses.Completed);
         var totalRevenue = await _context.Transactions
-            .Where(t => t.Status.ToLower() == "completed")
+            .Where(t => t.Status.ToLower() == TransactionStatuses.Completed)
             .SumAsync(t => (decimal?)t.Amount) ?? 0;
         var revenueThisMonth = await _context.Transactions
-            .Where(t => t.Status.ToLower() == "completed" && t.CreatedAt >= startOfMonth)
+            .Where(t => t.Status.ToLower() == TransactionStatuses.Completed && t.CreatedAt >= startOfMonth)
             .SumAsync(t => (decimal?)t.Amount) ?? 0;
 
         return new TransactionMetricsDto

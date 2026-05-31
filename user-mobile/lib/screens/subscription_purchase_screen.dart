@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_stripe/flutter_stripe.dart' as stripe;
+import '../utils/api_error.dart';
 import '../models/subscription_model.dart';
 import '../services/subscription_service.dart';
 import '../services/payment_service.dart';
@@ -157,7 +158,7 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              '${_package!.durationDays} dana • Pokriva zone 1-${_package!.maxZoneId}',
+              '${_package!.durationDays} dana • Pokriva zone 1-${_package!.maxZoneLevel}',
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
@@ -332,6 +333,45 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
     );
   }
 
+  Future<bool> _confirmSubscriptionPurchase() async {
+    if (_package == null) return false;
+
+    final priceText = '${_package!.price.toStringAsFixed(2)} KM';
+    final paymentText = _paymentMethod == 'card' ? 'Kartica (Stripe)' : 'PayPal';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda kupovine pretplate'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Paket: ${_package!.displayName}'),
+            Text('Iznos: $priceText'),
+            Text('Način: $paymentText'),
+            const SizedBox(height: 12),
+            const Text(
+              'Nakon potvrde pretplata će biti aktivirana i transakcija se ne može poništiti.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Odustani'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Potvrdi kupovinu'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
   Future<void> _purchaseSubscription() async {
     if (_paymentMethod == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -339,6 +379,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
       );
       return;
     }
+
+    final confirmed = await _confirmSubscriptionPurchase();
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _isPurchasing = true;
@@ -353,7 +396,7 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {
@@ -366,9 +409,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
 
   Future<void> _processStripePayment() async {
     try {
-      final totalPrice = _package!.price;
-
-      final paymentIntent = await _paymentService.createStripePaymentIntent(totalPrice);
+      final paymentIntent = await _paymentService.createStripePaymentIntentForSubscription(
+        packageKey: _package!.key,
+      );
 
       await stripe.Stripe.instance.initPaymentSheet(
         paymentSheetParameters: stripe.SetupPaymentSheetParameters(
@@ -385,12 +428,17 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
         throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
       }
 
-      final result = await _paymentService.confirmStripePayment(paymentIntent.paymentIntentId);
+      final subscription = await _paymentService.finalizeStripeSubscriptionPurchase(
+        paymentIntentId: paymentIntent.paymentIntentId,
+        packageKey: _package!.key,
+      );
 
-      if (result.success) {
-        await _createSubscriptionAfterPayment(result.transactionId);
-      } else {
-        throw Exception(result.message ?? 'Plaćanje nije uspješno');
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
+          ),
+        );
       }
     } on stripe.StripeException catch (e) {
       if (e.error.code == stripe.FailureCode.Canceled) {
@@ -407,9 +455,9 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
 
   Future<void> _processPayPalPayment() async {
     try {
-      final totalPrice = _package!.price;
-
-      final paypalOrder = await _paymentService.createPayPalOrder(totalPrice);
+      final paypalOrder = await _paymentService.createPayPalOrderForSubscription(
+        packageKey: _package!.key,
+      );
 
       if (!mounted) return;
 
@@ -435,12 +483,17 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
           throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
         }
 
-        final paymentResult = await _paymentService.capturePayPalOrder(paypalOrder.orderId);
+        final subscription = await _paymentService.finalizePayPalSubscriptionPurchase(
+          orderId: returnedOrderId,
+          packageKey: _package!.key,
+        );
 
-        if (paymentResult.success) {
-          await _createSubscriptionAfterPayment(paymentResult.transactionId);
-        } else {
-          throw Exception(paymentResult.message ?? 'Plaćanje nije uspješno');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -455,26 +508,4 @@ class _SubscriptionPurchaseScreenState extends State<SubscriptionPurchaseScreen>
     }
   }
 
-  Future<void> _createSubscriptionAfterPayment(int transactionId) async {
-    try {
-      final subscription = await _subscriptionService.purchaseSubscription(
-        packageKey: _package!.key,
-        transactionId: transactionId,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => SubscriptionSuccessScreen(subscription: subscription),
-          ),
-        );
-      }
-    } catch (e) {
-      throw Exception('Greška pri kreiranju pretplate: $e');
-    } finally {
-      setState(() {
-        _isPurchasing = false;
-      });
-    }
-  }
 }

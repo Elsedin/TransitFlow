@@ -92,20 +92,36 @@ public class NotificationService : INotificationService
 
     public async Task<NotificationMetricsDto> GetMetricsAsync()
     {
-        var notifications = await _context.Notifications.ToListAsync();
+        var totalNotifications = await _context.Notifications.CountAsync();
+        var unreadNotifications = await _context.Notifications.CountAsync(n => !n.IsRead);
+        var readNotifications = await _context.Notifications.CountAsync(n => n.IsRead);
+        var activeNotifications = await _context.Notifications.CountAsync(n => n.IsActive);
+        var broadcastNotifications = await _context.Notifications.CountAsync(n => n.UserId == null);
+        var userSpecificNotifications = await _context.Notifications.CountAsync(n => n.UserId != null);
+
+        var notificationsByType = await _context.Notifications
+            .GroupBy(n => n.Type)
+            .Select(g => new { Type = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Type, x => x.Count);
 
         return new NotificationMetricsDto
         {
-            TotalNotifications = notifications.Count,
-            UnreadNotifications = notifications.Count(n => !n.IsRead),
-            ReadNotifications = notifications.Count(n => n.IsRead),
-            ActiveNotifications = notifications.Count(n => n.IsActive),
-            NotificationsByType = notifications
-                .GroupBy(n => n.Type)
-                .ToDictionary(g => g.Key, g => g.Count()),
-            BroadcastNotifications = notifications.Count(n => n.UserId == null),
-            UserSpecificNotifications = notifications.Count(n => n.UserId != null),
+            TotalNotifications = totalNotifications,
+            UnreadNotifications = unreadNotifications,
+            ReadNotifications = readNotifications,
+            ActiveNotifications = activeNotifications,
+            NotificationsByType = notificationsByType,
+            BroadcastNotifications = broadcastNotifications,
+            UserSpecificNotifications = userSpecificNotifications,
         };
+    }
+
+    public async Task<int> GetUnreadCountForUserAsync(int userId)
+    {
+        return await _context.Notifications.CountAsync(n =>
+            n.IsActive &&
+            !n.IsRead &&
+            (n.UserId == null || n.UserId == userId));
     }
 
     private IQueryable<Notification> BuildFilteredQuery(

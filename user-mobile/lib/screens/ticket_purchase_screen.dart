@@ -9,6 +9,7 @@ import '../services/subscription_service.dart';
 import '../models/ticket_model.dart';
 import '../models/subscription_model.dart';
 import '../models/transport_line_model.dart' as models;
+import '../utils/api_error.dart';
 import 'ticket_success_screen.dart';
 import 'paypal_payment_screen.dart';
 
@@ -45,14 +46,59 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
   bool _isPurchasing = false;
   String? _errorMessage;
   Subscription? _activeSubscription;
-  int? _activeSubscriptionMaxZoneId;
-  List<SubscriptionPackage> _subscriptionPackages = [];
+  int? _recommendedRouteZoneLevel;
+
+  int? _resolveZoneLevel({int? zoneLevel, String? zoneName}) {
+    if (zoneLevel != null && zoneLevel > 0) return zoneLevel;
+    if (zoneName == null) return null;
+    final match = RegExp(r'Zona\s*(\d+)', caseSensitive: false).firstMatch(zoneName);
+    if (match != null) return int.tryParse(match.group(1)!);
+    return null;
+  }
+
+  int? _priceZoneLevel(TicketPrice? price) {
+    if (price == null) return null;
+    return _resolveZoneLevel(zoneLevel: price.zoneLevel, zoneName: price.zoneName);
+  }
 
   bool get _coversSelection {
-    final zoneId = _selectedTicketPrice?.zoneId;
-    final maxZone = _activeSubscriptionMaxZoneId;
-    if (zoneId == null || maxZone == null) return false;
-    return maxZone >= zoneId;
+    final zoneLevel = _priceZoneLevel(_selectedTicketPrice);
+    final maxLevel = _activeSubscription?.maxZoneLevel;
+    if (zoneLevel == null || maxLevel == null || maxLevel == 0) return false;
+    return maxLevel >= zoneLevel;
+  }
+
+  int? _requiredRouteZoneLevel() {
+    if (_selectedRoute == null || _selectedRoute!.stations.isEmpty) {
+      return null;
+    }
+    var maxLevel = 0;
+    for (final station in _selectedRoute!.stations) {
+      final level = _resolveZoneLevel(zoneLevel: station.zoneLevel, zoneName: null) ?? 0;
+      if (level > maxLevel) maxLevel = level;
+    }
+    return maxLevel > 0 ? maxLevel : null;
+  }
+
+  List<TicketPrice> _filterPricesForRoute(List<TicketPrice> prices, int? requiredLevel) {
+    if (requiredLevel == null || requiredLevel == 0) {
+      return prices;
+    }
+
+    final exact = prices
+        .where((p) => _priceZoneLevel(p) == requiredLevel)
+        .toList();
+    if (exact.isNotEmpty) {
+      return exact;
+    }
+
+    final zoneName = 'Zona $requiredLevel';
+    final byName = prices.where((p) => p.zoneName == zoneName).toList();
+    if (byName.isNotEmpty) {
+      return byName;
+    }
+
+    return prices;
   }
 
   @override
@@ -69,23 +115,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
 
     try {
       _activeSubscription = await _subscriptionService.getActiveSubscription();
-      if (_activeSubscription != null) {
-        try {
-          _subscriptionPackages = await _subscriptionService.fetchAvailablePackages();
-          final match = _subscriptionPackages
-              .where((p) => p.displayName == _activeSubscription!.packageName)
-              .toList();
-          if (match.isNotEmpty) {
-            _activeSubscriptionMaxZoneId = match.first.maxZoneId;
-          } else {
-            _activeSubscriptionMaxZoneId = null;
-          }
-        } catch (_) {
-          _activeSubscriptionMaxZoneId = null;
-        }
-      } else {
-        _activeSubscriptionMaxZoneId = null;
-      }
 
       if (widget.lineId != null) {
         final line = await _transportLineService.getById(widget.lineId!);
@@ -112,7 +141,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isLoading = false;
       });
     }
@@ -122,15 +151,23 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     if (_selectedTicketType == null || _selectedRoute == null) return;
 
     try {
+      final route = await _transportLineService.getRouteById(_selectedRoute!.id);
+      if (route != null) {
+        _selectedRoute = route;
+      }
+
+      final requiredLevel = _requiredRouteZoneLevel();
       final prices = await _ticketService.getTicketPrices(
         ticketTypeId: _selectedTicketType!.id,
         isActive: true,
       );
+      final recommended = _filterPricesForRoute(prices, requiredLevel);
       setState(() {
+        _recommendedRouteZoneLevel = requiredLevel;
         _ticketPrices = prices;
-        if (prices.isNotEmpty) {
-          _selectedTicketPrice = prices.first;
-        }
+        _selectedTicketPrice = recommended.isNotEmpty
+            ? recommended.first
+            : (prices.isNotEmpty ? prices.first : null);
       });
     } catch (e) {
       if (mounted) {
@@ -176,6 +213,53 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     return _selectedTicketPrice?.price ?? 0.0;
   }
 
+  Future<bool> _confirmTicketPurchase({required bool isFree}) async {
+    final price = isFree ? 0.0 : _getTotalPrice();
+    final priceText = isFree
+        ? 'Besplatno (pokriveno pretplatom)'
+        : '${price.toStringAsFixed(2)} KM';
+    final paymentText = isFree
+        ? 'Bez plaćanja'
+        : (_paymentMethod == 'card' ? 'Kartica (Stripe)' : 'PayPal');
+    final ticketTypeName = _selectedTicketType?.name ?? '';
+    final routeLabel = _selectedRoute != null
+        ? '${_selectedRoute!.origin} - ${_selectedRoute!.destination}'
+        : '';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potvrda kupovine karte'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tip karte: $ticketTypeName'),
+            if (routeLabel.isNotEmpty) Text('Ruta: $routeLabel'),
+            Text('Iznos: $priceText'),
+            Text('Način: $paymentText'),
+            const SizedBox(height: 12),
+            const Text(
+              'Nakon potvrde karta će biti izdata i transakcija se ne može poništiti.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Odustani'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Potvrdi kupovinu'),
+          ),
+        ],
+      ),
+    );
+
+    return confirmed ?? false;
+  }
+
   Future<void> _purchaseTicket() async {
     if (_selectedTicketType == null || _selectedRoute == null || _selectedTicketPrice == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -185,6 +269,8 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     }
 
     if (_coversSelection) {
+      final confirmed = await _confirmTicketPurchase(isFree: true);
+      if (!confirmed || !mounted) return;
       await _createTicketWithoutPayment();
       return;
     }
@@ -195,6 +281,9 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       );
       return;
     }
+
+    final confirmed = await _confirmTicketPurchase(isFree: false);
+    if (!confirmed || !mounted) return;
 
     setState(() {
       _isPurchasing = true;
@@ -209,7 +298,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {
@@ -235,14 +324,11 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         _selectedTime.minute,
       );
 
-      final validTo = selectedDateTime.add(Duration(days: _selectedTicketType!.validityDays));
-
       final ticket = await _ticketService.purchaseTicket(
         ticketTypeId: _selectedTicketType!.id,
         routeId: _selectedRoute!.id,
         zoneId: _selectedTicketPrice!.zoneId,
         validFrom: selectedDateTime.toUtc(),
-        validTo: validTo.toUtc(),
         transactionId: null,
       );
 
@@ -255,7 +341,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = ApiError.fromException(e);
         _isPurchasing = false;
       });
       if (mounted) {
@@ -266,11 +352,27 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
     }
   }
 
+  DateTime _buildSelectedDateTimeUtc() {
+    final selectedDateTime = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+    return selectedDateTime.toUtc();
+  }
+
   Future<void> _processStripePayment() async {
     try {
-      final totalPrice = _getTotalPrice();
+      final validFrom = _buildSelectedDateTimeUtc();
 
-      final paymentIntent = await _paymentService.createStripePaymentIntent(totalPrice);
+      final paymentIntent = await _paymentService.createStripePaymentIntentForTicket(
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
       await stripe.Stripe.instance.initPaymentSheet(
         paymentSheetParameters: stripe.SetupPaymentSheetParameters(
@@ -287,12 +389,20 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
       }
 
-      final result = await _paymentService.confirmStripePayment(paymentIntent.paymentIntentId);
+      final ticket = await _paymentService.finalizeStripeTicketPurchase(
+        paymentIntentId: paymentIntent.paymentIntentId,
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
-      if (result.success) {
-        await _createTicketAfterPayment(result.transactionId);
-      } else {
-        throw Exception(result.message ?? 'Plaćanje nije uspješno');
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => TicketSuccessScreen(ticket: ticket),
+          ),
+        );
       }
     } on stripe.StripeException catch (e) {
       if (e.error.code == stripe.FailureCode.Canceled) {
@@ -309,9 +419,14 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
 
   Future<void> _processPayPalPayment() async {
     try {
-      final totalPrice = _getTotalPrice();
+      final validFrom = _buildSelectedDateTimeUtc();
 
-      final paypalOrder = await _paymentService.createPayPalOrder(totalPrice);
+      final paypalOrder = await _paymentService.createPayPalOrderForTicket(
+        ticketTypeId: _selectedTicketType!.id,
+        routeId: _selectedRoute!.id,
+        zoneId: _selectedTicketPrice!.zoneId,
+        validFrom: validFrom,
+      );
 
       if (!mounted) return;
       
@@ -339,12 +454,20 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
           throw Exception('Sesija je istekla. Molimo prijavite se ponovo.');
         }
 
-        final paymentResult = await _paymentService.capturePayPalOrder(paypalOrder.orderId);
+        final ticket = await _paymentService.finalizePayPalTicketPurchase(
+          orderId: returnedOrderId,
+          ticketTypeId: _selectedTicketType!.id,
+          routeId: _selectedRoute!.id,
+          zoneId: _selectedTicketPrice!.zoneId,
+          validFrom: validFrom,
+        );
 
-        if (paymentResult.success) {
-          await _createTicketAfterPayment(paymentResult.transactionId);
-        } else {
-          throw Exception(paymentResult.message ?? 'Plaćanje nije uspješno');
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => TicketSuccessScreen(ticket: ticket),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -356,39 +479,6 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
         _isPurchasing = false;
       });
       throw Exception('Greška pri PayPal plaćanju: $e');
-    }
-  }
-
-  Future<void> _createTicketAfterPayment(int transactionId) async {
-    try {
-      final selectedDateTime = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
-
-      final validTo = selectedDateTime.add(Duration(days: _selectedTicketType!.validityDays));
-
-      final ticket = await _ticketService.purchaseTicket(
-        ticketTypeId: _selectedTicketType!.id,
-        routeId: _selectedRoute!.id,
-        zoneId: _selectedTicketPrice!.zoneId,
-        validFrom: selectedDateTime.toUtc(),
-        validTo: validTo.toUtc(),
-        transactionId: transactionId,
-      );
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => TicketSuccessScreen(ticket: ticket),
-          ),
-        );
-      }
-    } catch (e) {
-      throw Exception('Greška pri kreiranju karte: $e');
     }
   }
 
@@ -678,9 +768,22 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            if (_recommendedRouteZoneLevel != null && _recommendedRouteZoneLevel! > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Preporučeno za ovu rutu: Zona $_recommendedRouteZoneLevel',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             ..._ticketPrices.map((price) {
               final isSelected = _selectedTicketPrice?.id == price.id;
+              final isRecommended = _recommendedRouteZoneLevel != null &&
+                  _recommendedRouteZoneLevel! > 0 &&
+                  _priceZoneLevel(price) == _recommendedRouteZoneLevel;
               return InkWell(
                 onTap: () {
                   setState(() {
@@ -718,6 +821,15 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey[600],
+                                ),
+                              ),
+                            if (isRecommended)
+                              Text(
+                                'Preporučeno za rutu',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.orange[700],
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                           ],
@@ -816,7 +928,7 @@ class _TicketPurchaseScreenState extends State<TicketPurchaseScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Karta je besplatna zbog vaše aktivne pretplate (${_activeSubscription?.packageName ?? "pretplata"}).',
+                    'Karta je besplatna zbog vaše aktivne pretplate (${_activeSubscription?.packageName ?? "pretplata"}, zone 1-${_activeSubscription?.maxZoneLevel ?? "?"}).',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[700],

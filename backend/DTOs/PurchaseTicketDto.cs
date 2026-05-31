@@ -16,8 +16,5 @@ public class PurchaseTicketDto
     [Required]
     public DateTime ValidFrom { get; set; }
     
-    [Required]
-    public DateTime ValidTo { get; set; }
-    
     public int? TransactionId { get; set; }
 }

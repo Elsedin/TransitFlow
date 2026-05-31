@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/favorite_line_model.dart';
+import '../utils/api_error.dart';
 import 'auth_service.dart';
 
 class FavoriteService {
@@ -13,7 +14,7 @@ class FavoriteService {
 
   Future<List<FavoriteLine>> getAll() async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines?page=1&pageSize=100'),
@@ -27,14 +28,14 @@ class FavoriteService {
       final data = json.decode(response.body) as Map<String, dynamic>;
       final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
       return items.map((json) => FavoriteLine.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load favorite lines: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje omiljenih linija nije uspjelo'));
   }
 
   Future<bool> isFavorite(int transportLineId) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines/check/$transportLineId'),
@@ -46,14 +47,14 @@ class FavoriteService {
 
     if (response.statusCode == 200) {
       return json.decode(response.body) as bool;
-    } else {
-      throw Exception('Failed to check favorite status: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Provjera omiljene linije nije uspjela'));
   }
 
   Future<FavoriteLine> addFavorite(int transportLineId) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final requestBody = {
       'transportLineId': transportLineId,
@@ -70,15 +71,14 @@ class FavoriteService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return FavoriteLine.fromJson(json.decode(response.body));
-    } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to add favorite line');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Dodavanje omiljene linije nije uspjelo'));
   }
 
   Future<void> removeFavorite(int transportLineId) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.delete(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/favorites/lines/$transportLineId'),
@@ -88,9 +88,10 @@ class FavoriteService {
       },
     );
 
-    if (response.statusCode != 204 && response.statusCode != 200) {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to remove favorite line');
+    if (response.statusCode == 204 || response.statusCode == 200) {
+      return;
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Uklanjanje omiljene linije nije uspjelo'));
   }
 }

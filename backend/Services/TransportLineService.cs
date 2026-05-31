@@ -70,6 +70,8 @@ public class TransportLineService : ITransportLineService
 
     public async Task<TransportLineDto> CreateAsync(CreateTransportLineDto dto)
     {
+        await EnsureTransportTypeExistsAsync(dto.TransportTypeId);
+
         var transportLine = new Models.TransportLine
         {
             LineNumber = dto.LineNumber,
@@ -109,6 +111,8 @@ public class TransportLineService : ITransportLineService
         {
             return null;
         }
+
+        await EnsureTransportTypeExistsAsync(dto.TransportTypeId);
 
         transportLine.LineNumber = dto.LineNumber;
         transportLine.Name = dto.Name;
@@ -202,5 +206,14 @@ public class TransportLineService : ITransportLineService
             TransportTypeName = tl.TransportType?.Name ?? string.Empty,
             IsActive = tl.IsActive
         };
+    }
+
+    private async Task EnsureTransportTypeExistsAsync(int transportTypeId)
+    {
+        var exists = await _context.TransportTypes.AnyAsync(t => t.Id == transportTypeId);
+        if (!exists)
+        {
+            throw new InvalidOperationException("Tip prevoza nije pronađen");
+        }
     }
 }

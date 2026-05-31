@@ -32,6 +32,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<FavoriteLine> FavoriteLines { get; set; }
     public DbSet<RecommendationFeedback> RecommendationFeedbacks { get; set; }
     public DbSet<RefundRequest> RefundRequests { get; set; }
+    public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -244,6 +245,17 @@ public class ApplicationDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
             
             entity.HasIndex(e => new { e.UserId, e.TransportLineId }).IsUnique();
+        });
+
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => new { e.UserId, e.TokenHash });
+            entity.HasIndex(e => e.ExpiresAt);
         });
     }
 }

@@ -219,6 +219,40 @@ namespace TransitFlow.API.Migrations
                     b.ToTable("Notifications");
                 });
 
+            modelBuilder.Entity("TransitFlow.API.Models.PasswordResetToken", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("UserId", "TokenHash");
+
+                    b.ToTable("PasswordResetTokens");
+                });
+
             modelBuilder.Entity("TransitFlow.API.Models.RecommendationFeedback", b =>
                 {
                     b.Property<int>("Id")
@@ -381,6 +415,9 @@ namespace TransitFlow.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("ArrivalDayOffset")
+                        .HasColumnType("int");
+
                     b.Property<TimeOnly>("ArrivalTime")
                         .HasColumnType("time");
 
@@ -469,6 +506,13 @@ namespace TransitFlow.API.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -541,8 +585,9 @@ namespace TransitFlow.API.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("nvarchar(80)");
 
-                    b.Property<int>("MaxZoneId")
-                        .HasColumnType("int");
+                    b.Property<int>("MaxZoneLevel")
+                        .HasColumnType("int")
+                        .HasColumnName("MaxZoneId");
 
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(10,2)");
@@ -682,6 +727,11 @@ namespace TransitFlow.API.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -979,6 +1029,9 @@ namespace TransitFlow.API.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1027,6 +1080,17 @@ namespace TransitFlow.API.Migrations
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TransitFlow.API.Models.PasswordResetToken", b =>
+                {
+                    b.HasOne("TransitFlow.API.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });

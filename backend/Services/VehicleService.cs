@@ -108,6 +108,8 @@ public class VehicleService : IVehicleService
 
     public async Task<VehicleDto> CreateAsync(CreateVehicleDto dto)
     {
+        await EnsureTransportTypeExistsAsync(dto.TransportTypeId);
+
         var vehicle = new Vehicle
         {
             LicensePlate = dto.LicensePlate.Trim(),
@@ -131,6 +133,8 @@ public class VehicleService : IVehicleService
         var vehicle = await _context.Vehicles.FindAsync(id);
         if (vehicle == null)
             return null;
+
+        await EnsureTransportTypeExistsAsync(dto.TransportTypeId);
 
         vehicle.LicensePlate = dto.LicensePlate.Trim();
         vehicle.Make = string.IsNullOrWhiteSpace(dto.Make) ? null : dto.Make.Trim();
@@ -164,5 +168,14 @@ public class VehicleService : IVehicleService
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    private async Task EnsureTransportTypeExistsAsync(int transportTypeId)
+    {
+        var exists = await _context.TransportTypes.AnyAsync(t => t.Id == transportTypeId);
+        if (!exists)
+        {
+            throw new InvalidOperationException("Tip prevoza nije pronađen");
+        }
     }
 }

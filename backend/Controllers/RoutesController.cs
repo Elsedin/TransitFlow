@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Services;
 
@@ -12,11 +13,16 @@ public class RoutesController : ControllerBase
 {
     private readonly IRouteService _routeService;
     private readonly INextDepartureService _nextDepartureService;
+    private readonly ILogger<RoutesController> _logger;
 
-    public RoutesController(IRouteService routeService, INextDepartureService nextDepartureService)
+    public RoutesController(
+        IRouteService routeService,
+        INextDepartureService nextDepartureService,
+        ILogger<RoutesController> logger)
     {
         _routeService = routeService;
         _nextDepartureService = nextDepartureService;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -65,20 +71,52 @@ public class RoutesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<RouteDto>> Create([FromBody] CreateRouteDto dto)
     {
-        var route = await _routeService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = route.Id }, route);
+        try
+        {
+            var route = await _routeService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = route.Id }, route);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed creating route");
+            return StatusCode(500, new { message = "An error occurred while creating the route", traceId = HttpContext.TraceIdentifier });
+        }
     }
 
     [Authorize(Policy = "Administrator")]
     [HttpPut("{id}")]
     public async Task<ActionResult<RouteDto>> Update(int id, [FromBody] UpdateRouteDto dto)
     {
-        var route = await _routeService.UpdateAsync(id, dto);
-        if (route == null)
+        try
         {
-            return NotFound();
+            var route = await _routeService.UpdateAsync(id, dto);
+            if (route == null)
+            {
+                return NotFound();
+            }
+            return Ok(route);
         }
-        return Ok(route);
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed updating route {RouteId}", id);
+            return StatusCode(500, new { message = "An error occurred while updating the route", traceId = HttpContext.TraceIdentifier });
+        }
     }
 
     [Authorize(Policy = "Administrator")]

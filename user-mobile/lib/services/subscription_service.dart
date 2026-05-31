@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/subscription_model.dart';
+import '../utils/api_error.dart';
 import 'auth_service.dart';
 
 class SubscriptionService {
@@ -11,13 +12,22 @@ class SubscriptionService {
     return await _authService.getToken();
   }
 
+  List<dynamic> _extractItems(dynamic decoded) {
+    if (decoded is List) return decoded;
+    if (decoded is Map<String, dynamic>) {
+      final items = decoded['items'];
+      if (items is List) return items;
+    }
+    throw Exception('Neočekivani format odgovora');
+  }
+
   Future<List<Subscription>> getAll({
     String? status,
     DateTime? dateFrom,
     DateTime? dateTo,
   }) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final queryParams = <String, String>{};
     if (status != null && status.isNotEmpty) {
@@ -42,16 +52,17 @@ class SubscriptionService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => Subscription.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load subscriptions: ${response.statusCode}');
+      final decoded = json.decode(response.body);
+      final items = _extractItems(decoded);
+      return items.map((json) => Subscription.fromJson(json)).toList();
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje pretplata nije uspjelo'));
   }
 
   Future<Subscription?> getById(int id) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/$id'),
@@ -63,24 +74,35 @@ class SubscriptionService {
 
     if (response.statusCode == 200) {
       return Subscription.fromJson(json.decode(response.body));
-    } else if (response.statusCode == 404) {
-      return null;
-    } else {
-      throw Exception('Failed to load subscription: ${response.statusCode}');
     }
+    if (response.statusCode == 404) {
+      return null;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje pretplate nije uspjelo'));
   }
 
   Future<Subscription?> getActiveSubscription() async {
     try {
-      final subscriptions = await getAll(status: 'active');
-      final now = DateTime.now();
-      
-      final activeSubscriptions = subscriptions
-          .where((s) => s.status.toLowerCase() == 'active' && s.endDate.isAfter(now))
-          .toList();
-      
-      return activeSubscriptions.isNotEmpty ? activeSubscriptions.first : null;
-    } catch (e) {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http.get(
+        Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/active'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return Subscription.fromJson(json.decode(response.body));
+      }
+      if (response.statusCode == 404) {
+        return null;
+      }
+      return null;
+    } catch (_) {
       return null;
     }
   }
@@ -90,7 +112,7 @@ class SubscriptionService {
     int? transactionId,
   }) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final requestBody = {
       'packageName': packageKey,
@@ -98,7 +120,7 @@ class SubscriptionService {
       'startDate': DateTime.now().toIso8601String(),
       'endDate': DateTime.now().add(const Duration(days: 1)).toIso8601String(),
       'status': 'Active',
-      if (transactionId != null) 'transactionId': transactionId,
+      ...?(transactionId == null ? null : {'transactionId': transactionId}),
     };
 
     final response = await http.post(
@@ -112,15 +134,14 @@ class SubscriptionService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Subscription.fromJson(json.decode(response.body));
-    } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to purchase subscription');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Kupovina pretplate nije uspjela'));
   }
 
-  Future<Subscription> cancelSubscription(int id) async {
+  Future<Subscription> cancelSubscription(int id, {required String reason}) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.post(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/subscriptions/$id/cancel'),
@@ -128,19 +149,19 @@ class SubscriptionService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
+      body: json.encode({'reason': reason.trim()}),
     );
 
     if (response.statusCode == 200) {
       return Subscription.fromJson(json.decode(response.body));
-    } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to cancel subscription');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Otkazivanje pretplate nije uspjelo'));
   }
 
   Future<List<SubscriptionPackage>> fetchAvailablePackages({bool? isActive = true}) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final queryParams = <String, String>{};
     if (isActive != null) {
@@ -159,10 +180,11 @@ class SubscriptionService {
     );
 
     if (response.statusCode == 200) {
-      final List<dynamic> data = json.decode(response.body);
-      return data.map((json) => SubscriptionPackage.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load subscription packages: ${response.statusCode}');
+      final decoded = json.decode(response.body);
+      final items = _extractItems(decoded);
+      return items.map((json) => SubscriptionPackage.fromJson(json)).toList();
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje paketa pretplata nije uspjelo'));
   }
 }

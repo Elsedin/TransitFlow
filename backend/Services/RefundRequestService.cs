@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Stripe;
 using System.Text;
 using System.Text.Json;
+using TransitFlow.API.Constants;
 using TransitFlow.API.Data;
 using TransitFlow.API.DTOs;
 using TransitFlow.API.Models;
@@ -11,15 +12,23 @@ namespace TransitFlow.API.Services;
 
 public class RefundRequestService : IRefundRequestService
 {
+    private const string PayPalHttpClientName = "PayPal";
+
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IRabbitMQService _rabbitMQService;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public RefundRequestService(ApplicationDbContext context, IConfiguration configuration, IRabbitMQService rabbitMQService)
+    public RefundRequestService(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        IRabbitMQService rabbitMQService,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _configuration = configuration;
         _rabbitMQService = rabbitMQService;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<RefundRequestDto> CreateAsync(int userId, CreateRefundRequestDto dto)
@@ -48,11 +57,11 @@ public class RefundRequestService : IRefundRequestService
         if (ticket.TransactionId == null || ticket.Transaction == null)
             throw new InvalidOperationException("Refund nije moguć jer karta nema transakciju.");
 
-        if (!string.Equals(ticket.Transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        if (!TransactionStatuses.Is(ticket.Transaction.Status, TransactionStatuses.Completed))
             throw new InvalidOperationException("Refund nije moguć jer transakcija nije završena.");
 
         var exists = await _context.RefundRequests.AnyAsync(r =>
-            r.TicketId == ticket.Id && r.Status == "pending");
+            r.TicketId == ticket.Id && r.Status == RefundRequestStatuses.Pending);
         if (exists)
             throw new InvalidOperationException("Već postoji aktivan zahtjev za refund za ovu kartu.");
 
@@ -61,7 +70,7 @@ public class RefundRequestService : IRefundRequestService
             UserId = userId,
             TicketId = ticket.Id,
             Message = dto.Message.Trim(),
-            Status = "pending",
+            Status = RefundRequestStatuses.Pending,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -153,7 +162,7 @@ public class RefundRequestService : IRefundRequestService
         if (request == null)
             throw new InvalidOperationException("Zahtjev nije pronađen.");
 
-        if (request.Status != "pending")
+        if (!RefundRequestStatuses.Is(request.Status, RefundRequestStatuses.Pending))
             throw new InvalidOperationException("Zahtjev je već obrađen.");
 
         var ticket = request.Ticket ?? throw new InvalidOperationException("Karta nije pronađena.");
@@ -169,19 +178,19 @@ public class RefundRequestService : IRefundRequestService
             throw new InvalidOperationException("Refund nije moguć jer je karta istekla.");
 
         var transaction = ticket.Transaction ?? throw new InvalidOperationException("Transakcija nije pronađena.");
-        if (!string.Equals(transaction.Status, "completed", StringComparison.OrdinalIgnoreCase))
+        if (!TransactionStatuses.Is(transaction.Status, TransactionStatuses.Completed))
             throw new InvalidOperationException("Refund nije moguć jer transakcija nije završena.");
 
-        if (transaction.RefundStatus == "refunded")
+        if (TransactionRefundStatuses.Is(transaction.RefundStatus, TransactionRefundStatuses.Refunded))
             throw new InvalidOperationException("Transakcija je već refundovana.");
 
-        transaction.RefundStatus = "pending";
+        transaction.RefundStatus = TransactionRefundStatuses.Pending;
         transaction.RefundReason = dto.AdminNote?.Trim();
         await _context.SaveChangesAsync();
 
         var refundExternalId = await ExecuteProviderRefundAsync(transaction);
 
-        transaction.RefundStatus = "refunded";
+        transaction.RefundStatus = TransactionRefundStatuses.Refunded;
         transaction.RefundedAt = DateTime.UtcNow;
         transaction.ExternalRefundId = refundExternalId;
         transaction.RefundReason = dto.AdminNote?.Trim();
@@ -189,7 +198,7 @@ public class RefundRequestService : IRefundRequestService
         ticket.IsRefunded = true;
         ticket.RefundedAt = transaction.RefundedAt;
 
-        request.Status = "approved";
+        request.Status = RefundRequestStatuses.Approved;
         request.ResolvedAt = transaction.RefundedAt;
         request.ResolvedByAdminId = adminId;
         request.AdminNote = dto.AdminNote?.Trim();
@@ -234,10 +243,10 @@ public class RefundRequestService : IRefundRequestService
         if (request == null)
             throw new InvalidOperationException("Zahtjev nije pronađen.");
 
-        if (request.Status != "pending")
+        if (!RefundRequestStatuses.Is(request.Status, RefundRequestStatuses.Pending))
             throw new InvalidOperationException("Zahtjev je već obrađen.");
 
-        request.Status = "rejected";
+        request.Status = RefundRequestStatuses.Rejected;
         request.ResolvedAt = DateTime.UtcNow;
         request.ResolvedByAdminId = adminId;
         request.AdminNote = dto.AdminNote?.Trim();
@@ -317,7 +326,7 @@ public class RefundRequestService : IRefundRequestService
 
             var baseUrl = isSandbox ? "https://api.sandbox.paypal.com" : "https://api.paypal.com";
 
-            using var httpClient = new HttpClient();
+            using var httpClient = _httpClientFactory.CreateClient(PayPalHttpClientName);
             var accessToken = await GetPayPalAccessTokenAsync(httpClient, baseUrl, clientId, clientSecret);
 
             httpClient.DefaultRequestHeaders.Clear();

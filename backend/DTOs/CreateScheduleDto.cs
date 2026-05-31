@@ -15,6 +15,9 @@ public class CreateScheduleDto
     
     [Required]
     public string ArrivalTime { get; set; } = string.Empty;
+
+    [Range(0, 1)]
+    public int ArrivalDayOffset { get; set; }
     
     [Required]
     [Range(0, 6)]

@@ -5,6 +5,7 @@ import '../services/notification_service.dart';
 import '../services/user_service.dart';
 import '../models/notification_model.dart' as models;
 import '../models/user_model.dart';
+import '../utils/notification_types.dart';
 import '../widgets/metric_card_enhanced.dart';
 import '../widgets/pagination_bar.dart';
 
@@ -225,21 +226,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return NumberFormat('#,###').format(number);
   }
 
-  Color _getTypeColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'info':
-        return Colors.blue;
-      case 'warning':
-        return Colors.orange;
-      case 'success':
-        return Colors.green;
-      case 'error':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -339,10 +325,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              SizedBox(
-                width: 300,
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 220, maxWidth: 320),
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
@@ -355,122 +344,71 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   onChanged: (_) => _applyFilters(),
                 ),
               ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int?>(
-                    value: _userIdFilter,
-                    hint: const Text('Svi korisnici'),
-                    icon: const Icon(Icons.filter_list),
-                    style: const TextStyle(color: Colors.black87),
-                    items: [
-                      const DropdownMenuItem<int?>(value: null, child: Text('Svi korisnici')),
-                      ..._users.map((user) => DropdownMenuItem<int?>(
-                            value: user.id,
-                            child: Text(user.email),
-                          )),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _userIdFilter = value;
-                      });
-                      _applyFilters();
-                    },
-                  ),
-                ),
+              _buildFilterDropdown<int?>(
+                value: _userIdFilter,
+                hint: 'Svi korisnici',
+                items: [
+                  const DropdownMenuItem<int?>(value: null, child: Text('Svi korisnici')),
+                  ..._users.map((user) => DropdownMenuItem<int?>(
+                        value: user.id,
+                        child: Text(user.email),
+                      )),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _userIdFilter = value;
+                  });
+                  _applyFilters();
+                },
               ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String?>(
-                    value: _typeFilter,
-                    hint: const Text('Svi tipovi'),
-                    icon: const Icon(Icons.filter_list),
-                    style: const TextStyle(color: Colors.black87),
-                    items: const [
-                      DropdownMenuItem<String?>(value: null, child: Text('Svi tipovi')),
-                      DropdownMenuItem<String?>(value: 'info', child: Text('Info')),
-                      DropdownMenuItem<String?>(value: 'warning', child: Text('Upozorenje')),
-                      DropdownMenuItem<String?>(value: 'success', child: Text('Uspjeh')),
-                      DropdownMenuItem<String?>(value: 'error', child: Text('Greška')),
-                      DropdownMenuItem<String?>(value: 'system', child: Text('Sistem')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _typeFilter = value;
-                      });
-                      _applyFilters();
-                    },
+              _buildFilterDropdown<String?>(
+                value: _typeFilter,
+                hint: 'Svi tipovi',
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('Svi tipovi')),
+                  ...NotificationTypes.allTypes.map(
+                    (type) => DropdownMenuItem<String?>(
+                      value: type,
+                      child: Text(NotificationTypes.label(type)),
+                    ),
                   ),
-                ),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _typeFilter = value;
+                  });
+                  _applyFilters();
+                },
               ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<bool?>(
-                    value: _isReadFilter,
-                    hint: const Text('Status pročitanosti'),
-                    icon: const Icon(Icons.filter_list),
-                    style: const TextStyle(color: Colors.black87),
-                    items: const [
-                      DropdownMenuItem<bool?>(value: null, child: Text('Svi')),
-                      DropdownMenuItem<bool?>(value: false, child: Text('Nepročitano')),
-                      DropdownMenuItem<bool?>(value: true, child: Text('Pročitano')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _isReadFilter = value;
-                      });
-                      _applyFilters();
-                    },
-                  ),
-                ),
+              _buildFilterDropdown<bool?>(
+                value: _isReadFilter,
+                hint: 'Status pročitanosti',
+                items: const [
+                  DropdownMenuItem<bool?>(value: null, child: Text('Svi')),
+                  DropdownMenuItem<bool?>(value: false, child: Text('Nepročitano')),
+                  DropdownMenuItem<bool?>(value: true, child: Text('Pročitano')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _isReadFilter = value;
+                  });
+                  _applyFilters();
+                },
               ),
-              const SizedBox(width: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.white,
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<bool?>(
-                    value: _isActiveFilter,
-                    hint: const Text('Aktivnost'),
-                    icon: const Icon(Icons.filter_list),
-                    style: const TextStyle(color: Colors.black87),
-                    items: const [
-                      DropdownMenuItem<bool?>(value: null, child: Text('Svi')),
-                      DropdownMenuItem<bool?>(value: true, child: Text('Aktivne')),
-                      DropdownMenuItem<bool?>(value: false, child: Text('Neaktivne')),
-                    ],
-                    onChanged: (value) {
-                      setState(() {
-                        _isActiveFilter = value;
-                      });
-                      _applyFilters();
-                    },
-                  ),
-                ),
+              _buildFilterDropdown<bool?>(
+                value: _isActiveFilter,
+                hint: 'Aktivnost',
+                items: const [
+                  DropdownMenuItem<bool?>(value: null, child: Text('Svi')),
+                  DropdownMenuItem<bool?>(value: true, child: Text('Aktivne')),
+                  DropdownMenuItem<bool?>(value: false, child: Text('Neaktivne')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _isActiveFilter = value;
+                  });
+                  _applyFilters();
+                },
               ),
             ],
           ),
@@ -488,6 +426,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     ),
           const SizedBox(height: 100),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterDropdown<T>({
+    required T value,
+    required String hint,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          hint: Text(hint),
+          icon: const Icon(Icons.filter_list),
+          style: const TextStyle(color: Colors.black87),
+          items: items,
+          onChanged: onChanged,
+        ),
       ),
     );
   }
@@ -553,20 +517,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     : notification.message,
               ),
               _TableCell(
-                notification.type.toUpperCase(),
+                NotificationTypes.label(notification.type),
                 child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _getTypeColor(notification.type),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      notification.type.toUpperCase(),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                  child: Tooltip(
+                    message: notification.type,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: NotificationTypes.color(notification.type),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        NotificationTypes.label(notification.type),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ),
@@ -838,13 +808,14 @@ class _NotificationDialogState extends State<_NotificationDialog> {
                   labelText: 'Tip *',
                   border: OutlineInputBorder(),
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'info', child: Text('Info')),
-                  DropdownMenuItem(value: 'warning', child: Text('Upozorenje')),
-                  DropdownMenuItem(value: 'success', child: Text('Uspjeh')),
-                  DropdownMenuItem(value: 'error', child: Text('Greška')),
-                  DropdownMenuItem(value: 'system', child: Text('Sistem')),
-                ],
+                items: NotificationTypes.typesForForm(
+                  currentType: _selectedType,
+                ).map(
+                  (type) => DropdownMenuItem(
+                    value: type,
+                    child: Text(NotificationTypes.label(type)),
+                  ),
+                ).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedType = value!;

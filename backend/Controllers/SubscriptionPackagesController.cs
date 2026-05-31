@@ -53,7 +53,7 @@ public class SubscriptionPackagesController : ControllerBase
                 DisplayName = p.DisplayName,
                 DurationDays = p.DurationDays,
                 Price = p.Price,
-                MaxZoneId = p.MaxZoneId,
+                MaxZoneLevel = p.MaxZoneLevel,
                 IsActive = p.IsActive
             })
             .Skip((page - 1) * pageSize)

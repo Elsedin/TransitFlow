@@ -7,6 +7,6 @@ public class SubscriptionPackageDto
     public string DisplayName { get; set; } = string.Empty;
     public int DurationDays { get; set; }
     public decimal Price { get; set; }
-    public int MaxZoneId { get; set; }
+    public int MaxZoneLevel { get; set; }
     public bool IsActive { get; set; }
 }

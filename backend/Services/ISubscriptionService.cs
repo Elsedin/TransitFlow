@@ -22,8 +22,9 @@ public interface ISubscriptionService
         DateTime? dateTo = null,
         string? sortBy = null);
     Task<SubscriptionDto?> GetByIdAsync(int id);
+    Task<SubscriptionDto?> GetActiveForUserAsync(int userId);
     Task<SubscriptionDto> CreateAsync(CreateSubscriptionDto dto);
     Task<SubscriptionDto?> UpdateAsync(int id, UpdateSubscriptionDto dto);
-    Task<SubscriptionDto?> CancelAsync(int id);
+    Task<SubscriptionDto?> CancelAsync(int id, CancelSubscriptionDto dto);
     Task<bool> DeleteAsync(int id);
 }

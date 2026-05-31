@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
 import '../models/ticket_model.dart';
+import '../utils/api_error.dart';
 import 'auth_service.dart';
 
 class TicketService {
@@ -19,7 +20,7 @@ class TicketService {
     DateTime? dateTo,
   }) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final queryParams = <String, String>{
       'page': '1',
@@ -56,14 +57,14 @@ class TicketService {
       final data = json.decode(response.body) as Map<String, dynamic>;
       final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
       return items.map((json) => Ticket.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load tickets: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje karata nije uspjelo'));
   }
 
   Future<Ticket?> getById(int id) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final response = await http.get(
       Uri.parse('${AppConfig.resolvedApiBaseUrl}/tickets/$id'),
@@ -75,16 +76,17 @@ class TicketService {
 
     if (response.statusCode == 200) {
       return Ticket.fromJson(json.decode(response.body));
-    } else if (response.statusCode == 404) {
-      return null;
-    } else {
-      throw Exception('Failed to load ticket: ${response.statusCode}');
     }
+    if (response.statusCode == 404) {
+      return null;
+    }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje karte nije uspjelo'));
   }
 
   Future<List<TicketType>> getTicketTypes({bool? isActive}) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final queryParams = <String, String>{
       'page': '1',
@@ -109,9 +111,9 @@ class TicketService {
       final data = json.decode(response.body) as Map<String, dynamic>;
       final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
       return items.map((json) => TicketType.fromJson(json)).toList();
-    } else {
-      throw Exception('Failed to load ticket types: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje tipova karata nije uspjelo'));
   }
 
   Future<List<TicketPrice>> getTicketPrices({
@@ -120,7 +122,7 @@ class TicketService {
     bool? isActive,
   }) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final queryParams = <String, String>{
       'page': '1',
@@ -151,21 +153,21 @@ class TicketService {
       final data = json.decode(response.body) as Map<String, dynamic>;
       final items = (data['items'] as List<dynamic>? ?? const <dynamic>[]);
       final allPrices = items.map((json) => TicketPrice.fromJson(json)).toList();
-      
+
       final groupedPrices = <String, TicketPrice>{};
       for (final price in allPrices) {
         if (!price.isActive) continue;
         final key = '${price.ticketTypeId}_${price.zoneId}';
-        if (!groupedPrices.containsKey(key) || 
+        if (!groupedPrices.containsKey(key) ||
             price.validFrom.isAfter(groupedPrices[key]!.validFrom)) {
           groupedPrices[key] = price;
         }
       }
-      
+
       return groupedPrices.values.toList();
-    } else {
-      throw Exception('Failed to load ticket prices: ${response.statusCode}');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Učitavanje cijena karata nije uspjelo'));
   }
 
   Future<Ticket> purchaseTicket({
@@ -173,19 +175,17 @@ class TicketService {
     required int routeId,
     required int zoneId,
     required DateTime validFrom,
-    required DateTime validTo,
     int? transactionId,
   }) async {
     final token = await _getToken();
-    if (token == null) throw Exception('Not authenticated');
+    if (token == null) throw Exception('Niste prijavljeni');
 
     final requestBody = {
       'ticketTypeId': ticketTypeId,
       'routeId': routeId,
       'zoneId': zoneId,
       'validFrom': validFrom.toIso8601String(),
-      'validTo': validTo.toIso8601String(),
-      if (transactionId != null) 'transactionId': transactionId,
+      ...?(transactionId == null ? null : {'transactionId': transactionId}),
     };
 
     final response = await http.post(
@@ -199,9 +199,8 @@ class TicketService {
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return Ticket.fromJson(json.decode(response.body));
-    } else {
-      final error = json.decode(response.body);
-      throw Exception(error['message'] ?? 'Failed to purchase ticket');
     }
+
+    throw Exception(ApiError.fromResponseBody(response.body, fallback: 'Kupovina karte nije uspjela'));
   }
 }
