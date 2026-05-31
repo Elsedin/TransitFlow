@@ -220,6 +220,8 @@ public class SubscriptionService : ISubscriptionService
             Status = s.Status,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt,
+            CancelledAt = s.CancelledAt,
+            CancelReason = s.CancelReason,
             TransactionId = s.TransactionId,
             TransactionNumber = s.Transaction?.TransactionNumber
         };
@@ -353,6 +355,7 @@ public class SubscriptionService : ISubscriptionService
             subscription.TransactionId = transaction.Id;
         }
 
+        var previousStatus = subscription.Status;
         var normalizedStatus = SubscriptionStatuses.Normalize(dto.Status.Trim());
         SubscriptionStatuses.EnsureAdminTransition(subscription.Status, normalizedStatus);
 
@@ -361,22 +364,38 @@ public class SubscriptionService : ISubscriptionService
         subscription.EndDate = dto.EndDate;
         subscription.UpdatedAt = DateTime.UtcNow;
 
+        if (SubscriptionStatuses.Is(normalizedStatus, SubscriptionStatuses.Cancelled) &&
+            !SubscriptionStatuses.Is(previousStatus, SubscriptionStatuses.Cancelled))
+        {
+            subscription.CancelledAt = DateTime.UtcNow;
+            var reason = dto.CancelReason?.Trim();
+            subscription.CancelReason = string.IsNullOrWhiteSpace(reason)
+                ? "Administrativna promjena statusa"
+                : reason;
+        }
+
         await _context.SaveChangesAsync();
 
         return await GetByIdAsync(id);
     }
 
-    public async Task<SubscriptionDto?> CancelAsync(int id)
+    public async Task<SubscriptionDto?> CancelAsync(int id, CancelSubscriptionDto dto)
     {
         var subscription = await _context.Subscriptions.FindAsync(id);
         if (subscription == null)
             return null;
 
+        var reason = dto.Reason.Trim();
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new InvalidOperationException("Razlog otkazivanja je obavezan.");
+
         var now = DateTime.UtcNow;
         SubscriptionStatuses.EnsureCanCancel(subscription.Status, subscription.EndDate, now);
 
         subscription.Status = SubscriptionStatuses.Cancelled;
-        subscription.UpdatedAt = DateTime.UtcNow;
+        subscription.CancelledAt = now;
+        subscription.CancelReason = reason;
+        subscription.UpdatedAt = now;
 
         await _context.SaveChangesAsync();
 

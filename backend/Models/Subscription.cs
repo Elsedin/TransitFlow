@@ -34,6 +34,11 @@ public class Subscription
     
     public DateTime? UpdatedAt { get; set; }
     
+    public DateTime? CancelledAt { get; set; }
+
+    [MaxLength(500)]
+    public string? CancelReason { get; set; }
+    
     public int? TransactionId { get; set; }
     
     public virtual Transaction? Transaction { get; set; }

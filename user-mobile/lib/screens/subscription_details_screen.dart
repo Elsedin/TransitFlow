@@ -58,12 +58,30 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
   }
 
   Future<void> _cancelSubscription() async {
+    final reasonController = TextEditingController();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Otkazivanje pretplate'),
-        content: const Text(
-          'Da li ste sigurni da želite otkazati ovu pretplatu? Ova akcija je nepovratna.',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Unesite razlog otkazivanja. Ova akcija je nepovratna.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Razlog otkazivanja *',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+              maxLength: 500,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -71,15 +89,32 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
             child: const Text('Odustani'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () {
+              if (reasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Razlog otkazivanja je obavezan'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.of(context).pop(true);
+            },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Otkaži'),
+            child: const Text('Otkaži pretplatu'),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true) {
+      reasonController.dispose();
+      return;
+    }
+
+    final reason = reasonController.text.trim();
+    reasonController.dispose();
 
     setState(() {
       _isCancelling = true;
@@ -87,7 +122,10 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
     });
 
     try {
-      final cancelledSubscription = await _subscriptionService.cancelSubscription(_subscription!.id);
+      final cancelledSubscription = await _subscriptionService.cancelSubscription(
+        _subscription!.id,
+        reason: reason,
+      );
       setState(() {
         _subscription = cancelledSubscription;
         _isCancelling = false;
@@ -256,6 +294,15 @@ class _SubscriptionDetailsScreenState extends State<SubscriptionDetailsScreen> {
                     _buildDetailRow('Datum kupovine:', DateFormat('dd.MM.yyyy HH:mm').format(subscription.createdAt)),
                     if (subscription.transactionNumber != null)
                       _buildDetailRow('Broj transakcije:', subscription.transactionNumber!),
+                    if (subscription.cancelledAt != null) ...[
+                      const Divider(height: 24),
+                      _buildDetailRow(
+                        'Datum otkazivanja:',
+                        DateFormat('dd.MM.yyyy HH:mm').format(subscription.cancelledAt!),
+                      ),
+                    ],
+                    if (subscription.cancelReason != null && subscription.cancelReason!.isNotEmpty)
+                      _buildDetailRow('Razlog otkazivanja:', subscription.cancelReason!),
                   ],
                 ),
               ),

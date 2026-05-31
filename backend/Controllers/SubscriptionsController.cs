@@ -207,10 +207,15 @@ public class SubscriptionsController : ControllerBase
     }
 
     [HttpPost("{id}/cancel")]
-    public async Task<ActionResult<SubscriptionDto>> Cancel(int id)
+    public async Task<ActionResult<SubscriptionDto>> Cancel(int id, [FromBody] CancelSubscriptionDto dto)
     {
         try
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
             if (!User.IsInRole("Administrator"))
             {
                 var existing = await _subscriptionService.GetByIdAsync(id);
@@ -231,7 +236,7 @@ public class SubscriptionsController : ControllerBase
                 }
             }
 
-            var subscription = await _subscriptionService.CancelAsync(id);
+            var subscription = await _subscriptionService.CancelAsync(id, dto);
             
             if (subscription == null)
             {

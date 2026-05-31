@@ -138,7 +138,7 @@ class SubscriptionService {
     }
   }
 
-  Future<Subscription> cancelSubscription(int id) async {
+  Future<Subscription> cancelSubscription(int id, {required String reason}) async {
     final token = await _getToken();
     if (token == null) throw Exception('Not authenticated');
 
@@ -148,6 +148,7 @@ class SubscriptionService {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
+      body: json.encode({'reason': reason.trim()}),
     );
 
     if (response.statusCode == 200) {

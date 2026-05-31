@@ -13,6 +13,8 @@ class Subscription {
   final String status;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? cancelledAt;
+  final String? cancelReason;
   final int? transactionId;
   final String? transactionNumber;
 
@@ -31,6 +33,8 @@ class Subscription {
     required this.status,
     required this.createdAt,
     this.updatedAt,
+    this.cancelledAt,
+    this.cancelReason,
     this.transactionId,
     this.transactionNumber,
   });
@@ -51,6 +55,8 @@ class Subscription {
       status: json['status'] as String,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : null,
+      cancelledAt: json['cancelledAt'] != null ? DateTime.parse(json['cancelledAt'] as String) : null,
+      cancelReason: json['cancelReason'] as String?,
       transactionId: json['transactionId'] as int?,
       transactionNumber: json['transactionNumber'] as String?,
     );
@@ -72,6 +78,8 @@ class Subscription {
       'status': status,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'cancelledAt': cancelledAt?.toIso8601String(),
+      'cancelReason': cancelReason,
       'transactionId': transactionId,
       'transactionNumber': transactionNumber,
     };
