@@ -1,116 +1,122 @@
-# TransitFlow - Aplikacija za javni prevoz
+# TransitFlow - Public Transportation Application
 
-Aplikacija TransitFlow je projekat rađen kao seminarski rad za predmet Razvoj softvera II. Ova aplikacija omogućava upravljanje sistemom javnog prevoza i pruža funkcionalnosti za administratore (desktop aplikacija) i korisnike (mobilna aplikacija).
+TransitFlow is a project developed as a coursework assignment for the Software Development II course. The application provides a public transportation management system with features for administrators (desktop application) and users (mobile application).
 
-## Tehnologije
+## Technologies
 
-- Backend: C#, .NET 8.0
-- Desktop aplikacija (Administratori): Flutter
-- Mobilna aplikacija (Korisnici): Flutter
-- Baza podataka: SQL Server
-- Message Queue: RabbitMQ
+* Backend: C#, .NET 8.0
+* Desktop Application (Administrators): Flutter
+* Mobile Application (Users): Flutter
+* Database: SQL Server
+* Message Queue: RabbitMQ
 
-## Upute za instalaciju
+## Installation Instructions
 
-1. Kloniranje GitHub repozitorija
-  ```
-    git clone <repository-url>
-    cd TransitFlow
-  ```
-2. Konfiguracija 
+### 1. Clone the GitHub Repository
 
-- SMTP (Mailtrap/sandbox): free plan ima rate limit za broj emailova u sekundi. Ako broadcast notifikacija ide sporije, to je očekivano. Podešava se preko `SMTP__MININTERVALMS` (npr. 400–1000).
+```bash
+git clone <repository-url>
+cd TransitFlow
+```
 
-1. Pokretanje servisa (Docker)
-  ```
-    docker compose up --build
-  ```
+### 2. Configuration
 
-`docker-compose.yml` čeka da SQL Server i RabbitMQ prođu healthcheck prije starta API-ja i workera. U `.env` koristite `SQLSERVER_SA_PASSWORD` (mapira se na `MSSQL_SA_PASSWORD` u SQL kontejneru). Vrijednosti s `#` u `.env` stavite u dvostruke navodnike da Docker Compose ne odreže string.
+* **SMTP (Mailtrap/Sandbox):** The free plan has a rate limit on the number of emails sent per second. If broadcast notifications are processed slowly, this is expected behavior. The interval can be configured using `SMTP__MININTERVALMS` (e.g., `400–1000`).
 
-API će biti dostupan na `http://localhost:5000` (Swagger: `http://localhost:5000/swagger`).
+### 3. Start the Services (Docker)
 
-1. Pokretanje desktop aplikacije (Admin)
-  ```
-    cd admin-frontend
-    flutter pub get
-    flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5000/api
-  ```
-2. Pokretanje mobilne aplikacije (User)
-  ```
-    cd user-mobile
-    flutter pub get
+```bash
+docker compose up --build
+```
 
-    # Android emulator (AVD):
-    flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+The `docker-compose.yml` file waits for SQL Server and RabbitMQ to pass their health checks before starting the API and workers.
 
-    # Fizički Android uređaj (LAN):
-    flutter run --dart-define=API_BASE_URL=http://<IP-PC>:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
-  ```
+In the `.env` file, use `SQLSERVER_SA_PASSWORD` (which maps to `MSSQL_SA_PASSWORD` inside the SQL container). Values containing `#` in the `.env` file should be enclosed in double quotes to prevent Docker Compose from truncating the string.
 
-## Kredencijali za prijavu
+The API will be available at `http://localhost:5000` (Swagger: `http://localhost:5000/swagger`).
 
-### Desktop aplikacija (Admin)
+### 4. Run the Desktop Application (Admin)
 
-Seed korisnik:
+```bash
+cd admin-frontend
+flutter pub get
+flutter run -d windows --dart-define=API_BASE_URL=http://localhost:5000/api
+```
 
-- **Username**: `desktop`
-- **Password**: `test`
+### 5. Run the Mobile Application (User)
 
-### Mobilna aplikacija (User)
+```bash
+cd user-mobile
+flutter pub get
 
-Seed korisnik:
+# Android Emulator (AVD):
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
 
-- **Username**: `mobile`
-- **Password**: `test`
+# Physical Android Device (LAN):
+flutter run --dart-define=API_BASE_URL=http://<IP-PC>:5000/api --dart-define=STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
 
-## Recommender dokumentacija
+## Login Credentials
 
-Dokumentacija sistema preporuke nalazi se na putanji:
+### Desktop Application (Admin)
 
-- `docs/recommender/recommender_dokumentacija.pdf`
+Seeded user:
 
-### GitHub Release (build artefakti)
+* **Username:** `desktop`
+* **Password:** `test`
 
-Build fajlovi se postavljaju kao ZIP asset na GitHub Release.
+### Mobile Application (User)
 
-ZIP sadrži:
+Seeded user:
 
-- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
-- `admin-frontend/build/windows/x64/runner/Release/`
+* **Username:** `mobile`
+* **Password:** `test`
+
+## Recommender System Documentation
+
+The recommender system documentation is located at:
+
+* `docs/recommender/recommender_dokumentacija.pdf`
+
+### GitHub Release (Build Artifacts)
+
+Build files are uploaded as a ZIP asset to a GitHub Release.
+
+The ZIP contains:
+
+* `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+* `admin-frontend/build/windows/x64/runner/Release/`
 
 ### Build Android (APK)
 
-APK će biti na:
+The APK will be located at:
 
-- `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
+* `user-mobile/build/app/outputs/flutter-apk/app-release.apk`
 
 ### Build Windows (EXE)
 
-Build folder će biti na:
+The build directory will be located at:
 
-- `admin-frontend/build/windows/x64/runner/Release/`
+* `admin-frontend/build/windows/x64/runner/Release/`
 
-## KARTICA ZA PLAĆANJE
+## PAYMENT CARD
 
-### Stripe Test Kartica
+### Stripe Test Card
 
+```text
+Card Number: 4242 4242 4242 4242
+Expiration Date: Any future date (e.g., 12/30)
+CVC: Any 3-digit number (e.g., 123)
+ZIP Code: Any 5-digit number (e.g., 12345)
 ```
-Broj kartice: 4242 4242 4242 4242
-Datum isteka: bilo koji budući datum (npr. 12/25)
-CVC: bilo koji 3-cifreni broj (npr. 123)
-ZIP kod: bilo koji 5-cifreni broj (npr. 12345)
-```
 
-### PayPal Test Račun
+### PayPal Test Account
 
+To test PayPal payments, use the following PayPal Sandbox buyer account during PayPal Checkout:
 
-Za testiranje PayPal plaćanja, koristite sljedeći PayPal Sandbox (buyer) račun na PayPal checkoutu:
+* **Email:** `transitflow@sandbox.com`
+* **Password:** `TransitFlow.123`
 
-- Email: `transitflow@sandbox.com`
-- Password: `TransitFlow.123`
+## NOTE
 
-
-## NAPOMENA
-
-`DbSeeder` će se automatski pokrenuti prilikom prvog pokretanja backend API-ja i popuniti bazu test podacima.
+`DbSeeder` runs automatically when the backend API starts for the first time and populates the database with test data.
